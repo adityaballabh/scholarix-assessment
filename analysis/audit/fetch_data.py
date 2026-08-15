@@ -251,7 +251,17 @@ def fetch_datacite_publications(dois):
 
     return publications
 
+
+def init_fetch():
+    global MAILTO, session
+
+    MAILTO = get_mailto()
+    session = create_session()
+
+
 def fetch_all():
+    init_fetch()
+
     authors = get_author_data()
     dois = get_unique_dois(authors)
     orcid_ids = get_orcid_ids(authors)
@@ -273,6 +283,3 @@ def fetch_all():
         "crossref_publications": crossref_publications,
         "datacite_publications": datacite_publications,
     }
-
-MAILTO = get_mailto()
-session = create_session()
