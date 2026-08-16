@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from comparison_utils import compare_publications, summarize_publication_comparisons
+from comparison_utils import get_normalized_words
 from fetch_data import get_author_dirs, load_json, normalize_doi
 
 PROFILE_URLS = {
@@ -34,14 +34,12 @@ def get_profile_urls(author):
     return profile_urls
 
 
-def compare_profile_verifications(authors):
-    comparisons = {}
+def compare_profile_verifications(internal_data):
+    comparisons = []
 
-    for author_id, author in authors.items():
+    for author_id, author in internal_data.items():
         verification = author["profile"].get("verification") or {}
         profile_urls = get_profile_urls(author)
-        profile_comparisons = {}
-
         for profile_type in PROFILE_URLS:
             url = profile_urls.get(profile_type)
             stored = verification.get(profile_type)
@@ -53,69 +51,54 @@ def compare_profile_verifications(authors):
             else:
                 verification_status = "unverified"
 
-            profile_comparisons[profile_type] = {
+            comparisons.append({
+                "author_id": author_id,
+                "source": profile_type,
                 "verification_status": verification_status,
-                "url": url,
+                "matching_profile_url": bool(url),
                 "reason": stored.get("reason") if isinstance(stored, dict) else None,
-            }
-
-        comparisons[author_id] = profile_comparisons
+            })
 
     return comparisons
 
 
-def compare_publication_counts(authors):
-    comparisons = []
+def get_publication_claims(internal_data):
+    claims = []
 
-    for author_id, author in authors.items():
+    for author_id, author in internal_data.items():
         claim = author["profile"].get("metrics", {}).get("publications")
-        dois = set()
 
-        for publication in author["publications"]:
-            doi = normalize_doi(publication.get("doi"))
-            if doi:
-                dois.add(doi)
-
-        comparisons.append({
+        claims.append({
             "author_id": author_id,
             "claim": claim,
-            "present": len(dois),
         })
 
-    return comparisons
+    return claims
 
 
-def get_profile_year_spans(authors):
-    profiles = []
+def get_year_span(counts_by_year):
+    years = [
+        entry["year"]
+        for entry in counts_by_year or []
+        if entry.get("works_count", 0) > 0 and entry.get("year") is not None
+    ]
 
-    for author_id, author in authors.items():
-        years = [
-            entry["year"]
-            for entry in author["profile"].get("counts_by_year") or []
-            if entry.get("works_count", 0) > 0 and entry.get("year") is not None
-        ]
+    if not years:
+        return None
 
-        if not years:
-            continue
-
-        earliest_year = min(years)
-        latest_year = max(years)
-        year_span = latest_year - earliest_year
-
-        profiles.append({
-            "author_id": author_id,
-            "earliest_year": earliest_year,
-            "latest_year": latest_year,
-            "year_span": year_span,
-        })
-
-    return profiles
+    earliest_year = min(years)
+    latest_year = max(years)
+    return {
+        "earliest_year": earliest_year,
+        "latest_year": latest_year,
+        "year_span": latest_year - earliest_year,
+    }
 
 
-def compare_deep_verifications(authors):
+def summarize_deep_verifications(internal_data):
     comparisons = Counter()
 
-    for author in authors.values():
+    for author in internal_data.values():
         for publication in author["publications"]:
             deep_verification = publication.get("deep_verification")
 
@@ -142,8 +125,8 @@ def compare_deep_verifications(authors):
     return dict(comparisons)
 
 
-def load_author_records():
-    authors = {}
+def get_internal_data():
+    internal_data = {}
 
     for author_dir in get_author_dirs():
         profile = load_json(author_dir, "profile.json")
@@ -154,18 +137,18 @@ def load_author_records():
         except FileNotFoundError:
             broad_impact = []
 
-        authors[profile["id"]] = {
+        internal_data[profile["id"]] = {
             "profile": profile,
             "publications": publications,
             "broad_impact": broad_impact,
         }
 
-    return authors
+    return internal_data
 
-def get_titles_with_markup(authors):
+def get_titles_with_markup(internal_data):
     titles_by_markup = {markup_type: [] for markup_type in MARKUP_PATTERNS}
 
-    for author_id, author in authors.items():
+    for author_id, author in internal_data.items():
         for publication in author["publications"]:
             title = publication.get("title", "")
 
@@ -180,32 +163,44 @@ def get_titles_with_markup(authors):
     return titles_by_markup
 
 
-def compare_duplicate_dois(authors):
-    publications_by_source = {}
+def get_doubled_journals(internal_data):
+    doubled = []
 
-    for author in authors.values():
+    for author_id, author in internal_data.items():
         for publication in author["publications"]:
-            doi = normalize_doi(publication.get("doi"))
-            source = publication.get("source")
+            journal = publication.get("journal")
 
-            if doi and source:
-                publications_by_source.setdefault(source, {}).setdefault(doi, []).append(
-                    publication,
-                )
-
-    comparisons = {}
-
-    for source, publications_by_doi in publications_by_source.items():
-        source_comparisons = []
-
-        for publications in publications_by_doi.values():
-            if len(publications) <= 1:
+            if not journal:
                 continue
 
-            for index, first in enumerate(publications):
-                for second in publications[index + 1 :]:
-                    source_comparisons.append(compare_publications(first, second))
+            words = get_normalized_words(journal)
+            half = len(words) // 2
 
-        comparisons[source] = summarize_publication_comparisons(source_comparisons)
+            if words and len(words) % 2 == 0 and words[:half] == words[half:]:
+                doubled.append({"author_id": author_id, "journal": journal})
 
-    return comparisons
+    return doubled
+
+
+def summarize_duplicate_dois(internal_data):
+    records_per_source = Counter()
+    duplicate_dois = 0
+
+    for author in internal_data.values():
+        records_by_doi = {}
+
+        for publication in author["publications"]:
+            doi = normalize_doi(publication.get("doi"))
+            if doi:
+                records_by_doi.setdefault(doi, []).append(publication.get("source"))
+
+        for sources in records_by_doi.values():
+            if len(sources) > 1:
+                duplicate_dois += 1
+                for source in sources:
+                    records_per_source[source] += 1
+
+    return {
+        "duplicate_dois": duplicate_dois,
+        "records_per_source": dict(records_per_source),
+    }

@@ -22,15 +22,11 @@ def compare_texts(first_text, second_text):
     if not first_text or not second_text:
         return {
             "status": "unavailable",
-            "word_overlap": None,
             "character_similarity": None,
         }
 
     first_normalized = normalize_text(first_text)
     second_normalized = normalize_text(second_text)
-    first_words = set(get_normalized_words(first_text))
-    second_words = set(get_normalized_words(second_text))
-    all_words = first_words | second_words
 
     if first_text == second_text:
         status = "exact"
@@ -41,7 +37,6 @@ def compare_texts(first_text, second_text):
 
     return {
         "status": status,
-        "word_overlap": len(first_words & second_words) / len(all_words) if all_words else 1,
         "character_similarity": SequenceMatcher(
             None,
             first_normalized,
@@ -64,32 +59,11 @@ def get_author_keys(authors):
     return keys
 
 
-def compare_author_lists(first_authors, second_authors):
-    first_keys = get_author_keys(first_authors)
-
-    if second_authors is None:
-        return {
-            "first_count": len(first_keys),
-            "second_count": None,
-            "shared_count": None,
-            "difference": None,
-        }
-
-    second_keys = get_author_keys(second_authors)
-
-    return {
-        "first_count": len(first_keys),
-        "second_count": len(second_keys),
-        "shared_count": len(first_keys & second_keys),
-        "difference": len(first_keys ^ second_keys),
-    }
-
-
 def get_publication_authors(publication):
     if "authors_list" in publication:
         return publication["authors_list"] or []
 
-    return publication.get("authors")
+    return publication.get("authors") or []
 
 
 def compare_publications(first, second):
@@ -97,10 +71,6 @@ def compare_publications(first, second):
     second_year = second.get("year")
 
     return {
-        "authors": compare_author_lists(
-            get_publication_authors(first),
-            get_publication_authors(second),
-        ),
         "title": compare_texts(first.get("title"), second.get("title")),
         "year_gap": (
             abs(first_year - second_year)
@@ -113,10 +83,6 @@ def compare_publications(first, second):
 
 def summarize_publication_comparisons(comparisons):
     return {
-        "author_differences": dict(Counter(
-            comparison["authors"]["difference"]
-            for comparison in comparisons
-        )),
         "title_matches": dict(Counter(
             comparison["title"]["status"]
             for comparison in comparisons

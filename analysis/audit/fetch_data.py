@@ -120,14 +120,14 @@ def print_progress(name, total, interval, current=0):
         end = "\n" if current == total else ""
         print(f"\r{name}: {current}/{total}", end=end, flush=True)
 
-def fetch_openalex_authors(author_ids):
+def fetch_openalex_authors(session, mailto, author_ids):
     authors = {}
     print_progress("OpenAlex authors", len(author_ids), 10)
 
     for index, author_id in enumerate(author_ids, start=1):
         response = session.get(
             f"https://api.openalex.org/authors/{author_id}",
-            params={"mailto": MAILTO},
+            params={"mailto": mailto},
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         author = get_response_json(response)
@@ -138,7 +138,7 @@ def fetch_openalex_authors(author_ids):
 
     return authors
 
-def fetch_openalex_work_results(params, result_name):
+def fetch_openalex_work_results(session, params, result_name):
     for attempt in range(2):
         results = []
         cursor = "*"
@@ -163,17 +163,18 @@ def fetch_openalex_work_results(params, result_name):
 
     raise RuntimeError(f"OpenAlex returned an incomplete {result_name} twice")
 
-def fetch_openalex_publications_by_author(author_ids):
+def fetch_openalex_publications_by_author(session, mailto, author_ids):
     publications = {}
     print_progress("OpenAlex publications by author", len(author_ids), 2)
 
     for index, author_id in enumerate(author_ids, start=1):
         results = fetch_openalex_work_results(
+            session,
             {
                 "filter": f"author.id:{author_id}",
                 "select": "doi",
                 "per_page": 100,
-                "mailto": MAILTO,
+                "mailto": mailto,
             },
             "author publication list",
         )
@@ -192,7 +193,7 @@ def fetch_openalex_publications_by_author(author_ids):
 
     return publications
 
-def fetch_openalex_publications_by_doi(dois):
+def fetch_openalex_publications_by_doi(session, mailto, dois):
     batch_size = 100
     dois = sorted(dois)
     publications = {}
@@ -203,9 +204,9 @@ def fetch_openalex_publications_by_doi(dois):
         params = {
             "filter": "doi:" + "|".join(batch),
             "per_page": batch_size,
-            "mailto": MAILTO,
+            "mailto": mailto,
         }
-        results = fetch_openalex_work_results(params, "DOI publication batch")
+        results = fetch_openalex_work_results(session, params, "DOI publication batch")
 
         for publication in results:
             doi = normalize_doi(publication.get("doi"))
@@ -219,7 +220,7 @@ def fetch_openalex_publications_by_doi(dois):
 
     return publications
 
-def fetch_semantic_scholar_publications_by_doi(dois):
+def fetch_semantic_scholar_publications_by_doi(session, dois):
     batch_size = 500
     dois = sorted(dois)
     publications = {}
@@ -262,14 +263,14 @@ def fetch_semantic_scholar_publications_by_doi(dois):
     return publications
 
 
-def fetch_crossref_publications(dois):
+def fetch_crossref_publications(session, mailto, dois):
     publications = {}
     print_progress("Crossref publications", len(dois), 100)
 
     for index, doi in enumerate(dois, start=1):
         response = session.get(
             f"https://api.crossref.org/works/{quote(doi, safe='')}",
-            params={"mailto": MAILTO},
+            params={"mailto": mailto},
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
 
@@ -281,7 +282,7 @@ def fetch_crossref_publications(dois):
 
     return publications
 
-def fetch_orcid_records(orcid_ids):
+def fetch_orcid_records(session, orcid_ids):
     records = {}
     print_progress("ORCID records", len(orcid_ids), 10)
 
@@ -299,7 +300,7 @@ def fetch_orcid_records(orcid_ids):
 
     return records
 
-def fetch_datacite_publications(dois):
+def fetch_datacite_publications(session, dois):
     publications = {}
     print_progress("DataCite publications", len(dois), 10)
 
@@ -318,7 +319,7 @@ def fetch_datacite_publications(dois):
     return publications
 
 
-def fetch_doi_resolutions(dois):
+def fetch_doi_resolutions(session, dois):
     resolutions = {}
     print_progress("DOI resolutions", len(dois), 10)
 
@@ -339,33 +340,29 @@ def fetch_doi_resolutions(dois):
 
     return resolutions
 
-def init_fetch():
-    global MAILTO, session
-
-    MAILTO = get_mailto()
-    session = create_session()
-
 def fetch_all():
-    init_fetch()
+    mailto = get_mailto()
+    session = create_session()
 
     authors = get_author_data()
     dois = get_unique_dois(authors)
     orcid_ids = get_orcid_ids(authors)
-
-    openalex_authors = fetch_openalex_authors(authors.keys())
-    openalex_publications_by_author = fetch_openalex_publications_by_author(authors.keys())
-    orcid_records = fetch_orcid_records(orcid_ids)
-    openalex_publications_by_doi = fetch_openalex_publications_by_doi(dois)
-    crossref_publications = fetch_crossref_publications(dois)
+    print("Fetching")
+    openalex_authors = fetch_openalex_authors(session, mailto, authors.keys())
+    openalex_publications_by_author = fetch_openalex_publications_by_author(
+        session, mailto, authors.keys()
+    )
+    orcid_records = fetch_orcid_records(session, orcid_ids)
+    openalex_publications_by_doi = fetch_openalex_publications_by_doi(session, mailto, dois)
+    crossref_publications = fetch_crossref_publications(session, mailto, dois)
     # DataCite fills DOI records that are missing from Crossref
     crossref_missing_dois = dois - crossref_publications.keys()
-    datacite_publications = fetch_datacite_publications(crossref_missing_dois)
+    datacite_publications = fetch_datacite_publications(session, crossref_missing_dois)
     unresolved_dois = crossref_missing_dois - datacite_publications.keys()
-    doi_resolutions = fetch_doi_resolutions(unresolved_dois)
-    semantic_scholar_publications_by_doi = fetch_semantic_scholar_publications_by_doi(dois)
+    doi_resolutions = fetch_doi_resolutions(session, unresolved_dois)
+    semantic_scholar_publications_by_doi = fetch_semantic_scholar_publications_by_doi(session, dois)
 
     return {
-        "authors": authors,
         "dois": dois,
         "openalex_authors": openalex_authors,
         "openalex_publications_by_author": openalex_publications_by_author,
