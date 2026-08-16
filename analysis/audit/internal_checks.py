@@ -1,7 +1,8 @@
 import re
 from collections import Counter
 
-from fetch_data import get_author_dirs, load_json
+from comparison_utils import compare_publications, summarize_publication_comparisons
+from fetch_data import get_author_dirs, load_json, normalize_doi
 
 PROFILE_URLS = {
     "google_scholar": r"scholar\.google\.[^/]+/citations\?.*user=",
@@ -68,19 +69,23 @@ def compare_publication_counts(authors):
 
     for author_id, author in authors.items():
         claim = author["profile"].get("metrics", {}).get("publications")
-        present = len(author["publications"])
+        dois = set()
+
+        for publication in author["publications"]:
+            doi = normalize_doi(publication.get("doi"))
+            if doi:
+                dois.add(doi)
 
         comparisons.append({
             "author_id": author_id,
             "claim": claim,
-            "present": present,
+            "present": len(dois),
         })
 
     return comparisons
 
 
-def get_profiles_with_long_year_spans(authors):
-    max_year_span = 100
+def get_profile_year_spans(authors):
     profiles = []
 
     for author_id, author in authors.items():
@@ -97,13 +102,12 @@ def get_profiles_with_long_year_spans(authors):
         latest_year = max(years)
         year_span = latest_year - earliest_year
 
-        if year_span > max_year_span:
-            profiles.append({
-                "author_id": author_id,
-                "earliest_year": earliest_year,
-                "latest_year": latest_year,
-                "year_span": year_span,
-            })
+        profiles.append({
+            "author_id": author_id,
+            "earliest_year": earliest_year,
+            "latest_year": latest_year,
+            "year_span": year_span,
+        })
 
     return profiles
 
@@ -174,3 +178,34 @@ def get_titles_with_markup(authors):
                     break
 
     return titles_by_markup
+
+
+def compare_duplicate_dois(authors):
+    publications_by_source = {}
+
+    for author in authors.values():
+        for publication in author["publications"]:
+            doi = normalize_doi(publication.get("doi"))
+            source = publication.get("source")
+
+            if doi and source:
+                publications_by_source.setdefault(source, {}).setdefault(doi, []).append(
+                    publication,
+                )
+
+    comparisons = {}
+
+    for source, publications_by_doi in publications_by_source.items():
+        source_comparisons = []
+
+        for publications in publications_by_doi.values():
+            if len(publications) <= 1:
+                continue
+
+            for index, first in enumerate(publications):
+                for second in publications[index + 1 :]:
+                    source_comparisons.append(compare_publications(first, second))
+
+        comparisons[source] = summarize_publication_comparisons(source_comparisons)
+
+    return comparisons

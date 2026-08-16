@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 from urllib.parse import quote
 from zipfile import ZipFile
@@ -30,7 +31,8 @@ def create_session():
     session = CachedSession(
         CACHE_DB_PATH,
         backend="sqlite",
-        allowable_codes=(200, 404),
+        allowable_codes=(200, 302, 404),
+        allowable_methods=("GET", "POST"),
     )
 
     rate_limits = [
@@ -38,6 +40,8 @@ def create_session():
         ("https://api.crossref.org", 10),
         ("https://pub.orcid.org", 10),
         ("https://api.datacite.org", 2),
+        ("https://api.semanticscholar.org", 1),
+        ("https://doi.org", 10),
     ]
 
     for host, rate in rate_limits:
@@ -116,7 +120,6 @@ def print_progress(name, total, interval, current=0):
         end = "\n" if current == total else ""
         print(f"\r{name}: {current}/{total}", end=end, flush=True)
 
-
 def fetch_openalex_authors(author_ids):
     authors = {}
     print_progress("OpenAlex authors", len(author_ids), 10)
@@ -135,12 +138,65 @@ def fetch_openalex_authors(author_ids):
 
     return authors
 
+def fetch_openalex_work_results(params, result_name):
+    for attempt in range(2):
+        results = []
+        cursor = "*"
+        total = 0
 
-def fetch_openalex_publications(dois):
+        while cursor:
+            page_params = params.copy()
+            page_params["cursor"] = cursor
+            response = session.get(
+                "https://api.openalex.org/works",
+                params=page_params,
+                force_refresh=attempt == 1,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+            payload = get_response_json(response, missing_ok=False)
+            results.extend(payload["results"])
+            total = payload["meta"]["count"]
+            cursor = payload["meta"].get("next_cursor")
+
+        if len(results) == total:
+            return results
+
+    raise RuntimeError(f"OpenAlex returned an incomplete {result_name} twice")
+
+def fetch_openalex_publications_by_author(author_ids):
+    publications = {}
+    print_progress("OpenAlex publications by author", len(author_ids), 2)
+
+    for index, author_id in enumerate(author_ids, start=1):
+        results = fetch_openalex_work_results(
+            {
+                "filter": f"author.id:{author_id}",
+                "select": "doi",
+                "per_page": 100,
+                "mailto": MAILTO,
+            },
+            "author publication list",
+        )
+        dois = set()
+
+        for publication in results:
+            doi = normalize_doi(publication.get("doi"))
+            if doi:
+                dois.add(doi)
+
+        publications[author_id] = {
+            "source_count": len(results),
+            "dois": dois,
+        }
+        print_progress("OpenAlex publications by author", len(author_ids), 2, index)
+
+    return publications
+
+def fetch_openalex_publications_by_doi(dois):
     batch_size = 100
     dois = sorted(dois)
     publications = {}
-    print_progress("OpenAlex publications", len(dois), 100)
+    print_progress("OpenAlex publications by DOI", len(dois), 100)
 
     for start in range(0, len(dois), batch_size):
         batch = dois[start : start + batch_size]
@@ -149,37 +205,7 @@ def fetch_openalex_publications(dois):
             "per_page": batch_size,
             "mailto": MAILTO,
         }
-        results = []
-        page = 1
-        total = None
-
-        # A DOI can match more than one OpenAlex work, so a batch could need pages
-        while total is None or len(results) < total:
-            page_params = params.copy()
-            if page > 1:
-                page_params["page"] = page
-
-            for attempt in range(2):
-                response = session.get(
-                    "https://api.openalex.org/works",
-                    params=page_params,
-                    force_refresh=attempt == 1,
-                    timeout=REQUEST_TIMEOUT_SECONDS,
-                )
-                payload = get_response_json(response, missing_ok=False)
-                total = payload["meta"]["count"]
-                page_results = payload["results"]
-                expected = min(batch_size, total - len(results))
-
-                if len(page_results) == expected:
-                    break
-
-                session.cache.delete(response.cache_key)
-            else:
-                raise RuntimeError("OpenAlex returned an incomplete page twice")
-
-            results.extend(page_results)
-            page += 1
+        results = fetch_openalex_work_results(params, "DOI publication batch")
 
         for publication in results:
             doi = normalize_doi(publication.get("doi"))
@@ -189,7 +215,49 @@ def fetch_openalex_publications(dois):
 
                 publications[doi].append(publication)
 
-        print_progress("OpenAlex publications", len(dois), 100, start + len(batch))
+        print_progress("OpenAlex publications by DOI", len(dois), 100, start + len(batch))
+
+    return publications
+
+def fetch_semantic_scholar_publications_by_doi(dois):
+    batch_size = 500
+    dois = sorted(dois)
+    publications = {}
+    print_progress("Semantic Scholar publications by DOI", len(dois), 500)
+
+    for start in range(0, len(dois), batch_size):
+        batch = dois[start : start + batch_size]
+
+        for attempt in range(4):
+            time.sleep(5 * attempt)
+
+            response = session.post(
+                "https://api.semanticscholar.org/graph/v1/paper/batch",
+                params={"fields": "externalIds,title,year,authors.authorId,authors.name"},
+                json={"ids": [f"DOI:{doi}" for doi in batch]},
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+
+            if response.status_code != 429:
+                results = get_response_json(response, missing_ok=False)
+                break
+        else:
+            raise RuntimeError("Semantic Scholar rate-limited a DOI publication batch four times")
+
+        for publication in results:
+            if not publication:
+                continue
+
+            doi = normalize_doi((publication.get("externalIds") or {}).get("DOI"))
+            if doi:
+                publications[doi] = publication
+
+        print_progress(
+            "Semantic Scholar publications by DOI",
+            len(dois),
+            500,
+            start + len(batch),
+        )
 
     return publications
 
@@ -213,7 +281,6 @@ def fetch_crossref_publications(dois):
 
     return publications
 
-
 def fetch_orcid_records(orcid_ids):
     records = {}
     print_progress("ORCID records", len(orcid_ids), 10)
@@ -231,7 +298,6 @@ def fetch_orcid_records(orcid_ids):
         print_progress("ORCID records", len(orcid_ids), 10, index)
 
     return records
-
 
 def fetch_datacite_publications(dois):
     publications = {}
@@ -252,12 +318,32 @@ def fetch_datacite_publications(dois):
     return publications
 
 
+def fetch_doi_resolutions(dois):
+    resolutions = {}
+    print_progress("DOI resolutions", len(dois), 10)
+
+    for index, doi in enumerate(dois, start=1):
+        response = session.get(
+            f"https://doi.org/{quote(doi, safe='/')}",
+            allow_redirects=False,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        status = response.status_code
+        redirect_url = response.headers.get("Location")
+        resolutions[doi] = {
+            "status": status,
+            "redirected": 300 <= status < 400 and bool(redirect_url),
+            "redirect_url": redirect_url,
+        }
+        print_progress("DOI resolutions", len(dois), 10, index)
+
+    return resolutions
+
 def init_fetch():
     global MAILTO, session
 
     MAILTO = get_mailto()
     session = create_session()
-
 
 def fetch_all():
     init_fetch()
@@ -267,19 +353,26 @@ def fetch_all():
     orcid_ids = get_orcid_ids(authors)
 
     openalex_authors = fetch_openalex_authors(authors.keys())
+    openalex_publications_by_author = fetch_openalex_publications_by_author(authors.keys())
     orcid_records = fetch_orcid_records(orcid_ids)
-    openalex_publications = fetch_openalex_publications(dois)
+    openalex_publications_by_doi = fetch_openalex_publications_by_doi(dois)
     crossref_publications = fetch_crossref_publications(dois)
     # DataCite fills DOI records that are missing from Crossref
     crossref_missing_dois = dois - crossref_publications.keys()
     datacite_publications = fetch_datacite_publications(crossref_missing_dois)
+    unresolved_dois = crossref_missing_dois - datacite_publications.keys()
+    doi_resolutions = fetch_doi_resolutions(unresolved_dois)
+    semantic_scholar_publications_by_doi = fetch_semantic_scholar_publications_by_doi(dois)
 
     return {
         "authors": authors,
         "dois": dois,
         "openalex_authors": openalex_authors,
+        "openalex_publications_by_author": openalex_publications_by_author,
         "orcid_records": orcid_records,
-        "openalex_publications": openalex_publications,
+        "openalex_publications_by_doi": openalex_publications_by_doi,
         "crossref_publications": crossref_publications,
         "datacite_publications": datacite_publications,
+        "doi_resolutions": doi_resolutions,
+        "semantic_scholar_publications_by_doi": semantic_scholar_publications_by_doi,
     }
