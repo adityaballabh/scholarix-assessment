@@ -22,10 +22,12 @@ def get_publications_by_source(internal_data):
             if not doi or not source:
                 continue
 
-            publications_by_source.setdefault(source, {}).setdefault(doi, []).append({
-                "author_id": author_id,
-                "publication": publication,
-            })
+            publications_by_source.setdefault(source, {}).setdefault(doi, []).append(
+                {
+                    "author_id": author_id,
+                    "publication": publication,
+                }
+            )
 
     return publications_by_source
 
@@ -38,11 +40,7 @@ def normalize_crossref_publication(response):
     authors = []
 
     for author in message.get("author") or []:
-        name = " ".join(
-            part
-            for part in (author.get("given"), author.get("family"))
-            if part
-        )
+        name = " ".join(part for part in (author.get("given"), author.get("family")) if part)
 
         if name:
             authors.append(name)
@@ -92,9 +90,7 @@ def normalize_datacite_publication(response):
     for creator in attributes.get("creators") or []:
         if creator.get("nameType") == "Personal" and creator.get("familyName"):
             name = " ".join(
-                part
-                for part in (creator.get("givenName"), creator.get("familyName"))
-                if part
+                part for part in (creator.get("givenName"), creator.get("familyName")) if part
             )
         else:
             name = creator.get("name")
@@ -111,10 +107,7 @@ def normalize_datacite_publication(response):
 
 
 def normalize_openalex_publications(responses):
-    return [
-        normalize_openalex_publication(response)
-        for response in responses or []
-    ]
+    return [normalize_openalex_publication(response) for response in responses or []]
 
 
 def normalize_crossref_publications(response):
@@ -145,11 +138,13 @@ def compare_internal_to_external(internal_publications, external_publications, e
         external_publications,
         external_normalizer,
     ):
-        comparisons.append({
-            "author_id": internal["author_id"],
-            "doi": doi,
-            **compare_publications(internal["publication"], external),
-        })
+        comparisons.append(
+            {
+                "author_id": internal["author_id"],
+                "doi": doi,
+                **compare_publications(internal["publication"], external),
+            }
+        )
 
     return comparisons
 
@@ -172,19 +167,21 @@ def compare_openalex_author_publications(internal_data, external_publications):
         external_dois = external_publication.get("dois") or set()
         shared_dois = internal_dois & external_dois
 
-        comparisons.append({
-            "author_id": author_id,
-            "external_publication_count": external_publication.get("source_count"),
-            "external_doi_count": len(external_dois),
-            "internal_doi_count": len(internal_dois),
-            "shared_doi_count": len(shared_dois),
-            "openalex_dois_found_internally": (
-                len(shared_dois) / len(external_dois) if external_dois else None
-            ),
-            "internal_dois_found_in_openalex": (
-                len(shared_dois) / len(internal_dois) if internal_dois else None
-            ),
-        })
+        comparisons.append(
+            {
+                "author_id": author_id,
+                "external_publication_count": external_publication.get("source_count"),
+                "external_doi_count": len(external_dois),
+                "internal_doi_count": len(internal_dois),
+                "shared_doi_count": len(shared_dois),
+                "openalex_dois_found_internally": (
+                    len(shared_dois) / len(external_dois) if external_dois else None
+                ),
+                "internal_dois_found_in_openalex": (
+                    len(shared_dois) / len(internal_dois) if internal_dois else None
+                ),
+            }
+        )
 
     return comparisons
 
@@ -218,19 +215,21 @@ def compare_author_list_lengths(internal_data, external_data):
                     crossref_publications[doi]
                 )["authors"]
 
-            comparisons.append({
-                "author_id": author_id,
-                "doi": doi,
-                "internal_openalex": len(openalex_authors),
-                "internal_crossref": len(internal_crossref_authors),
-                "external_crossref": len(external_crossref_authors),
-                "profile_author_in_internal_openalex": bool(
-                    profile_keys & get_author_keys(openalex_authors)
-                ),
-                "profile_author_in_internal_crossref": bool(
-                    profile_keys & get_author_keys(internal_crossref_authors)
-                ),
-            })
+            comparisons.append(
+                {
+                    "author_id": author_id,
+                    "doi": doi,
+                    "internal_openalex": len(openalex_authors),
+                    "internal_crossref": len(internal_crossref_authors),
+                    "external_crossref": len(external_crossref_authors),
+                    "profile_author_in_internal_openalex": bool(
+                        profile_keys & get_author_keys(openalex_authors)
+                    ),
+                    "profile_author_in_internal_crossref": bool(
+                        profile_keys & get_author_keys(internal_crossref_authors)
+                    ),
+                }
+            )
 
     return comparisons
 
@@ -242,11 +241,14 @@ def get_orcid_name(record):
     if credit_name:
         return credit_name
 
-    return " ".join(
-        part.get("value")
-        for part in (name.get("given-names") or {}, name.get("family-name") or {})
-        if part.get("value")
-    ) or None
+    return (
+        " ".join(
+            part.get("value")
+            for part in (name.get("given-names") or {}, name.get("family-name") or {})
+            if part.get("value")
+        )
+        or None
+    )
 
 
 def compare_orcid_names(internal_data, orcid_data):
@@ -261,13 +263,15 @@ def compare_orcid_names(internal_data, orcid_data):
         profile_name = author["profile"].get("name")
         orcid_name = get_orcid_name(record)
 
-        comparisons.append({
-            "author_id": author_id,
-            "orcid_id": orcid_id,
-            "profile_name": profile_name,
-            "orcid_name": orcid_name,
-            **compare_texts(profile_name, orcid_name),
-        })
+        comparisons.append(
+            {
+                "author_id": author_id,
+                "orcid_id": orcid_id,
+                "profile_name": profile_name,
+                "orcid_name": orcid_name,
+                **compare_texts(profile_name, orcid_name),
+            }
+        )
 
     return comparisons
 
@@ -287,12 +291,14 @@ def compare_orcid_recoverability(internal_data, openalex_data):
         openalex_author = openalex_data.get(author_id) or {}
         external_orcid = openalex_author.get("orcid")
 
-        comparisons.append({
-            "author_id": author_id,
-            "internal_orcid": internal_orcid,
-            "external_orcid": external_orcid,
-            "status": get_orcid_status(internal_orcid, external_orcid),
-        })
+        comparisons.append(
+            {
+                "author_id": author_id,
+                "internal_orcid": internal_orcid,
+                "external_orcid": external_orcid,
+                "status": get_orcid_status(internal_orcid, external_orcid),
+            }
+        )
 
     return comparisons
 
@@ -327,19 +333,19 @@ def compare_semantic_scholar_authors(internal_data, external_publications):
         )
 
         for external_author_id, publications in sorted(publications_by_author_id.items()):
-            sample_title = next((
-                title for title in publications.values() if title
-            ), None)
+            sample_title = next((title for title in publications.values() if title), None)
 
-            comparisons.append({
-                "author_id": author_id,
-                "semantic_scholar_author_id": external_author_id,
-                "matched_publication_share_percent": round(
-                    100 * len(publications) / total_matches,
-                    1,
-                ),
-                "sample_title": sample_title,
-            })
+            comparisons.append(
+                {
+                    "author_id": author_id,
+                    "semantic_scholar_author_id": external_author_id,
+                    "matched_publication_share_percent": round(
+                        100 * len(publications) / total_matches,
+                        1,
+                    ),
+                    "sample_title": sample_title,
+                }
+            )
 
     return comparisons
 
@@ -391,11 +397,13 @@ def compare_year_spans(internal_data, openalex_data):
     for author_id, author in internal_data.items():
         openalex_author = openalex_data.get(author_id) or {}
 
-        comparisons.append({
-            "author_id": author_id,
-            "internal": get_year_span(author["profile"].get("counts_by_year")),
-            "external": get_year_span(openalex_author.get("counts_by_year")),
-        })
+        comparisons.append(
+            {
+                "author_id": author_id,
+                "internal": get_year_span(author["profile"].get("counts_by_year")),
+                "external": get_year_span(openalex_author.get("counts_by_year")),
+            }
+        )
 
     return comparisons
 

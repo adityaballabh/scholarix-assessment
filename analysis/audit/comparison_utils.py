@@ -83,16 +83,9 @@ def compare_publications(first, second):
 
 def summarize_publication_comparisons(comparisons):
     return {
-        "title_matches": dict(Counter(
-            comparison["title"]["status"]
-            for comparison in comparisons
-        )),
-        "year_gaps": dict(Counter(
-            comparison["year_gap"]
-            for comparison in comparisons
-        )),
-        "journal_matches": dict(Counter(
-            comparison["journal"]["status"]
-            for comparison in comparisons
-        )),
+        "title_matches": dict(Counter(comparison["title"]["status"] for comparison in comparisons)),
+        "year_gaps": dict(Counter(comparison["year_gap"] for comparison in comparisons)),
+        "journal_matches": dict(
+            Counter(comparison["journal"]["status"] for comparison in comparisons)
+        ),
     }

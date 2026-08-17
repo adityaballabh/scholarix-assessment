@@ -1,0 +1,11 @@
+[tool.ruff]
+required-version = ">=0.15,<0.16"
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore notebook display lines
+"*.ipynb" = ["E501"]

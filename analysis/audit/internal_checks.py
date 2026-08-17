@@ -7,7 +7,7 @@ from fetch_data import get_author_dirs, load_json, normalize_doi
 PROFILE_URLS = {
     "google_scholar": r"scholar\.google\.[^/]+/citations\?.*user=",
     "linkedin": r"linkedin\.com/in/",
-    "researchgate": r"researchgate\.net/profile/"
+    "researchgate": r"researchgate\.net/profile/",
 }
 
 # Check MathML first so it is not double-counted as HTML
@@ -51,13 +51,15 @@ def compare_profile_verifications(internal_data):
             else:
                 verification_status = "unverified"
 
-            comparisons.append({
-                "author_id": author_id,
-                "source": profile_type,
-                "verification_status": verification_status,
-                "matching_profile_url": bool(url),
-                "reason": stored.get("reason") if isinstance(stored, dict) else None,
-            })
+            comparisons.append(
+                {
+                    "author_id": author_id,
+                    "source": profile_type,
+                    "verification_status": verification_status,
+                    "matching_profile_url": bool(url),
+                    "reason": stored.get("reason") if isinstance(stored, dict) else None,
+                }
+            )
 
     return comparisons
 
@@ -68,10 +70,12 @@ def get_publication_claims(internal_data):
     for author_id, author in internal_data.items():
         claim = author["profile"].get("metrics", {}).get("publications")
 
-        claims.append({
-            "author_id": author_id,
-            "claim": claim,
-        })
+        claims.append(
+            {
+                "author_id": author_id,
+                "claim": claim,
+            }
+        )
 
     return claims
 
@@ -145,6 +149,7 @@ def get_internal_data():
 
     return internal_data
 
+
 def get_titles_with_markup(internal_data):
     titles_by_markup = {markup_type: [] for markup_type in MARKUP_PATTERNS}
 
@@ -154,10 +159,12 @@ def get_titles_with_markup(internal_data):
 
             for markup_type, pattern in MARKUP_PATTERNS.items():
                 if pattern.search(title):
-                    titles_by_markup[markup_type].append({
-                        "author_id": author_id,
-                        "title": title,
-                    })
+                    titles_by_markup[markup_type].append(
+                        {
+                            "author_id": author_id,
+                            "title": title,
+                        }
+                    )
                     break
 
     return titles_by_markup

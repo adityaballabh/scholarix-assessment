@@ -16,6 +16,7 @@ ENV_PATH = PROJECT_DIR / ".env"
 MAILTO_KEY = "MAILTO"
 REQUEST_TIMEOUT_SECONDS = 30
 
+
 def get_mailto():
     for line in ENV_PATH.read_text().splitlines():
         key, _, value = line.partition("=")
@@ -24,6 +25,7 @@ def get_mailto():
             return value.strip()
 
     raise RuntimeError(MAILTO_KEY + " is missing from .env")
+
 
 def create_session():
     CACHE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +51,7 @@ def create_session():
 
     return session
 
+
 def extract_authors():
     if AUTHORS_DIR.exists():
         return
@@ -56,12 +59,15 @@ def extract_authors():
     with ZipFile(AUTHORS_ZIP) as archive:
         archive.extractall(DATASET_DIR)
 
+
 def get_author_dirs():
     extract_authors()
     return [path for path in AUTHORS_DIR.iterdir() if path.is_dir()]
 
+
 def load_json(author_dir, filename):
     return json.loads((author_dir / filename).read_text())
+
 
 def normalize_doi(value):
     if not value:
@@ -69,6 +75,7 @@ def normalize_doi(value):
 
     doi = value.strip().lower()
     return doi.rsplit("doi.org/", 1)[-1]
+
 
 def get_author_data():
     authors = {}
@@ -86,6 +93,7 @@ def get_author_data():
         authors[profile["id"]] = {"profile": profile, "dois": dois}
 
     return authors
+
 
 def get_unique_dois(authors):
     dois = set()
@@ -120,6 +128,7 @@ def print_progress(name, total, interval, current=0):
         end = "\n" if current == total else ""
         print(f"\r{name}: {current}/{total}", end=end, flush=True)
 
+
 def fetch_openalex_authors(session, mailto, author_ids):
     authors = {}
     print_progress("OpenAlex authors", len(author_ids), 10)
@@ -137,6 +146,7 @@ def fetch_openalex_authors(session, mailto, author_ids):
         print_progress("OpenAlex authors", len(author_ids), 10, index)
 
     return authors
+
 
 def fetch_openalex_work_results(session, params, result_name):
     for attempt in range(2):
@@ -162,6 +172,7 @@ def fetch_openalex_work_results(session, params, result_name):
             return results
 
     raise RuntimeError(f"OpenAlex returned an incomplete {result_name} twice")
+
 
 def fetch_openalex_publications_by_author(session, mailto, author_ids):
     publications = {}
@@ -193,6 +204,7 @@ def fetch_openalex_publications_by_author(session, mailto, author_ids):
 
     return publications
 
+
 def fetch_openalex_publications_by_doi(session, mailto, dois):
     batch_size = 100
     dois = sorted(dois)
@@ -219,6 +231,7 @@ def fetch_openalex_publications_by_doi(session, mailto, dois):
         print_progress("OpenAlex publications by DOI", len(dois), 100, start + len(batch))
 
     return publications
+
 
 def fetch_semantic_scholar_publications_by_doi(session, dois):
     batch_size = 500
@@ -282,6 +295,7 @@ def fetch_crossref_publications(session, mailto, dois):
 
     return publications
 
+
 def fetch_orcid_records(session, orcid_ids):
     records = {}
     print_progress("ORCID records", len(orcid_ids), 10)
@@ -299,6 +313,7 @@ def fetch_orcid_records(session, orcid_ids):
         print_progress("ORCID records", len(orcid_ids), 10, index)
 
     return records
+
 
 def fetch_datacite_publications(session, dois):
     publications = {}
@@ -339,6 +354,7 @@ def fetch_doi_resolutions(session, dois):
         print_progress("DOI resolutions", len(dois), 10, index)
 
     return resolutions
+
 
 def fetch_all():
     mailto = get_mailto()
