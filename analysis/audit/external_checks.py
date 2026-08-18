@@ -217,6 +217,46 @@ def compare_openalex_records_to_references(internal_data, external_data):
     }
 
 
+def agreement_fraction(matches):
+    total = sum(matches.values())
+    agreed = matches.get("exact", 0) + matches.get("normalized_match", 0)
+    return round(100 * agreed / total, 1) if total else None
+
+
+def agreement_by_author(internal_data, external_data):
+    crossref_publications = external_data["crossref_publications"]
+    datacite_publications = external_data["datacite_publications"]
+    agreement = []
+
+    for author_id, author in internal_data.items():
+        internal_openalex_records = {}
+        for publication in author["publications"]:
+            if publication.get("source") != "openalex":
+                continue
+            doi = normalize_doi(publication.get("doi"))
+            if doi and doi not in internal_openalex_records:
+                internal_openalex_records[doi] = publication
+
+        comparisons = [
+            compare_publications(
+                publication,
+                normalize_across_source(doi, crossref_publications, datacite_publications),
+            )
+            for doi, publication in internal_openalex_records.items()
+        ]
+        summary = summarize_publication_comparisons(comparisons)
+
+        agreement.append(
+            {
+                "author_id": author_id,
+                "title_agreement": agreement_fraction(summary["title_matches"]),
+                "journal_agreement": agreement_fraction(summary["journal_matches"]),
+            }
+        )
+
+    return agreement
+
+
 def compare_author_list_lengths(internal_data, external_data):
     comparisons = []
     crossref_publications = external_data["crossref_publications"]

@@ -211,3 +211,18 @@ def summarize_duplicate_dois(internal_data):
         "duplicate_dois": duplicate_dois,
         "records_per_source": dict(records_per_source),
     }
+
+
+def summarize_journals(internal_data):
+    journals = Counter()
+    empty = 0
+
+    for author in internal_data.values():
+        for publication in author["publications"]:
+            journal = publication.get("journal")
+            if journal:
+                journals[journal] += 1
+            else:
+                empty += 1
+
+    return {"empty": empty, "journals": dict(journals)}
