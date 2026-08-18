@@ -62,7 +62,7 @@ def extract_authors():
 
 def get_author_dirs():
     extract_authors()
-    return [path for path in AUTHORS_DIR.iterdir() if path.is_dir()]
+    return sorted(path for path in AUTHORS_DIR.iterdir() if path.is_dir())
 
 
 def load_json(author_dir, filename):

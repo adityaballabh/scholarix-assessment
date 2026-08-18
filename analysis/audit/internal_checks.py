@@ -121,11 +121,6 @@ def summarize_deep_verifications(internal_data):
 
             comparisons[bucket] += 1
 
-            if not deep_verification.get("verified") and (
-                deep_verification.get("s2_url") or deep_verification.get("openAccessPdf")
-            ):
-                comparisons["unverified_but_carries_a_link"] += 1
-
     return dict(comparisons)
 
 
