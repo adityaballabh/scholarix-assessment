@@ -1,0 +1,30 @@
+{
+ "authors": 2,
+ "publications": 211,
+ "open_cases": 2,
+ "by_priority": {
+  "high": 2
+ },
+ "sources": [
+  {
+   "source": "semantic_scholar",
+   "state": "success",
+   "note": "Author candidates found for all 2 profiles"
+  },
+  {
+   "source": "openalex",
+   "state": "success",
+   "note": "Author and publication records"
+  },
+  {
+   "source": "orcid",
+   "state": "success",
+   "note": "2 of 2 profiles carry a verified ORCID"
+  },
+  {
+   "source": "google_scholar",
+   "state": "rate_limited",
+   "note": "HTTP 429 for all 2 profiles \u2014 no profile link could be verified"
+  }
+ ]
+}

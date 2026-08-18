@@ -1,0 +1,522 @@
+{
+ "cases": [
+  {
+   "id": "c-bd4ed55ca3",
+   "status": "pending",
+   "priority": "high",
+   "target": {
+    "author_slug": "Eric_R._Larson",
+    "author_name": "Eric R. Larson",
+    "openalex_id": "A5082046729"
+   },
+   "summary": "Publications under this name resolve to 15 separate Semantic Scholar authors across 107 publications.",
+   "affected_count": 107,
+   "evidence": [
+    {
+     "source": "semantic_scholar",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "39673101"
+      },
+      {
+       "entity_type": "author",
+       "id": "145677056"
+      },
+      {
+       "entity_type": "author",
+       "id": "49159718"
+      },
+      {
+       "entity_type": "author",
+       "id": "2291267842"
+      },
+      {
+       "entity_type": "author",
+       "id": "2052551751"
+      },
+      {
+       "entity_type": "author",
+       "id": "2247167812"
+      },
+      {
+       "entity_type": "author",
+       "id": "34854453"
+      },
+      {
+       "entity_type": "author",
+       "id": "108719833"
+      },
+      {
+       "entity_type": "author",
+       "id": "144161236"
+      },
+      {
+       "entity_type": "author",
+       "id": "144752199"
+      },
+      {
+       "entity_type": "author",
+       "id": "1661097811"
+      },
+      {
+       "entity_type": "author",
+       "id": "2052551719"
+      },
+      {
+       "entity_type": "author",
+       "id": "2083209098"
+      },
+      {
+       "entity_type": "author",
+       "id": "50670820"
+      },
+      {
+       "entity_type": "author",
+       "id": "90825301"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "author_identity",
+     "value": "15 distinct author IDs",
+     "value_state": "conflict",
+     "interpretation": "Publications under this name resolve to 15 separate Semantic Scholar authors."
+    },
+    {
+     "source": "openalex",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "A5082046729"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "canonical_name",
+     "value": "Eric R. Larson",
+     "value_state": "supports",
+     "interpretation": "Source agrees with the stored name."
+    },
+    {
+     "source": "openalex",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "A5082046729"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "affiliation",
+     "value": "Illinois Department of Natural Resources",
+     "value_state": "supports",
+     "interpretation": "Affiliation as stored on the OpenAlex author record."
+    },
+    {
+     "source": "orcid",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "0000-0002-9232-5907"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "affiliation",
+     "value": "University of Illinois Urbana-Champaign",
+     "value_state": "conflict",
+     "interpretation": "ORCID reports different institutions. This may reflect timing or multiple appointments rather than an incorrect value."
+    },
+    {
+     "source": "google_scholar",
+     "source_refs": [],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "rate_limited",
+     "field": "profile_link",
+     "value": null,
+     "value_state": "unverifiable",
+     "interpretation": "Request was rate limited, so the profile link could not be checked. This is not evidence of absence."
+    }
+   ],
+   "detail": {
+    "candidate_ids": [
+     {
+      "id": "39673101",
+      "share": 60.4,
+      "sample_title": "From eDNA to citizen science: emerging tools for the early detection of invasive species"
+     },
+     {
+      "id": "145677056",
+      "share": 15.6,
+      "sample_title": "Novel, potent aldose reductase inhibitors: 3,4-dihydro-4-oxo-3-[[5-(trifluoromethyl)-2-benzothiazolyl] methyl]-1-phthalazineacetic acid (zopolrestat) and congeners."
+     },
+     {
+      "id": "49159718",
+      "share": 5.2,
+      "sample_title": "Working memory and inhibitory control among manic and euthymic patients with bipolar disorder"
+     },
+     {
+      "id": "2291267842",
+      "share": 4.2,
+      "sample_title": "Comparing cost, effort, and performance of environmental DNA sampling and trapping for detecting an elusive freshwater turtle"
+     },
+     {
+      "id": "2052551751",
+      "share": 2.1,
+      "sample_title": "Investigating baseline neurocognitive performance between male and female athletes with a history of multiple concussion"
+     },
+     {
+      "id": "2247167812",
+      "share": 2.1,
+      "sample_title": "Brain magnetic resonance imaging of structural abnormalities in bipolar disorder."
+     },
+     {
+      "id": "34854453",
+      "share": 2.1,
+      "sample_title": "On the scope, mechanism and stereochemistry of the Lewis acid catalyzed cyclocondensation of activated dienes with aldehydes: an application to the erythronolide problem"
+     },
+     {
+      "id": "108719833",
+      "share": 1.0,
+      "sample_title": "Age and growth of Scotia Sea icefish, Chaenocephalus aceratus, from the South Shetland Islands"
+     },
+     {
+      "id": "144161236",
+      "share": 1.0,
+      "sample_title": "Disaggregated End-Use Energy Sensing for the Smart Grid"
+     },
+     {
+      "id": "144752199",
+      "share": 1.0,
+      "sample_title": "Author Correction: SciPy 1.0: fundamental algorithms for scientific computing in Python"
+     },
+     {
+      "id": "1661097811",
+      "share": 1.0,
+      "sample_title": "Long-Term Aberrations To Cerebellar Endocannabinoids Induced By Early-Life Stress"
+     },
+     {
+      "id": "2052551719",
+      "share": 1.0,
+      "sample_title": "Rapid sealing of porcine renal blood vessels, ex vivo, using a high power, 1470-nm laser, and laparoscopic prototype"
+     },
+     {
+      "id": "2083209098",
+      "share": 1.0,
+      "sample_title": "Quantifying the contribution of zoos and aquariums to peer-reviewed scientific research"
+     },
+     {
+      "id": "50670820",
+      "share": 1.0,
+      "sample_title": "Ecological integrity is both real and valuable"
+     },
+     {
+      "id": "90825301",
+      "share": 1.0,
+      "sample_title": "A prospective open-label study to evaluate the effects of the oral contraceptive Harmonet (gestodene75/EE20) on body fat."
+     }
+    ],
+    "top_share": 60.4,
+    "most_cited_publications": [
+     {
+      "title": "SciPy 1.0: fundamental algorithms for scientific computing in Python",
+      "year": 2019,
+      "citations": 11592,
+      "journal": "Monash University Research Portal (Monash University)"
+     },
+     {
+      "title": "Author Correction: SciPy 1.0: fundamental algorithms for scientific computing in Python",
+      "year": 2020,
+      "citations": 1656,
+      "journal": "Nature Methods"
+     },
+     {
+      "title": "Brain Magnetic Resonance Imaging of Structural Abnormalities in Bipolar Disorder",
+      "year": 1999,
+      "citations": 628,
+      "journal": "Archives of General Psychiatry"
+     },
+     {
+      "title": "From eDNA to citizen science: emerging tools for the early detection of invasive species",
+      "year": 2020,
+      "citations": 306,
+      "journal": "Frontiers in Ecology and the Environment"
+     },
+     {
+      "title": "Disaggregated End-Use Energy Sensing for the Smart Grid",
+      "year": 2010,
+      "citations": 299,
+      "journal": "IEEE Pervasive Computing"
+     }
+    ],
+    "profile_topics": [
+     "Crustacean biology and ecology",
+     "Environmental DNA in Biodiversity Studies",
+     "Fish Ecology and Management Studies",
+     "Species Distribution and Climate Change",
+     "Marine and fisheries research"
+    ]
+   }
+  },
+  {
+   "id": "c-b57f1d744f",
+   "status": "pending",
+   "priority": "high",
+   "target": {
+    "author_slug": "Boxuan_Zhao",
+    "author_name": "Boxuan Zhao",
+    "openalex_id": "A5003524720"
+   },
+   "summary": "Publications under this name resolve to 15 separate Semantic Scholar authors across 104 publications.",
+   "affected_count": 104,
+   "evidence": [
+    {
+     "source": "semantic_scholar",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "16269112"
+      },
+      {
+       "entity_type": "author",
+       "id": "49217626"
+      },
+      {
+       "entity_type": "author",
+       "id": "2256773390"
+      },
+      {
+       "entity_type": "author",
+       "id": "2350328070"
+      },
+      {
+       "entity_type": "author",
+       "id": "2211176765"
+      },
+      {
+       "entity_type": "author",
+       "id": "2347749212"
+      },
+      {
+       "entity_type": "author",
+       "id": "2143737719"
+      },
+      {
+       "entity_type": "author",
+       "id": "2238727674"
+      },
+      {
+       "entity_type": "author",
+       "id": "2143736177"
+      },
+      {
+       "entity_type": "author",
+       "id": "2143737250"
+      },
+      {
+       "entity_type": "author",
+       "id": "2143737404"
+      },
+      {
+       "entity_type": "author",
+       "id": "2210072909"
+      },
+      {
+       "entity_type": "author",
+       "id": "2297128000"
+      },
+      {
+       "entity_type": "author",
+       "id": "2308425688"
+      },
+      {
+       "entity_type": "author",
+       "id": "2402801676"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "author_identity",
+     "value": "15 distinct author IDs",
+     "value_state": "conflict",
+     "interpretation": "Publications under this name resolve to 15 separate Semantic Scholar authors."
+    },
+    {
+     "source": "openalex",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "A5003524720"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "canonical_name",
+     "value": "Boxuan Zhao",
+     "value_state": "supports",
+     "interpretation": "Source agrees with the stored name."
+    },
+    {
+     "source": "openalex",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "A5003524720"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "affiliation",
+     "value": "University of Illinois Urbana-Champaign",
+     "value_state": "supports",
+     "interpretation": "Affiliation as stored on the OpenAlex author record."
+    },
+    {
+     "source": "orcid",
+     "source_refs": [
+      {
+       "entity_type": "author",
+       "id": "0000-0002-3729-4511"
+      }
+     ],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "success",
+     "field": "affiliation",
+     "value": "Peking University; University of Chicago",
+     "value_state": "conflict",
+     "interpretation": "ORCID reports different institutions. This may reflect timing or multiple appointments rather than an incorrect value."
+    },
+    {
+     "source": "google_scholar",
+     "source_refs": [],
+     "fetched_at": "2026-08-14T09:15:00Z",
+     "fetch_status": "rate_limited",
+     "field": "profile_link",
+     "value": null,
+     "value_state": "unverifiable",
+     "interpretation": "Request was rate limited, so the profile link could not be checked. This is not evidence of absence."
+    }
+   ],
+   "detail": {
+    "candidate_ids": [
+     {
+      "id": "16269112",
+      "share": 47.7,
+      "sample_title": "N6-methyladenosine Modulates Messenger RNA Translation Efficiency"
+     },
+     {
+      "id": "49217626",
+      "share": 20.9,
+      "sample_title": "Toward Safe Human Robot Collaboration by Using Multiple Kinects Based Real-Time Human Tracking"
+     },
+     {
+      "id": "2256773390",
+      "share": 5.8,
+      "sample_title": "Connectome-seq: high-throughput mapping of neuronal connectivity at single-synapse resolution via barcode sequencing."
+     },
+     {
+      "id": "2350328070",
+      "share": 5.8,
+      "sample_title": "4D printing composite with electrically controlled local deformation"
+     },
+     {
+      "id": "2211176765",
+      "share": 3.5,
+      "sample_title": "Engineered allostery in light-regulated LOV-Turbo enables precise spatiotemporal control of proximity labeling in living cells"
+     },
+     {
+      "id": "2347749212",
+      "share": 3.5,
+      "sample_title": "Formation and Chemical Structure of Carbon-13 Tracer Lignin-Carbohydrate Complexes (LCCs) During Kraft Pulping"
+     },
+     {
+      "id": "2143737719",
+      "share": 2.3,
+      "sample_title": "Seeing on the surface of Eyeballs: Non-invasive visual substitution with the electro-tactile device on cornea"
+     },
+     {
+      "id": "2238727674",
+      "share": 2.3,
+      "sample_title": "Observation of metal-organic interphase in Cu-based electrochemical CO2-to-ethanol conversion"
+     },
+     {
+      "id": "2143736177",
+      "share": 1.2,
+      "sample_title": "A network pharmacology approach to explore the mechanism of action of Yiqi Fumai lyophilized injection in the treatment of novel coronavirus disease"
+     },
+     {
+      "id": "2143737250",
+      "share": 1.2,
+      "sample_title": "A facile method for constructing a superhydrophobic zinc coating on a steel surface with anti-corrosion and drag-reduction properties"
+     },
+     {
+      "id": "2143737404",
+      "share": 1.2,
+      "sample_title": "A strongly inwardly rectifying K+ channel that is sensitive to ATP"
+     },
+     {
+      "id": "2210072909",
+      "share": 1.2,
+      "sample_title": "NASH exacerbates inflammatory bone destruction and macrophage NLRP3 inflammasome activation in ligature-induced periodontitis."
+     },
+     {
+      "id": "2297128000",
+      "share": 1.2,
+      "sample_title": "Typological and ancient DNA evidences reveal the influence of Ming dynasty migration on the Shengjizui population in Bishan, Chongqing."
+     },
+     {
+      "id": "2308425688",
+      "share": 1.2,
+      "sample_title": "Cloning and expression of an Aplysia K+ channel and comparison with native Aplysia K+ currents"
+     },
+     {
+      "id": "2402801676",
+      "share": 1.2,
+      "sample_title": "Microwave-Assisted Synthesis of Solvatochromic Dye and Analysis of Solvent Polarity in Undergraduate Organic Chemistry Laboratory"
+     }
+    ],
+    "top_share": 47.7,
+    "most_cited_publications": [
+     {
+      "title": "N6-methyladenosine Modulates Messenger RNA Translation Efficiency",
+      "year": 2015,
+      "citations": 3644,
+      "journal": "Cell"
+     },
+     {
+      "title": "Recognition of RNA N6-methyladenosine by IGF2BP proteins enhances mRNA stability and translation",
+      "year": 2018,
+      "citations": 3185,
+      "journal": "Nature Cell Biology"
+     },
+     {
+      "title": "Post-transcriptional gene regulation by mRNA modifications",
+      "year": 2016,
+      "citations": 2562,
+      "journal": "Nature Reviews Molecular Cell Biology"
+     },
+     {
+      "title": "Post-transcriptional gene regulation by mRNA modifications",
+      "year": 2017,
+      "citations": 2147,
+      "journal": "Nature Reviews Molecular Cell Biology"
+     },
+     {
+      "title": "YTHDF3 facilitates translation and decay of N6-methyladenosine-modified RNA",
+      "year": 2017,
+      "citations": 1904,
+      "journal": "Cell Research"
+     }
+    ],
+    "profile_topics": [
+     "RNA modifications and cancer",
+     "Epigenetics and DNA Methylation",
+     "RNA Research and Splicing",
+     "Cancer-related molecular mechanisms research",
+     "RNA and protein synthesis mechanisms"
+    ]
+   }
+  }
+ ]
+}
