@@ -121,11 +121,6 @@ def summarize_deep_verifications(internal_data):
 
             comparisons[bucket] += 1
 
-            if not deep_verification.get("verified") and (
-                deep_verification.get("s2_url") or deep_verification.get("openAccessPdf")
-            ):
-                comparisons["unverified_but_carries_a_link"] += 1
-
     return dict(comparisons)
 
 
@@ -211,3 +206,18 @@ def summarize_duplicate_dois(internal_data):
         "duplicate_dois": duplicate_dois,
         "records_per_source": dict(records_per_source),
     }
+
+
+def summarize_journals(internal_data):
+    journals = Counter()
+    empty = 0
+
+    for author in internal_data.values():
+        for publication in author["publications"]:
+            journal = publication.get("journal")
+            if journal:
+                journals[journal] += 1
+            else:
+                empty += 1
+
+    return {"empty": empty, "journals": dict(journals)}

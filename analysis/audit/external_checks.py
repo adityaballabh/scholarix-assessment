@@ -110,14 +110,6 @@ def normalize_openalex_publications(responses):
     return [normalize_openalex_publication(response) for response in responses or []]
 
 
-def normalize_crossref_publications(response):
-    return [normalize_crossref_publication(response)] if response else []
-
-
-def normalize_datacite_publications(response):
-    return [normalize_datacite_publication(response)] if response else []
-
-
 def get_internal_external_pairs(internal_publications, external_publications, external_normalizer):
     for doi, internal_records in internal_publications.items():
         external_records = external_normalizer(external_publications.get(doi))
@@ -184,6 +176,85 @@ def compare_openalex_author_publications(internal_data, external_publications):
         )
 
     return comparisons
+
+
+def dedupe_publications_by_doi(publications_by_doi):
+    return {doi: [records[0]] for doi, records in publications_by_doi.items() if records}
+
+
+def normalize_across_source(doi, crossref_publications, datacite_publications):
+    if doi in crossref_publications:
+        return normalize_crossref_publication(crossref_publications[doi])
+    if doi in datacite_publications:
+        return normalize_datacite_publication(datacite_publications[doi])
+    return {}
+
+
+def compare_openalex_records_to_references(internal_data, external_data):
+    internal_openalex_records = dedupe_publications_by_doi(
+        get_publications_by_source(internal_data).get("openalex", {})
+    )
+    crossref_publications = external_data["crossref_publications"]
+    datacite_publications = external_data["datacite_publications"]
+
+    same_source_comparisons = compare_internal_to_external(
+        internal_openalex_records,
+        external_data["openalex_publications_by_doi"],
+        normalize_openalex_publications,
+    )
+    across_source_comparisons = [
+        compare_publications(
+            record["publication"],
+            normalize_across_source(doi, crossref_publications, datacite_publications),
+        )
+        for doi, records in internal_openalex_records.items()
+        for record in records
+    ]
+
+    return {
+        "same source": summarize_publication_comparisons(same_source_comparisons),
+        "across sources": summarize_publication_comparisons(across_source_comparisons),
+    }
+
+
+def agreement_fraction(matches):
+    total = sum(matches.values())
+    agreed = matches.get("exact", 0) + matches.get("normalized_match", 0)
+    return round(100 * agreed / total, 1) if total else None
+
+
+def agreement_by_author(internal_data, external_data):
+    crossref_publications = external_data["crossref_publications"]
+    datacite_publications = external_data["datacite_publications"]
+    agreement = []
+
+    for author_id, author in internal_data.items():
+        internal_openalex_records = {}
+        for publication in author["publications"]:
+            if publication.get("source") != "openalex":
+                continue
+            doi = normalize_doi(publication.get("doi"))
+            if doi and doi not in internal_openalex_records:
+                internal_openalex_records[doi] = publication
+
+        comparisons = [
+            compare_publications(
+                publication,
+                normalize_across_source(doi, crossref_publications, datacite_publications),
+            )
+            for doi, publication in internal_openalex_records.items()
+        ]
+        summary = summarize_publication_comparisons(comparisons)
+
+        agreement.append(
+            {
+                "author_id": author_id,
+                "title_agreement": agreement_fraction(summary["title_matches"]),
+                "journal_agreement": agreement_fraction(summary["journal_matches"]),
+            }
+        )
+
+    return agreement
 
 
 def compare_author_list_lengths(internal_data, external_data):
@@ -408,7 +479,7 @@ def compare_year_spans(internal_data, openalex_data):
     return comparisons
 
 
-def summarize_doi_soundness(external_data):
+def summarize_doi_availability(external_data):
     crossref = external_data["crossref_publications"]
     datacite = external_data["datacite_publications"]
     resolutions = external_data["doi_resolutions"]
@@ -428,42 +499,8 @@ def summarize_doi_soundness(external_data):
 
 
 def compare_against_external_data(internal_data, external_data):
-    publications_by_source = get_publications_by_source(internal_data)
-    external_publications = {
-        "openalex": external_data["openalex_publications_by_doi"],
-        "crossref": external_data["crossref_publications"],
-    }
-    external_normalizers = {
-        "openalex": normalize_openalex_publications,
-        "crossref": normalize_crossref_publications,
-    }
-    comparisons = {}
-
-    for source, internal_records in publications_by_source.items():
-        if source not in external_publications:
-            continue
-
-        source_comparisons = compare_internal_to_external(
-            internal_records,
-            external_publications[source],
-            external_normalizers[source],
-        )
-        comparisons[source] = summarize_publication_comparisons(source_comparisons)
-
-    datacite_internal_publications = {
-        doi: publications
-        for doi, publications in publications_by_source.get("openalex", {}).items()
-        if doi in external_data["datacite_publications"]
-    }
-    datacite_comparisons = compare_internal_to_external(
-        datacite_internal_publications,
-        external_data["datacite_publications"],
-        normalize_datacite_publications,
-    )
-    comparisons["datacite"] = summarize_publication_comparisons(datacite_comparisons)
-
     return {
-        "field_agreement": comparisons,
+        "reference_agreement": compare_openalex_records_to_references(internal_data, external_data),
         "publication_coverage": compare_openalex_author_publications(
             internal_data,
             external_data["openalex_publications_by_author"],
