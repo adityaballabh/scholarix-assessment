@@ -226,29 +226,35 @@ def build_overview(cases, authors):
     return {
         "authors": author_count,
         "publications": sum(publications_by_slug.get(slug, 0) for slug in case_slugs),
+        "authors_audited": len(authors),
+        "publications_audited": sum(publications_by_slug.values()),
+        "audited_at": AUDIT_FETCHED_AT,
         "open_cases": len(cases),
         "by_priority": dict(Counter(case["priority"] for case in cases)),
         "sources": [
             {
                 "source": "semantic_scholar",
+                "fetched_at": AUDIT_FETCHED_AT,
                 "state": "success",
-                "note": f"Author candidates found for all {author_count} profiles",
+                "note": f"Candidates found for all {author_count} profiles",
             },
             {
                 "source": "openalex",
+                "fetched_at": AUDIT_FETCHED_AT,
                 "state": "success",
-                "note": "Author and publication records",
+                "note": f"Records found for all {author_count} profiles",
             },
             {
                 "source": "orcid",
+                "fetched_at": AUDIT_FETCHED_AT,
                 "state": "success",
-                "note": f"{verified_orcid} of {author_count} profiles carry a verified ORCID",
+                "note": f"{verified_orcid} of {author_count} have a verified ORCID",
             },
             {
                 "source": "google_scholar",
+                "fetched_at": AUDIT_FETCHED_AT,
                 "state": "rate_limited",
-                "note": f"HTTP 429 for all {author_count} profiles — "
-                "no profile link could be verified",
+                "note": f"HTTP 429 for all {author_count}. No links verified",
             },
         ],
     }

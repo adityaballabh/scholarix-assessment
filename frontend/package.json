@@ -1,5 +1,5 @@
 {
-  "name": "audit-frontend",
+  "name": "merge-review-frontend",
   "private": true,
   "type": "module",
   "scripts": {

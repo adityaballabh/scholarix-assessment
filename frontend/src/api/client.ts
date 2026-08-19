@@ -2,16 +2,27 @@ import casesJson from "../mock/cases.json";
 import overviewJson from "../mock/overview.json";
 import type {
   ActivityEvent,
+  CasePriority,
   CaseQueryFilters,
   DecisionAction,
   DecisionRequest,
   ReviewOverview,
+  ReviewStatus,
   ValidationCase,
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string | undefined;
 const MOCK_RESPONSE_DELAY_MS = 200;
 const MOCK_REVIEWER = "aditya";
+
+export const OPEN_STATUSES: ReviewStatus[] = [
+  "pending",
+  "in_review",
+  "reopened",
+  "deferred",
+];
+
+const PRIORITY_RANK: Record<CasePriority, number> = { high: 0, medium: 1, low: 2 };
 
 const mockCases = (casesJson as unknown as { cases: ValidationCase[] }).cases;
 const mockActivityEvents: ActivityEvent[] = [];
@@ -39,6 +50,16 @@ async function getFromApiOrMock<T>(
   return (await response.json()) as T;
 }
 
+function compareCases(a: ValidationCase, b: ValidationCase): number {
+  const deferred = Number(a.status === "deferred") - Number(b.status === "deferred");
+  if (deferred) return deferred;
+
+  const priority = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+  if (priority) return priority;
+
+  return b.affected_count - a.affected_count;
+}
+
 function applyMockStatus(reviewCase: ValidationCase): ValidationCase {
   const currentStatus = mockCaseStatuses.get(reviewCase.id);
   return currentStatus ? { ...reviewCase, status: currentStatus } : reviewCase;
@@ -48,7 +69,11 @@ function caseMatchesFilters(
   reviewCase: ValidationCase,
   filters: CaseQueryFilters,
 ): boolean {
-  if (filters.status && reviewCase.status !== filters.status) return false;
+  if (filters.status) {
+    const wanted = Array.isArray(filters.status) ? filters.status : [filters.status];
+    if (!wanted.includes(reviewCase.status)) return false;
+  }
+
   if (filters.priority && reviewCase.priority !== filters.priority) return false;
 
   if (filters.query) {
@@ -70,7 +95,11 @@ function buildCaseQueryString(filters: CaseQueryFilters): string {
   const parameters = new URLSearchParams();
 
   for (const [name, value] of Object.entries(filters)) {
-    if (value) parameters.set(name, value);
+    if (Array.isArray(value)) {
+      if (value.length) parameters.set(name, value.join(","));
+    } else if (value) {
+      parameters.set(name, value);
+    }
   }
 
   return parameters.toString();
@@ -103,9 +132,10 @@ export function listCases(
   const path = `/api/cases${queryString ? `?${queryString}` : ""}`;
 
   return getFromApiOrMock(path, () =>
-    mockCases.map(applyMockStatus).filter((reviewCase) =>
-      caseMatchesFilters(reviewCase, filters),
-    ),
+    mockCases
+      .map(applyMockStatus)
+      .filter((reviewCase) => caseMatchesFilters(reviewCase, filters))
+      .sort(compareCases),
   );
 }
 
@@ -175,5 +205,3 @@ export async function postDecision(
   mockActivityEvents.unshift(activityEvent);
   return returnAfterMockDelay(activityEvent);
 }
-
-export const usingMockData = !API_BASE_URL;

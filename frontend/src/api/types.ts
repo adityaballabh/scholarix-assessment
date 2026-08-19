@@ -110,6 +110,7 @@ export interface ActivityEvent {
 
 export interface SourceStatus {
   source: string;
+  fetched_at: string | null;
   state: SourceFetchStatus;
   note: string;
 }
@@ -117,13 +118,16 @@ export interface SourceStatus {
 export interface ReviewOverview {
   authors: number;
   publications: number;
+  authors_audited: number;
+  publications_audited: number;
+  audited_at: string | null;
   open_cases: number;
   by_priority: Partial<Record<CasePriority, number>>;
   sources: SourceStatus[];
 }
 
 export interface CaseQueryFilters {
-  status?: ReviewStatus;
+  status?: ReviewStatus | ReviewStatus[];
   priority?: CasePriority;
   query?: string;
 }
