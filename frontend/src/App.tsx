@@ -1,6 +1,7 @@
 import { Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
 import OverviewPage from "./features/overview/OverviewPage";
 import PlaceholderPage from "./features/placeholder/PlaceholderPage";
+import QueuePage from "./features/reviews/QueuePage";
 import styles from "./App.module.css";
 
 const navigationItems = [
@@ -38,9 +39,10 @@ export default function App() {
       <main className={styles.main}>
         <Routes>
           <Route path="/" element={<OverviewPage />} />
+          <Route path="/reviews" element={<QueuePage />} />
           <Route
-            path="/reviews/*"
-            element={<PlaceholderPage section="Reviews" />}
+            path="/reviews/:caseId"
+            element={<PlaceholderPage section="Review" />}
           />
           <Route
             path="/activity/*"

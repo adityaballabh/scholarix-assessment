@@ -57,7 +57,29 @@ function compareCases(a: ValidationCase, b: ValidationCase): number {
   const priority = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
   if (priority) return priority;
 
-  return b.affected_count - a.affected_count;
+  const affected = b.affected_count - a.affected_count;
+  if (affected) return affected;
+
+  return a.id.localeCompare(b.id);
+}
+
+const TOKEN_SEPARATOR = /[^\p{L}\p{N}]+/u;
+
+function foldText(text: string): string[] {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(TOKEN_SEPARATOR)
+    .filter(Boolean);
+}
+
+function matchesAuthorName(authorName: string, query: string): boolean {
+  const nameTokens = foldText(authorName);
+
+  return foldText(query).every((queryToken) =>
+    nameTokens.some((nameToken) => nameToken.startsWith(queryToken)),
+  );
 }
 
 function applyMockStatus(reviewCase: ValidationCase): ValidationCase {
@@ -76,16 +98,8 @@ function caseMatchesFilters(
 
   if (filters.priority && reviewCase.priority !== filters.priority) return false;
 
-  if (filters.query) {
-    const query = filters.query.toLowerCase();
-    const searchableText = [
-      reviewCase.target.author_name,
-      reviewCase.summary,
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    if (!searchableText.includes(query)) return false;
+  if (filters.query && !matchesAuthorName(reviewCase.target.author_name, filters.query)) {
+    return false;
   }
 
   return true;

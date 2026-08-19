@@ -89,10 +89,6 @@
   font: var(--text-micro);
 }
 
-.headNumeric {
-  text-align: left;
-}
-
 .caseRow {
   position: relative;
   min-height: 34px;
