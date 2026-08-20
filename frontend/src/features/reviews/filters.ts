@@ -18,10 +18,10 @@ export const priorityOptions: SelectOption<PriorityFilter>[] = [
 export const statusOptions: SelectOption<StatusFilter>[] = [
   { value: "all", label: "all states" },
   { value: "pending", label: "pending" },
-  { value: "in_review", label: "in review" },
+  { value: "one_author", label: "one author" },
+  { value: "needs_split", label: "needs split" },
+  { value: "uncertain", label: "uncertain" },
   { value: "deferred", label: "deferred" },
-  { value: "reopened", label: "reopened" },
-  { value: "resolved", label: "resolved" },
 ];
 
 export const DEFAULT_STATUS: StatusFilter = "pending";
@@ -49,3 +49,7 @@ export function readCaseFilters(searchParams: URLSearchParams): CaseQueryFilters
     status: getStatusFilter(status),
   };
 }
+
+export const statusOrder: ReviewStatus[] = statusOptions
+  .map((option) => option.value)
+  .filter((value): value is ReviewStatus => value !== "all");

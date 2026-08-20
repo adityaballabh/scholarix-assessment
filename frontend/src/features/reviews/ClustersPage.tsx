@@ -36,11 +36,10 @@ export default function ClustersPage() {
   if (missing) {
     return (
       <p className={styles.pageState} role="alert">
-        No case with id {caseId}.{" "}
+        No case with id {caseId}{" · "}
         <Link to="/reviews" className={styles.stateLink}>
-          Back to the queue
+          back to the queue
         </Link>
-        .
       </p>
     );
   }

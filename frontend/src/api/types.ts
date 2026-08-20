@@ -10,19 +10,16 @@ export type SourceFetchStatus =
 
 export type EvidenceValueState =
   | "supports"
-  | "candidate"
   | "conflict"
   | "missing"
-  | "absent"
-  | "unverifiable"
-  | "override";
+  | "unverifiable";
 
 export type ReviewStatus =
   | "pending"
-  | "in_review"
   | "deferred"
-  | "resolved"
-  | "reopened";
+  | "uncertain"
+  | "one_author"
+  | "needs_split";
 
 export type CasePriority = "high" | "medium" | "low";
 export type EvidenceEntityType = "author" | "publication";
@@ -79,6 +76,7 @@ export interface ValidationCase {
 }
 
 export type DecisionAction =
+  | "reopen"
   | "confirm_one_author"
   | "flag_for_split"
   | "mark_uncertain"
@@ -89,7 +87,6 @@ export interface DecisionRequest {
   case_id: string;
   action: DecisionAction;
   note?: string;
-  resolved?: Record<string, string>;
 }
 
 export interface ActivityEvent {
@@ -102,7 +99,6 @@ export interface ActivityEvent {
   note: string | null;
   before: string | null;
   after: string | null;
-  supersedes_event_id: string | null;
 }
 
 export interface SourceStatus {
@@ -118,7 +114,6 @@ export interface ReviewOverview {
   authors_audited: number;
   publications_audited: number;
   audited_at: string | null;
-  open_cases: number;
   by_priority: Partial<Record<CasePriority, number>>;
   sources: SourceStatus[];
 }

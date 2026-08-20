@@ -142,7 +142,7 @@ def build_identity_case(author):
                 "supports" if agrees else "conflict",
                 ""
                 if agrees
-                else "Different institutions can indicate multiple appointments or timing instead of an incorrect value",
+                else "Different institutions could mean concurrent appointments or records captured at different times",
             )
         )
     elif orcid.get("orcid_id"):
@@ -153,7 +153,7 @@ def build_identity_case(author):
                 "affiliation",
                 None,
                 "missing",
-                "The ORCID record does not provide an institution.",
+                "The ORCID record does not provide an institution",
             )
         )
     else:
@@ -210,7 +210,6 @@ def build_overview(cases, authors):
         "authors_audited": len(authors),
         "publications_audited": sum(publications_by_slug.values()),
         "audited_at": AUDIT_FETCHED_AT,
-        "open_cases": len(cases),
         "by_priority": dict(Counter(case["priority"] for case in cases)),
         "sources": [
             {

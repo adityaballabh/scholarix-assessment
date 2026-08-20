@@ -33,7 +33,37 @@
 .action:disabled {
   color: var(--ink-faint);
   border-color: var(--rule);
-  cursor: not-allowed;
+  cursor: default;
+}
+
+.guard {
+  position: relative;
+  display: inline-flex;
+}
+
+.guard[data-hint]:hover::after {
+  content: attr(data-hint);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  right: 0;
+  z-index: 3;
+  width: max-content;
+  padding: 6px 9px;
+  color: var(--ink-secondary);
+  background: var(--canvas);
+  border: var(--hairline) solid var(--rule-strong);
+  font: var(--text-micro);
+}
+
+.primary:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.primary:hover:not(:disabled) {
+  color: var(--canvas);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .dialog {
@@ -82,22 +112,47 @@
   border-color: var(--ink-faint);
 }
 
+.notes {
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note + .note {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: var(--hairline) solid var(--rule);
+}
+
+.noteMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 18px;
+  margin: 0 0 3px;
+  color: var(--ink-faint);
+  font: var(--text-micro);
+}
+
+.noteBody {
+  margin: 0;
+  color: var(--ink);
+  font: var(--text-cell);
+}
+
 .dialogActions {
   margin-top: 12px;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 6px;
 }
 
-.primary:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.primary:hover:not(:disabled) {
-  color: var(--canvas);
-  background: var(--accent);
-  border-color: var(--accent);
+.submitHint {
+  margin-right: auto;
+  color: var(--ink-faint);
+  font: var(--text-micro);
 }
 
 .srOnly {

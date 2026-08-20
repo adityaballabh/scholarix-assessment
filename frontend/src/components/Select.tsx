@@ -9,6 +9,7 @@ export interface SelectOption<T extends string> {
 
 interface SelectProps<T extends string> {
   label: string;
+  prefix?: string;
   value: T;
   options: SelectOption<T>[];
   onChange: (value: T) => void;
@@ -16,6 +17,7 @@ interface SelectProps<T extends string> {
 
 export default function Select<T extends string>({
   label,
+  prefix,
   value,
   options,
   onChange,
@@ -133,7 +135,9 @@ export default function Select<T extends string>({
         aria-label={`${label}: ${selected.label}`}
         onClick={() => setOpen((isOpen) => !isOpen)}
       >
-        <span className={styles.triggerLabel}>{selected.label}</span>
+        <span className={styles.triggerLabel}>
+          {prefix ? `${prefix} ${selected.label}` : selected.label}
+        </span>
         <span className={styles.caret} aria-hidden="true" />
       </button>
 

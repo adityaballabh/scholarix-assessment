@@ -19,6 +19,12 @@
   cursor: pointer;
 }
 
+.triggerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .trigger:hover {
   color: var(--ink);
   border-color: var(--ink-faint);

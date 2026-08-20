@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
-import { getCase, listCases, postDecision } from "../../api/client";
-import type { DecisionAction, ValidationCase } from "../../api/types";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { getCase, listActivity, listCases, postDecision } from "../../api/client";
+import type {
+  ActivityEvent,
+  DecisionAction,
+  ValidationCase,
+} from "../../api/types";
 import { readCaseFilters } from "./filters";
+import { useToast } from "../../components/Toast";
+import { actionLabels } from "../../lib/decisions";
 import CaseMeta from "./CaseMeta";
 import DecisionBar from "./DecisionBar";
 import Identity from "./Identity";
@@ -12,11 +18,14 @@ import styles from "./CasePage.module.css";
 interface CaseData {
   reviewCase: ValidationCase;
   queue: ValidationCase[];
+  notes: ActivityEvent[];
 }
 
 export default function CasePage() {
   const { caseId } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const showToast = useToast();
   const [data, setData] = useState<CaseData | null>(null);
   const [missing, setMissing] = useState(false);
   const [deciding, setDeciding] = useState(false);
@@ -30,9 +39,14 @@ export default function CasePage() {
     Promise.all([
       getCase(caseId!),
       listCases(readCaseFilters(new URLSearchParams(search))),
+      listActivity(),
     ])
-      .then(([reviewCase, queue]) => {
-        if (active) setData({ reviewCase, queue });
+      .then(([reviewCase, queue, activity]) => {
+        if (!active) return;
+        const notes = activity.filter(
+          (event) => event.case_id === reviewCase.id && event.note,
+        );
+        setData({ reviewCase, queue, notes });
       })
       .catch(() => {
         if (active) setMissing(true);
@@ -46,31 +60,36 @@ export default function CasePage() {
   if (missing) {
     return (
       <p className={styles.pageState} role="alert">
-        No case with id {caseId}.{" "}
+        No case with id {caseId}{" · "}
         <Link to="/reviews" className={styles.stateLink}>
-          Back to the queue
+          back to the queue
         </Link>
-        .
       </p>
     );
   }
 
   if (!data) return <p className={styles.pageState}>Loading case…</p>;
 
-  const { reviewCase, queue } = data;
+  const { reviewCase, queue, notes } = data;
 
-  function decide(action: DecisionAction, note: string) {
-    setDeciding(true);
-    postDecision({ case_id: reviewCase.id, action, note })
-      .then(() => getCase(reviewCase.id))
-      .then((updated) =>
-        setData((current) => (current ? { ...current, reviewCase: updated } : current)),
-      )
-      .finally(() => setDeciding(false));
-  }
   const position = queue.findIndex((entry) => entry.id === reviewCase.id);
   const previous = position > 0 ? queue[position - 1] : null;
   const next = position >= 0 && position < queue.length - 1 ? queue[position + 1] : null;
+
+  function decide(action: DecisionAction, note: string) {
+    setDeciding(true);
+
+    postDecision({ case_id: reviewCase.id, action, note })
+      .then((event) => {
+        showToast(`${actionLabels[event.action_type]} · ${event.target_name}`);
+        navigate(
+          next
+            ? { pathname: `/reviews/${next.id}`, search }
+            : { pathname: "/reviews", search },
+        );
+      })
+      .finally(() => setDeciding(false));
+  }
 
   return (
     <section className={styles.page}>
@@ -87,18 +106,19 @@ export default function CasePage() {
         <nav className={styles.queueNav} aria-label="Queue">
           <div className={styles.step}>
             <StepLink to={previous} search={search} direction="previous" label="‹ prev" />
+            {position >= 0 && (
+              <span className={styles.position}>
+                {position + 1} of {queue.length}
+              </span>
+            )}
             <StepLink to={next} search={search} direction="next" label="next ›" />
           </div>
-          {position >= 0 && (
-            <span className={styles.position}>
-              {position + 1} of {queue.length}
-            </span>
-          )}
         </nav>
       </div>
 
       <DecisionBar
         status={reviewCase.status}
+        notes={notes}
         busy={deciding}
         onDecide={decide}
       />
@@ -115,6 +135,7 @@ export default function CasePage() {
 
       <Identity
         detail={reviewCase.detail}
+        affectedCount={reviewCase.affected_count}
         caseId={reviewCase.id}
         search={search}
       />

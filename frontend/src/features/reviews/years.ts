@@ -6,7 +6,6 @@ export function yearSpan(candidate: SemanticScholarCandidate): string | null {
   return first_year === last_year ? `${first_year}` : `${first_year}–${last_year}`;
 }
 
-/** Publications are stored newest first, so the head is the most recent. */
 export function leadTitle(candidate: SemanticScholarCandidate): string {
   return candidate.publications[0]?.title ?? "—";
 }

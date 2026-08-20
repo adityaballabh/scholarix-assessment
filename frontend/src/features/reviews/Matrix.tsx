@@ -4,6 +4,7 @@ import type {
   SourceFetchStatus,
 } from "../../api/types";
 import Hint from "../../components/Hint";
+import { formatFetchedAt } from "../../lib/datetime";
 import { countedNoun } from "./labels";
 import styles from "./Matrix.module.css";
 
@@ -38,7 +39,6 @@ const fetchNotes: Record<SourceFetchStatus, string> = {
 
 const emptyWords: Partial<Record<EvidenceValueState, string>> = {
   missing: "missing",
-  absent: "absent",
   unverifiable: "unverifiable",
 };
 
@@ -58,8 +58,7 @@ function fieldName(field: string) {
 }
 
 function fetchedLabel(iso: string | null) {
-  if (!iso) return "never attempted";
-  return iso.replace("T", " ").replace("Z", " UTC");
+  return formatFetchedAt(iso) ?? "never attempted";
 }
 
 const TOP_SHARES = 3;
@@ -121,13 +120,14 @@ export default function Matrix({
   );
 
   return (
+    <div className={styles.scroll}>
     <div
       role="table"
       aria-label="Evidence by field and source"
       className={styles.matrix}
       style={
         {
-          "--matrix-columns": `36px 150px repeat(${sources.length}, minmax(0, 1fr))`,
+          "--matrix-columns": `var(--matrix-rail, 36px) var(--matrix-field, 150px) repeat(${sources.length}, minmax(0, 1fr))`,
           "--matrix-min-width": `${226 + sources.length * 130}px`,
         } as React.CSSProperties
       }
@@ -189,6 +189,7 @@ export default function Matrix({
           </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }
@@ -260,8 +261,6 @@ function Cell({
   }
 
   const isConflict = record.value_state === "conflict";
-  const isCandidate = record.value_state === "candidate";
-  const isOverride = record.value_state === "override";
 
   return (
     <div
@@ -269,15 +268,7 @@ function Cell({
       className={`${styles.cell} ${isConflict ? styles.cellConflict : ""}`}
     >
       <span className={styles.cellLine}>
-        <span
-          className={`${styles.value} ${isCandidate ? styles.candidateValue : ""} ${
-            isOverride ? styles.overrideValue : ""
-          }`}
-        >
-          {isCandidate && <span className={styles.candidateCue}>›</span>}
-          {record.value}
-        </span>
-        {isOverride && <span className={styles.overrideTag}>set</span>}
+        <span className={styles.value}>{record.value}</span>
         {isConflict && record.interpretation && (
           <Hint text={record.interpretation} align={hintAlign} />
         )}

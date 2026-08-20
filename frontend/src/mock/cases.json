@@ -125,7 +125,7 @@
      "field": "affiliation",
      "value": "University of Illinois Urbana-Champaign",
      "value_state": "conflict",
-     "interpretation": "Different institutions can indicate multiple appointments or timing instead of an incorrect value"
+     "interpretation": "Different institutions could mean concurrent appointments or records captured at different times"
     },
     {
      "source": "google_scholar",
@@ -780,7 +780,7 @@
      "field": "affiliation",
      "value": "Peking University; University of Chicago",
      "value_state": "conflict",
-     "interpretation": "Different institutions can indicate multiple appointments or timing instead of an incorrect value"
+     "interpretation": "Different institutions could mean concurrent appointments or records captured at different times"
     },
     {
      "source": "google_scholar",

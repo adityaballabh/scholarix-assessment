@@ -39,7 +39,7 @@
   display: none;
 }
 
-/* Last column: anchor right, or the scroll container clips it. */
+/* Last column: anchor right so the panel grows inward from the table edge */
 .textEnd {
   left: auto;
   right: -6px;

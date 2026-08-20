@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { AuthorIdentityDetail } from "../../api/types";
+import Hint from "../../components/Hint";
 import SectionRule from "../../components/SectionRule";
 import { countedNoun } from "./labels";
 import { leadTitle, yearSpan } from "./years";
@@ -9,16 +10,22 @@ const CANDIDATE_PREVIEW = 3;
 
 export default function Identity({
   detail,
+  affectedCount,
   caseId,
   search,
 }: {
   detail: AuthorIdentityDetail;
+  affectedCount: number;
   caseId: string;
   search: string;
 }) {
   const { candidate_ids, profile_topics } = detail;
   const preview = candidate_ids.slice(0, CANDIDATE_PREVIEW);
   const truncated = candidate_ids.length > preview.length;
+  const matched = candidate_ids.reduce(
+    (total, candidate) => total + candidate.publications.length,
+    0,
+  );
   const previewLabel = `Top ${countedNoun(preview.length, "S2 ID", "S2 IDs")}`;
 
   return (
@@ -38,6 +45,7 @@ export default function Identity({
               )
             }
           />
+          <div className={styles.scroll}>
           <div
             role="table"
             aria-label="Semantic Scholar candidate author IDs"
@@ -48,8 +56,13 @@ export default function Identity({
                 <span role="columnheader">
                   <span className={styles.srOnly}>position</span>
                 </span>
-                <span role="columnheader">s2 id</span>
-                <span role="columnheader">share</span>
+                <span role="columnheader">S2 ID</span>
+                <span role="columnheader" className={styles.shareHeader}>
+                  share
+                  <Hint
+                    text={`Share is based on the ${matched} publications matching an S2 ID out of ${affectedCount} total`}
+                  />
+                </span>
                 <span role="columnheader">years</span>
                 <span role="columnheader">most recent publication</span>
               </div>
@@ -76,12 +89,13 @@ export default function Identity({
               ))}
             </div>
           </div>
+          </div>
         </>
       )}
 
       {profile_topics.length > 0 && (
         <>
-          <SectionRule label="Profile Topics" hint="from Scholarix" />
+          <SectionRule label="Profile Topics" hint="from the stored profile" />
           <ul className={styles.topics}>
             {profile_topics.map((topic) => (
               <li className={styles.topic} key={topic}>

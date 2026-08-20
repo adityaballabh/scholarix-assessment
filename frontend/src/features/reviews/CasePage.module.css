@@ -60,6 +60,7 @@
 
 .step {
   display: flex;
+  align-items: center;
   gap: 6px;
 }
 
@@ -96,6 +97,7 @@
 }
 
 .position {
+  padding: 0 3px;
   color: var(--ink-faint);
   font: var(--text-micro);
   font-variant-numeric: tabular-nums;
@@ -105,6 +107,7 @@
 @media (max-width: 720px) {
   .header {
     flex-direction: column;
+    align-items: flex-start;
     gap: 18px;
   }
 

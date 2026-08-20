@@ -7,12 +7,13 @@ import {
 } from "../../api/client";
 import type {
   ActivityEvent,
-  DecisionAction,
   ReviewOverview,
   SourceFetchStatus,
   ValidationCase,
 } from "../../api/types";
 import SectionRule from "../../components/SectionRule";
+import { formatEventTime, formatFetchedAt } from "../../lib/datetime";
+import { actionLabels } from "../../lib/decisions";
 import styles from "./OverviewPage.module.css";
 
 const sourceNames: Record<string, string> = {
@@ -56,23 +57,6 @@ function daysSinceRun(iso: string | null) {
 }
 
 const ACTIVITY_PREVIEW = 4;
-
-const actionLabels: Record<DecisionAction, string> = {
-  confirm_one_author: "confirmed one author",
-  flag_for_split: "flagged for split",
-  mark_uncertain: "marked uncertain",
-  defer: "deferred",
-  note: "left a note",
-};
-
-function eventTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 interface OverviewData {
   overview: ReviewOverview;
@@ -187,7 +171,7 @@ export default function OverviewPage() {
                 <td role="cell" className={styles.sourceFetched}>
                   <time
                     dateTime={source.fetched_at ?? undefined}
-                    title={source.fetched_at ?? undefined}
+                    title={formatFetchedAt(source.fetched_at) ?? undefined}
                     aria-label={fetchedAge(source.fetched_at)}
                   >
                     {fetchedAge(source.fetched_at)}
@@ -234,7 +218,7 @@ export default function OverviewPage() {
                   </td>
                   <td role="cell" className={styles.activityActor}>{event.actor}</td>
                   <td role="cell" className={styles.activityTime}>
-                    {eventTime(event.created_at)}
+                    {formatEventTime(event.created_at)}
                   </td>
                 </tr>
               ))}

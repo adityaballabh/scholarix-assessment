@@ -100,7 +100,7 @@
 .headerRow,
 .reviewRow {
   display: grid;
-  grid-template-columns: 36px repeat(4, minmax(90px, 1fr)) 100px 130px;
+  grid-template-columns: 36px minmax(160px, 2fr) repeat(5, minmax(90px, 1fr));
   align-items: center;
   gap: 14px;
   min-height: 34px;

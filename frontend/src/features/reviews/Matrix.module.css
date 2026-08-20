@@ -94,28 +94,6 @@
   font: var(--text-cell);
 }
 
-.candidateValue {
-  color: var(--ink-secondary);
-}
-
-.candidateCue {
-  margin-right: 5px;
-  color: var(--ink-faint);
-  font: var(--text-micro);
-}
-
-.overrideValue {
-  display: inline-block;
-  padding: 2px 7px;
-  border: var(--hairline) solid var(--accent);
-}
-
-.overrideTag {
-  margin-left: 7px;
-  color: var(--accent);
-  font: var(--text-nano);
-}
-
 .cellConflict {
   background: var(--alert-weak);
 }
@@ -149,4 +127,40 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Positioned so the visually-hidden cells resolve here and stay inside the
+   clip; against `main` they escape and widen the page */
+.scroll {
+  position: relative;
+}
+
+/* overflow-x forces overflow-y to auto and that clips the cell hints */
+@media (max-width: 900px) {
+  .scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .matrix {
+    --matrix-rail: 26px;
+    --matrix-field: 104px;
+  }
+
+  .cell,
+  .fieldCell,
+  .position {
+    height: auto;
+    min-height: var(--matrix-row-height);
+  }
+
+  .cell,
+  .fieldCell {
+    padding: 8px;
+  }
+
+  .provenance {
+    overflow: visible;
+    white-space: normal;
+  }
 }

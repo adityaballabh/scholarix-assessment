@@ -1,4 +1,3 @@
-/** "top ID", then "top 3 IDs" — for phrases already led by a word. */
 export function countedNoun(
   count: number,
   singular: string,
@@ -7,7 +6,6 @@ export function countedNoun(
   return count === 1 ? singular : `${count} ${plural}`;
 }
 
-/** "1 publication", then "58 publications" — for a count standing alone. */
 export function pluralNoun(
   count: number,
   singular: string,

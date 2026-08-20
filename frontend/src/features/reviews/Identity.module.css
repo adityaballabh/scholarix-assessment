@@ -1,5 +1,17 @@
 .candidates {
   --identity-rail: 36px;
+  min-width: 620px;
+}
+
+.scroll {
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
 }
 
 .topics {
@@ -11,7 +23,6 @@
   list-style: none;
 }
 
-/* Filled, not outlined: a hairline box this size reads as a button. */
 .topic {
   padding: 4px 9px;
   color: var(--ink-secondary);
@@ -55,6 +66,11 @@
   color: var(--ink);
 }
 
+.shareHeader {
+  display: inline-flex;
+  align-items: center;
+}
+
 .title {
   overflow: hidden;
   color: var(--ink);
@@ -83,16 +99,4 @@
   border-bottom-color: var(--ink);
 }
 
-@media (max-width: 680px) {
-  .candidateRow {
-    grid-template-columns: var(--identity-rail) 96px 56px 84px;
-    gap: 10px;
-    height: auto;
-    padding: 7px 0;
-  }
 
-  .candidateRow > :nth-child(5) {
-    grid-column: 2 / -1;
-    white-space: normal;
-  }
-}

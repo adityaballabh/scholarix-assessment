@@ -1,10 +1,12 @@
 import casesJson from "../mock/cases.json";
 import overviewJson from "../mock/overview.json";
+import { matchesAuthorName } from "../lib/search";
 import type {
   ActivityEvent,
   CasePriority,
   CaseQueryFilters,
   DecisionAction,
+  ReviewStatus,
   DecisionRequest,
   ReviewOverview,
   ValidationCase,
@@ -17,8 +19,38 @@ const MOCK_REVIEWER = "aditya";
 const PRIORITY_RANK: Record<CasePriority, number> = { high: 0, medium: 1, low: 2 };
 
 const mockCases = (casesJson as unknown as { cases: ValidationCase[] }).cases;
-const mockActivityEvents: ActivityEvent[] = [];
-const mockCaseStatuses = new Map<string, ValidationCase["status"]>();
+
+const MOCK_STORE_KEY = "mergereview.decisions";
+
+interface MockStore {
+  events: ActivityEvent[];
+  decisions: Record<string, ReviewStatus>;
+}
+
+function readMockStore(): MockStore {
+  try {
+    const raw = window.localStorage.getItem(MOCK_STORE_KEY);
+    if (!raw) return { events: [], decisions: {} };
+
+    const parsed = JSON.parse(raw) as Partial<MockStore>;
+    return {
+      events: Array.isArray(parsed.events) ? parsed.events : [],
+      decisions: parsed.decisions ?? {},
+    };
+  } catch {
+    return { events: [], decisions: {} };
+  }
+}
+
+function writeMockStore(store: MockStore) {
+  try {
+    window.localStorage.setItem(MOCK_STORE_KEY, JSON.stringify(store));
+  } catch {
+    // A full or blocked store leaves the session in memory only
+  }
+}
+
+let mockStore = readMockStore();
 
 function returnAfterMockDelay<T>(value: T): Promise<T> {
   return new Promise((resolve) => {
@@ -55,28 +87,9 @@ function compareCases(a: ValidationCase, b: ValidationCase): number {
   return a.id.localeCompare(b.id);
 }
 
-const TOKEN_SEPARATOR = /[^\p{L}\p{N}]+/u;
-
-function foldText(text: string): string[] {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .split(TOKEN_SEPARATOR)
-    .filter(Boolean);
-}
-
-function matchesAuthorName(authorName: string, query: string): boolean {
-  const nameTokens = foldText(authorName);
-
-  return foldText(query).every((queryToken) =>
-    nameTokens.some((nameToken) => nameToken.startsWith(queryToken)),
-  );
-}
-
 function applyMockStatus(reviewCase: ValidationCase): ValidationCase {
-  const currentStatus = mockCaseStatuses.get(reviewCase.id);
-  return currentStatus ? { ...reviewCase, status: currentStatus } : reviewCase;
+  const status = mockStore.decisions[reviewCase.id];
+  return status ? { ...reviewCase, status } : reviewCase;
 }
 
 function caseMatchesFilters(
@@ -114,16 +127,20 @@ function buildCaseQueryString(filters: CaseQueryFilters): string {
 function getStatusAfterDecision(
   reviewCase: ValidationCase,
   action: DecisionAction,
-): ValidationCase["status"] {
+): ReviewStatus {
   switch (action) {
+    case "reopen":
+      return "pending";
+    case "confirm_one_author":
+      return "one_author";
+    case "flag_for_split":
+      return "needs_split";
+    case "mark_uncertain":
+      return "uncertain";
     case "defer":
       return "deferred";
     case "note":
       return reviewCase.status;
-    case "confirm_one_author":
-    case "flag_for_split":
-    case "mark_uncertain":
-      return "resolved";
   }
 }
 
@@ -154,7 +171,7 @@ export function getCase(caseId: string): Promise<ValidationCase> {
 }
 
 export function listActivity(): Promise<ActivityEvent[]> {
-  return getFromApiOrMock("/api/activity", () => [...mockActivityEvents]);
+  return getFromApiOrMock("/api/activity", () => [...mockStore.events]);
 }
 
 export async function postDecision(
@@ -169,7 +186,6 @@ export async function postDecision(
         body: JSON.stringify({
           action: decision.action,
           note: decision.note,
-          resolved: decision.resolved,
         }),
       },
     );
@@ -189,12 +205,8 @@ export async function postDecision(
   }
 
   const currentCase = applyMockStatus(reviewCase);
-  mockCaseStatuses.set(
-    currentCase.id,
-    getStatusAfterDecision(currentCase, decision.action),
-  );
 
-  const resolvedFields = Object.entries(decision.resolved ?? {});
+  const nextStatus = getStatusAfterDecision(currentCase, decision.action);
   const activityEvent: ActivityEvent = {
     id: `e-${Date.now().toString(36)}`,
     case_id: reviewCase.id,
@@ -203,11 +215,18 @@ export async function postDecision(
     created_at: new Date().toISOString(),
     target_name: reviewCase.target.author_name,
     note: decision.note?.trim() || null,
-    before: resolvedFields[0]?.[0] ?? null,
-    after: resolvedFields[0]?.[1] ?? null,
-    supersedes_event_id: null,
+    before: currentCase.status,
+    after: nextStatus,
   };
 
-  mockActivityEvents.unshift(activityEvent);
+  mockStore = {
+    events: [activityEvent, ...mockStore.events],
+    decisions: {
+      ...mockStore.decisions,
+      [currentCase.id]: nextStatus,
+    },
+  };
+  writeMockStore(mockStore);
+
   return returnAfterMockDelay(activityEvent);
 }

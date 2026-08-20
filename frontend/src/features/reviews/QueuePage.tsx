@@ -3,6 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { listCases } from "../../api/client";
 import Hint from "../../components/Hint";
 import Select from "../../components/Select";
+import SortHeader from "../../components/SortHeader";
+import type { SortDirection } from "../../components/SortHeader";
 import type { ValidationCase } from "../../api/types";
 import {
   DEFAULT_STATUS,
@@ -10,8 +12,11 @@ import {
   priorityOptions,
   readOption,
   statusOptions,
+  statusOrder,
 } from "./filters";
 import styles from "./QueuePage.module.css";
+
+type SortColumn = "share" | "publications" | "status";
 
 const STALE_DELAY_MS = 500;
 
@@ -32,6 +37,13 @@ export default function QueuePage() {
   const priority = readOption(rawPriority, priorityOptions, "");
   const status = readOption(rawStatus, statusOptions, DEFAULT_STATUS);
   const rowSearch = searchParams.toString();
+  const rawSort = searchParams.get("sort");
+  const sort: SortColumn | "" =
+    rawSort === "publications" || rawSort === "share" || rawSort === "status"
+      ? rawSort
+      : "";
+  const direction: SortDirection =
+    searchParams.get("dir") === "asc" ? "asc" : "desc";
 
   const [draftQuery, setDraftQuery] = useState(query);
 
@@ -114,6 +126,39 @@ export default function QueuePage() {
     };
   }, [priority, query, status]);
 
+  function orderCases(rows: ValidationCase[]): ValidationCase[] {
+    if (!sort) return rows;
+
+    return [...rows].sort((a, b) => {
+      const gap =
+        sort === "share"
+          ? (a.detail.top_share ?? 0) - (b.detail.top_share ?? 0)
+          : sort === "status"
+            ? statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
+            : a.affected_count - b.affected_count;
+      return direction === "asc" ? gap : -gap;
+    });
+  }
+
+  function applySort(column: SortColumn, next: SortDirection | null) {
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous);
+        params.delete("dir");
+
+        if (next === null) {
+          params.delete("sort");
+          return params;
+        }
+
+        params.set("sort", column);
+        if (next === "asc") params.set("dir", "asc");
+        return params;
+      },
+      { replace: true },
+    );
+  }
+
   function updateFilter(name: string, value: string) {
     setSearchParams(
       (previous) => {
@@ -188,10 +233,13 @@ export default function QueuePage() {
       ) : (
         <>
           <ReviewTable
-            cases={cases}
+            cases={orderCases(cases)}
             loading={loading}
             stale={stale}
             rowSearch={rowSearch}
+            sort={sort}
+            direction={direction}
+            onSort={applySort}
           />
           {status === "all" &&
             cases.some((reviewCase) => reviewCase.status === "deferred") && (
@@ -208,11 +256,17 @@ function ReviewTable({
   loading,
   stale,
   rowSearch,
+  sort,
+  direction,
+  onSort,
 }: {
   cases: ValidationCase[];
   loading: boolean;
   stale: boolean;
   rowSearch: string;
+  sort: string;
+  direction: SortDirection;
+  onSort: (column: SortColumn, next: SortDirection | null) => void;
 }) {
   return (
     <div className={styles.tableScroll}>
@@ -230,20 +284,40 @@ function ReviewTable({
               author
             </th>
             <th role="columnheader" scope="col" className={styles.shareHeader}>
-              top share
+              <SortHeader
+                label="top share"
+                active={sort === "share"}
+                direction={direction}
+                clearable
+                onSort={(next) => onSort("share", next)}
+              >
+                top share
+              </SortHeader>
               <Hint text={SHARE_HINT} />
             </th>
             <th role="columnheader" scope="col">
               candidates
             </th>
             <th role="columnheader" scope="col">
-              publications
+              <SortHeader
+                label="publications"
+                active={sort === "publications"}
+                direction={direction}
+                clearable
+                onSort={(next) => onSort("publications", next)}
+              />
             </th>
             <th role="columnheader" scope="col">
               priority
             </th>
             <th role="columnheader" scope="col">
-              status
+              <SortHeader
+                label="status"
+                active={sort === "status"}
+                direction={direction}
+                clearable
+                onSort={(next) => onSort("status", next)}
+              />
             </th>
           </tr>
         </thead>

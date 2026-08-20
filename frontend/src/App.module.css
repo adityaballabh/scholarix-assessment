@@ -86,7 +86,7 @@
   overflow: auto;
 }
 
-/* Without this a short viewport squeezes the page and clips its tail. */
+/* Without this a short viewport squeezes the page and clips its tail */
 .main > * {
   flex-shrink: 0;
 }
