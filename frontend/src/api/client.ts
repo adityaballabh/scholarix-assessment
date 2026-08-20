@@ -7,20 +7,12 @@ import type {
   DecisionAction,
   DecisionRequest,
   ReviewOverview,
-  ReviewStatus,
   ValidationCase,
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string | undefined;
 const MOCK_RESPONSE_DELAY_MS = 200;
 const MOCK_REVIEWER = "aditya";
-
-export const OPEN_STATUSES: ReviewStatus[] = [
-  "pending",
-  "in_review",
-  "reopened",
-  "deferred",
-];
 
 const PRIORITY_RANK: Record<CasePriority, number> = { high: 0, medium: 1, low: 2 };
 
@@ -128,8 +120,8 @@ function getStatusAfterDecision(
       return "deferred";
     case "note":
       return reviewCase.status;
-    case "accept_merge":
-    case "keep_separate":
+    case "confirm_one_author":
+    case "flag_for_split":
     case "mark_uncertain":
       return "resolved";
   }

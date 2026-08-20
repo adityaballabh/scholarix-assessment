@@ -1,0 +1,116 @@
+.bar {
+  padding: 0 0 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.action {
+  height: 28px;
+  padding: 0 11px;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: 0;
+  font: var(--text-micro);
+  cursor: pointer;
+  transition: color var(--duration-instant) var(--ease-out),
+    border-color var(--duration-instant) var(--ease-out);
+}
+
+.action:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
+.action:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.action:disabled {
+  color: var(--ink-faint);
+  border-color: var(--rule);
+  cursor: not-allowed;
+}
+
+.dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  color: var(--ink);
+  background: var(--canvas);
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: 0;
+  box-shadow: 0 8px 24px -12px rgba(22, 24, 28, 0.28);
+}
+
+.dialog::backdrop {
+  background: rgba(22, 24, 28, 0.28);
+}
+
+.dialogBody {
+  padding: 16px;
+}
+
+.dialogTitle {
+  margin: 0;
+  color: var(--ink);
+  font: var(--text-section);
+}
+
+.noteField {
+  width: 100%;
+  margin-top: 11px;
+  padding: 7px 8px;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: var(--hairline) solid var(--rule);
+  border-radius: 0;
+  font: var(--text-micro);
+  resize: none;
+}
+
+.noteField::placeholder {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+.noteField:focus-visible {
+  outline: none;
+  border-color: var(--ink-faint);
+}
+
+.dialogActions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.primary:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.primary:hover:not(:disabled) {
+  color: var(--canvas);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .actions {
+    flex-wrap: wrap;
+  }
+}

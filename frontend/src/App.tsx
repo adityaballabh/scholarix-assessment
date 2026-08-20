@@ -1,6 +1,8 @@
 import { Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
 import OverviewPage from "./features/overview/OverviewPage";
 import PlaceholderPage from "./features/placeholder/PlaceholderPage";
+import CasePage from "./features/reviews/CasePage";
+import ClustersPage from "./features/reviews/ClustersPage";
 import QueuePage from "./features/reviews/QueuePage";
 import styles from "./App.module.css";
 
@@ -40,10 +42,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/reviews" element={<QueuePage />} />
-          <Route
-            path="/reviews/:caseId"
-            element={<PlaceholderPage section="Review" />}
-          />
+          <Route path="/reviews/:caseId" element={<CasePage />} />
+          <Route path="/reviews/:caseId/ids" element={<ClustersPage />} />
           <Route
             path="/activity/*"
             element={<PlaceholderPage section="Activity" />}

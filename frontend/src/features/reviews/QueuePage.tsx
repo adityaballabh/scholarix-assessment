@@ -1,51 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { OPEN_STATUSES, listCases } from "../../api/client";
+import { listCases } from "../../api/client";
+import Hint from "../../components/Hint";
 import Select from "../../components/Select";
-import type { SelectOption } from "../../components/Select";
-import type {
-  CasePriority,
-  CaseQueryFilters,
-  ReviewStatus,
-  ValidationCase,
-} from "../../api/types";
+import type { ValidationCase } from "../../api/types";
+import {
+  DEFAULT_STATUS,
+  getStatusFilter,
+  priorityOptions,
+  readOption,
+  statusOptions,
+} from "./filters";
 import styles from "./QueuePage.module.css";
-
-const priorityOptions: SelectOption<CasePriority | "">[] = [
-  { value: "", label: "all priorities" },
-  { value: "high", label: "high" },
-  { value: "medium", label: "medium" },
-  { value: "low", label: "low" },
-];
-
-const statusOptions: SelectOption<ReviewStatus | "open" | "all">[] = [
-  { value: "all", label: "all states" },
-  { value: "open", label: "open" },
-  { value: "pending", label: "pending" },
-  { value: "in_review", label: "in review" },
-  { value: "deferred", label: "deferred" },
-  { value: "reopened", label: "reopened" },
-  { value: "resolved", label: "resolved" },
-];
 
 const STALE_DELAY_MS = 500;
 
 const SHARE_HINT =
   "highest share of publications across all S2 IDs for an author";
-
-function readOption<T extends string>(
-  raw: string | null,
-  options: SelectOption<T>[],
-  fallback: T,
-): T {
-  return options.some((option) => option.value === raw) ? (raw as T) : fallback;
-}
-
-function getStatusFilter(status: string): CaseQueryFilters["status"] {
-  if (status === "all") return undefined;
-  if (status === "open") return OPEN_STATUSES;
-  return status as ReviewStatus;
-}
 
 export default function QueuePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -59,7 +30,8 @@ export default function QueuePage() {
   const rawPriority = searchParams.get("priority");
   const rawStatus = searchParams.get("status");
   const priority = readOption(rawPriority, priorityOptions, "");
-  const status = readOption(rawStatus, statusOptions, "open");
+  const status = readOption(rawStatus, statusOptions, DEFAULT_STATUS);
+  const rowSearch = searchParams.toString();
 
   const [draftQuery, setDraftQuery] = useState(query);
 
@@ -147,7 +119,7 @@ export default function QueuePage() {
       (previous) => {
         const nextParams = new URLSearchParams(previous);
 
-        if (value && !(name === "status" && value === "open")) {
+        if (value && !(name === "status" && value === DEFAULT_STATUS)) {
           nextParams.set(name, value);
         } else {
           nextParams.delete(name);
@@ -159,7 +131,7 @@ export default function QueuePage() {
     );
   }
 
-  const filtered = Boolean(query || priority || status !== "open");
+  const filtered = Boolean(query || priority || status !== DEFAULT_STATUS);
 
   return (
     <section className={styles.page}>
@@ -210,13 +182,21 @@ export default function QueuePage() {
       ) : cases.length === 0 ? (
         <p className={styles.pageState}>
           {anyCasesExist
-            ? "No reviews match the current filters."
-            : "No reviews left."}
+            ? "No reviews match the current filters"
+            : "No reviews left"}
         </p>
       ) : (
         <>
-          <ReviewTable cases={cases} loading={loading} stale={stale} />
-          <p className={styles.tableFooter}>deferred at the end</p>
+          <ReviewTable
+            cases={cases}
+            loading={loading}
+            stale={stale}
+            rowSearch={rowSearch}
+          />
+          {status === "all" &&
+            cases.some((reviewCase) => reviewCase.status === "deferred") && (
+              <p className={styles.tableFooter}>deferred at the end</p>
+            )}
         </>
       )}
     </section>
@@ -227,10 +207,12 @@ function ReviewTable({
   cases,
   loading,
   stale,
+  rowSearch,
 }: {
   cases: ValidationCase[];
   loading: boolean;
   stale: boolean;
+  rowSearch: string;
 }) {
   return (
     <div className={styles.tableScroll}>
@@ -244,26 +226,25 @@ function ReviewTable({
             <th role="columnheader" scope="col">
               <span className={styles.srOnly}>position</span>
             </th>
-            <th role="columnheader" scope="col">author</th>
+            <th role="columnheader" scope="col">
+              author
+            </th>
             <th role="columnheader" scope="col" className={styles.shareHeader}>
               top share
-              <button
-                type="button"
-                className={styles.hint}
-                aria-label={SHARE_HINT}
-              >
-                <span aria-hidden="true" className={styles.hintMark}>
-                  i
-                </span>
-                <span aria-hidden="true" className={styles.hintText}>
-                  {SHARE_HINT}
-                </span>
-              </button>
+              <Hint text={SHARE_HINT} />
             </th>
-            <th role="columnheader" scope="col">candidates</th>
-            <th role="columnheader" scope="col">publications</th>
-            <th role="columnheader" scope="col">priority</th>
-            <th role="columnheader" scope="col">status</th>
+            <th role="columnheader" scope="col">
+              candidates
+            </th>
+            <th role="columnheader" scope="col">
+              publications
+            </th>
+            <th role="columnheader" scope="col">
+              priority
+            </th>
+            <th role="columnheader" scope="col">
+              status
+            </th>
           </tr>
         </thead>
         <tbody role="rowgroup">
@@ -272,6 +253,7 @@ function ReviewTable({
               key={reviewCase.id}
               reviewCase={reviewCase}
               position={index + 1}
+              search={rowSearch}
             />
           ))}
         </tbody>
@@ -283,15 +265,22 @@ function ReviewTable({
 function ReviewRow({
   reviewCase,
   position,
+  search,
 }: {
   reviewCase: ValidationCase;
   position: number;
+  search: string;
 }) {
   return (
     <tr role="row" className={styles.reviewRow}>
-      <td role="cell" className={styles.position}>{position}</td>
+      <td role="cell" className={styles.position}>
+        {position}
+      </td>
       <th role="rowheader" scope="row" className={styles.author}>
-        <Link to={`/reviews/${reviewCase.id}`} className={styles.reviewLink}>
+        <Link
+          to={{ pathname: `/reviews/${reviewCase.id}`, search }}
+          className={styles.reviewLink}
+        >
           {reviewCase.target.author_name}
         </Link>
       </th>
@@ -303,8 +292,12 @@ function ReviewRow({
       <td role="cell" className={styles.numericValue}>
         {reviewCase.detail.candidate_ids.length}
       </td>
-      <td role="cell" className={styles.numericValue}>{reviewCase.affected_count}</td>
-      <td role="cell" className={styles.priority}>{reviewCase.priority}</td>
+      <td role="cell" className={styles.numericValue}>
+        {reviewCase.affected_count}
+      </td>
+      <td role="cell" className={styles.priority}>
+        {reviewCase.priority}
+      </td>
       <td role="cell" className={styles.status}>
         {reviewCase.status.replace(/_/g, " ")}
       </td>

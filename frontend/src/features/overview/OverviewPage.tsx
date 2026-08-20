@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  OPEN_STATUSES,
   getOverview,
   listActivity,
   listCases,
@@ -13,6 +12,7 @@ import type {
   SourceFetchStatus,
   ValidationCase,
 } from "../../api/types";
+import SectionRule from "../../components/SectionRule";
 import styles from "./OverviewPage.module.css";
 
 const sourceNames: Record<string, string> = {
@@ -58,8 +58,8 @@ function daysSinceRun(iso: string | null) {
 const ACTIVITY_PREVIEW = 4;
 
 const actionLabels: Record<DecisionAction, string> = {
-  accept_merge: "accepted merge",
-  keep_separate: "kept separate",
+  confirm_one_author: "confirmed one author",
+  flag_for_split: "flagged for split",
   mark_uncertain: "marked uncertain",
   defer: "deferred",
   note: "left a note",
@@ -87,7 +87,7 @@ export default function OverviewPage() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([getOverview(), listCases({ status: OPEN_STATUSES }), listActivity()])
+    Promise.all([getOverview(), listCases({ status: "pending" }), listActivity()])
       .then(([overview, cases, activity]) => {
         if (active) setData({ overview, cases, activity });
       })
@@ -128,7 +128,7 @@ export default function OverviewPage() {
         <Stat value={daysSinceRun(overview.audited_at)} label="since last run" />
       </div>
 
-      <SectionRule label="Open Cases" />
+      <SectionRule label="Pending Cases" />
       <div className={styles.caseList}>
         <table role="table" className={styles.table}>
           <thead role="rowgroup" className={styles.caseHead}>
@@ -253,14 +253,6 @@ export default function OverviewPage() {
   );
 }
 
-function SectionRule({ label, hint }: { label: string; hint?: string }) {
-  return (
-    <div className="sectionRule">
-      <span className="sectionLabel">{label}</span>
-      {hint && <span className="sectionHint">{hint}</span>}
-    </div>
-  );
-}
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (

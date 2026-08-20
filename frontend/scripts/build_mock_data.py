@@ -1,6 +1,5 @@
 import hashlib
 import json
-import re
 from collections import Counter
 from pathlib import Path
 
@@ -18,10 +17,6 @@ def build_case_id(author_slug):
     value = f"identity|{author_slug}"
     digest = hashlib.sha1(value.encode()).hexdigest()
     return "c-" + digest[:10]
-
-
-def strip_markup(text):
-    return re.sub(r"<[^>]+>", "", text or "")
 
 
 def normalize_institution(institution):
@@ -90,8 +85,14 @@ def build_identity_case(author):
     name = profile["name"]
 
     candidates = [
-        {"id": candidate_id, "share": share, "sample_title": sample_title}
-        for candidate_id, share, sample_title in S2_AUTHOR_CANDIDATES.get(name, [])
+        {
+            "id": candidate["id"],
+            "share": candidate["share"],
+            "first_year": candidate["first_year"],
+            "last_year": candidate["last_year"],
+            "publications": candidate["publications"],
+        }
+        for candidate in S2_AUTHOR_CANDIDATES.get(name, [])
     ]
     candidates.sort(key=lambda candidate: candidate["share"], reverse=True)
     if not candidates:
@@ -100,26 +101,14 @@ def build_identity_case(author):
     distinct_total = len(candidates)
     orcid = profile.get("orcid") or {}
 
-    ranked = sorted(publications, key=lambda pub: -(pub.get("citations") or 0))
-    most_cited_publications = [
-        {
-            "title": strip_markup(pub.get("title")),
-            "year": pub.get("year"),
-            "citations": pub.get("citations"),
-            "journal": pub.get("journal"),
-        }
-        for pub in ranked[:5]
-    ]
-
     evidence = [
         build_evidence(
             "semantic_scholar",
             [build_source_ref("author", candidate["id"]) for candidate in candidates],
             "author_identity",
-            f"{distinct_total} distinct author IDs",
+            f"{distinct_total} S2 IDs for publications matching this name",
             "conflict",
-            f"Publications under this name resolve to {distinct_total} separate "
-            f"Semantic Scholar authors.",
+            "",
         ),
         build_evidence(
             "openalex",
@@ -127,7 +116,7 @@ def build_identity_case(author):
             "canonical_name",
             name,
             "supports",
-            "Source agrees with the stored name.",
+            "",
         ),
         build_evidence(
             "openalex",
@@ -135,7 +124,7 @@ def build_identity_case(author):
             "affiliation",
             profile.get("affiliation"),
             "supports",
-            "Affiliation as stored on the OpenAlex author record.",
+            "",
         ),
     ]
 
@@ -151,10 +140,9 @@ def build_identity_case(author):
                 "affiliation",
                 "; ".join(institutions),
                 "supports" if agrees else "conflict",
-                "An ORCID institution agrees with the stored profile."
+                ""
                 if agrees
-                else "ORCID reports different institutions. This may reflect timing or "
-                "multiple appointments rather than an incorrect value.",
+                else "Different institutions can indicate multiple appointments or timing instead of an incorrect value",
             )
         )
     elif orcid.get("orcid_id"):
@@ -171,17 +159,15 @@ def build_identity_case(author):
     else:
         evidence.append(
             build_evidence(
-                "orcid", [], "orcid_id", None, "missing",
-                "No ORCID is stored for this profile.",
+                "orcid", [], "affiliation", None, "missing", "",
+                fetch_status="never_attempted",
             )
         )
 
     # Google Scholar was rate limited for every author in the dataset
     evidence.append(
         build_evidence(
-            "google_scholar", [], "profile_link", None, "unverifiable",
-            "Request was rate limited, so the profile link could not be checked. "
-            "This is not evidence of absence.",
+            "google_scholar", [], "profile_link", None, "unverifiable", "",
             fetch_status="rate_limited",
         )
     )
@@ -196,16 +182,11 @@ def build_identity_case(author):
             "author_name": name,
             "openalex_id": profile.get("id"),
         },
-        "summary": (
-            f"Publications under this name resolve to {distinct_total} separate "
-            f"Semantic Scholar authors across {len(publications)} publications."
-        ),
         "affected_count": len(publications),
         "evidence": evidence,
         "detail": {
             "candidate_ids": candidates,
             "top_share": top_share,
-            "most_cited_publications": most_cited_publications,
             "profile_topics": profile.get("topics") or [],
         },
     }

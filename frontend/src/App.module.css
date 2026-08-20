@@ -76,6 +76,7 @@
 }
 
 .main {
+  position: relative;
   width: 100%;
   flex: 1;
   min-height: 0;
@@ -83,6 +84,11 @@
   flex-direction: column;
   padding: 0 24px 8px;
   overflow: auto;
+}
+
+/* Without this a short viewport squeezes the page and clips its tail. */
+.main > * {
+  flex-shrink: 0;
 }
 
 @media (max-width: 720px) {

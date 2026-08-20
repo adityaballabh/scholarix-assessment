@@ -1,0 +1,164 @@
+.page {
+  padding-bottom: 24px;
+}
+
+.pageState {
+  margin: 0;
+  padding: 24px 0;
+  color: var(--ink-muted);
+  font: var(--text-micro);
+}
+
+.stateLink {
+  color: var(--accent);
+}
+
+.backLink {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  margin: 8px 0 0 -9px;
+  color: var(--ink-muted);
+  font: var(--text-micro);
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--ink);
+}
+
+.backLink:focus-visible {
+  outline: none;
+  color: var(--accent);
+}
+
+.header {
+  padding: 6px 0 18px;
+}
+
+.name {
+  margin: 0;
+  font: var(--text-display);
+}
+
+.clusters,
+.publications {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cluster {
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.clusterRow {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 46px 110px 64px 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background var(--duration-instant) var(--ease-out);
+}
+
+.clusterRow:hover {
+  background: var(--surface);
+}
+
+.clusterRow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.rail {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.position {
+  color: var(--ink-muted);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.caret {
+  color: var(--ink-faint);
+  font: var(--text-micro);
+}
+
+.identifier,
+.share,
+.span {
+  color: var(--ink-secondary);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.share {
+  color: var(--ink);
+}
+
+.title {
+  overflow: hidden;
+  color: var(--ink);
+  font: var(--text-cell);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel {
+  padding: 9px 0 11px 60px;
+  background: var(--surface);
+}
+
+.panelCount {
+  margin: 0 0 6px;
+  color: var(--ink-faint);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.publication {
+  display: grid;
+  grid-template-columns: 24px 44px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 12px 5px 0;
+}
+
+.publicationYear {
+  color: var(--ink-faint);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.publicationTitle {
+  color: var(--ink-secondary);
+  font: var(--text-cell);
+}
+
+@media (max-width: 680px) {
+  .clusterRow {
+    grid-template-columns: 42px 96px 56px 84px;
+    gap: 10px;
+    height: auto;
+    padding: 8px 0;
+  }
+
+  .clusterRow > :nth-child(5) {
+    grid-column: 2 / -1;
+    white-space: normal;
+  }
+
+  .panel {
+    padding-left: 28px;
+  }
+}

@@ -43,24 +43,22 @@ export interface EvidenceRecord {
   interpretation: string;
 }
 
-// The mock keeps one title per S2 candidate but the actual API will return expandable publication groups
 export interface SemanticScholarCandidate {
   id: string;
   share: number;
-  sample_title: string;
+  first_year: number | null;
+  last_year: number | null;
+  publications: ClusterPublication[];
 }
 
-export interface MostCitedPublication {
-  title: string;
+export interface ClusterPublication {
   year: number | null;
-  citations: number | null;
-  journal: string | null;
+  title: string;
 }
 
 export interface AuthorIdentityDetail {
   candidate_ids: SemanticScholarCandidate[];
   top_share: number | null;
-  most_cited_publications: MostCitedPublication[];
   profile_topics: string[];
 }
 
@@ -75,15 +73,14 @@ export interface ValidationCase {
   status: ReviewStatus;
   priority: CasePriority;
   target: ReviewTarget;
-  summary: string;
   affected_count: number;
   evidence: EvidenceRecord[];
   detail: AuthorIdentityDetail;
 }
 
 export type DecisionAction =
-  | "accept_merge"
-  | "keep_separate"
+  | "confirm_one_author"
+  | "flag_for_split"
   | "mark_uncertain"
   | "defer"
   | "note";

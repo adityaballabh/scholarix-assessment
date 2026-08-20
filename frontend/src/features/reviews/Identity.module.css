@@ -1,0 +1,98 @@
+.candidates {
+  --identity-rail: 36px;
+}
+
+.topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 9px 0 0;
+  list-style: none;
+}
+
+/* Filled, not outlined: a hairline box this size reads as a button. */
+.topic {
+  padding: 4px 9px;
+  color: var(--ink-secondary);
+  background: var(--surface-sunk);
+  font: var(--text-micro);
+}
+
+.candidateRow {
+  display: grid;
+  align-items: center;
+  gap: 14px;
+  height: 34px;
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.candidateRow {
+  grid-template-columns: var(--identity-rail) 110px 64px 92px minmax(0, 1fr);
+}
+
+.head {
+  height: 34px;
+  color: var(--ink-muted);
+  font: var(--text-micro);
+}
+
+.position {
+  color: var(--ink-muted);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.identifier,
+.share,
+.span {
+  color: var(--ink-secondary);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.share {
+  color: var(--ink);
+}
+
+.title {
+  overflow: hidden;
+  color: var(--ink);
+  font: var(--text-cell);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.seeAll {
+  color: inherit;
+  border-bottom: var(--hairline) solid var(--rule-strong);
+  text-decoration: none;
+}
+
+.seeAll:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+@media (max-width: 680px) {
+  .candidateRow {
+    grid-template-columns: var(--identity-rail) 96px 56px 84px;
+    gap: 10px;
+    height: auto;
+    padding: 7px 0;
+  }
+
+  .candidateRow > :nth-child(5) {
+    grid-column: 2 / -1;
+    white-space: normal;
+  }
+}

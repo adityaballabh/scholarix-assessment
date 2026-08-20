@@ -15,6 +15,8 @@
   --accent-weak: #e6e8f4;
   --accent-deep: #25317c;
   --alert: #a3303c;
+  --alert-tint: #e5484d;
+  --alert-weak: color-mix(in srgb, var(--alert-tint) 4.5%, transparent);
 
   --hairline: 1px;
   --radius: 0;

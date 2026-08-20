@@ -61,61 +61,6 @@
   gap: 6px;
 }
 
-.hint {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 6px;
-  margin: -6px;
-  background: transparent;
-  border: 0;
-}
-
-.hintMark {
-  width: 13px;
-  height: 13px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: color-mix(in srgb, var(--accent) 70%, var(--accent-weak));
-  background: var(--accent-weak);
-  border-radius: 50%;
-  font: var(--text-nano);
-}
-
-.hintText {
-  position: absolute;
-  top: calc(100% + 7px);
-  left: -6px;
-  z-index: 3;
-  width: max-content;
-  max-width: 280px;
-  padding: 7px 9px;
-  color: var(--ink-secondary);
-  background: var(--surface);
-  border: var(--hairline) solid var(--rule-strong);
-  font: var(--text-micro);
-  white-space: normal;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--duration-instant) var(--ease-out);
-}
-
-.hint:hover .hintText,
-.hint:focus .hintText {
-  opacity: 1;
-  visibility: visible;
-}
-
-.hint:focus {
-  outline: none;
-}
-
-.hint:focus .hintMark {
-  color: var(--canvas);
-  background: var(--accent);
-}
-
 .tableFooter {
   margin: 0;
   padding: 10px 0 0;
@@ -211,18 +156,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.hint {
-  cursor: default;
-}
-
-@media (max-width: 700px) {
-  .hintText {
-    left: auto;
-    right: -6px;
-    max-width: min(280px, calc(100vw - 40px));
-  }
 }
 
 @media (max-width: 680px) {
