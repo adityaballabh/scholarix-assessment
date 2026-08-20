@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  getOverview,
-  listActivity,
-  listCases,
-} from "../../api/client";
+import { getOverview, listActivity, listCases } from "../../api/client";
 import type {
   ActivityEvent,
   ReviewOverview,
@@ -71,7 +67,11 @@ export default function OverviewPage() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([getOverview(), listCases({ status: "pending" }), listActivity()])
+    Promise.all([
+      getOverview(),
+      listCases({ status: "pending" }),
+      listActivity(),
+    ])
       .then(([overview, cases, activity]) => {
         if (active) setData({ overview, cases, activity });
       })
@@ -109,7 +109,10 @@ export default function OverviewPage() {
           value={overview.publications.toLocaleString()}
           label={`of ${overview.publications_audited.toLocaleString()} publications affected`}
         />
-        <Stat value={daysSinceRun(overview.audited_at)} label="since last run" />
+        <Stat
+          value={daysSinceRun(overview.audited_at)}
+          label="since last run"
+        />
       </div>
 
       <SectionRule label="Pending Cases" />
@@ -120,10 +123,18 @@ export default function OverviewPage() {
               <th role="columnheader" scope="col">
                 <span className={styles.srOnly}>position</span>
               </th>
-              <th role="columnheader" scope="col">author</th>
-              <th role="columnheader" scope="col">top share</th>
-              <th role="columnheader" scope="col">candidates</th>
-              <th role="columnheader" scope="col">publications</th>
+              <th role="columnheader" scope="col">
+                author
+              </th>
+              <th role="columnheader" scope="col">
+                top share
+              </th>
+              <th role="columnheader" scope="col">
+                candidates
+              </th>
+              <th role="columnheader" scope="col">
+                publications
+              </th>
             </tr>
           </thead>
           <tbody role="rowgroup">
@@ -146,16 +157,26 @@ export default function OverviewPage() {
               <th role="columnheader" scope="col">
                 <span className={styles.srOnly}>position</span>
               </th>
-              <th role="columnheader" scope="col">source</th>
-              <th role="columnheader" scope="col">status</th>
-              <th role="columnheader" scope="col">details</th>
-              <th role="columnheader" scope="col">fetched</th>
+              <th role="columnheader" scope="col">
+                source
+              </th>
+              <th role="columnheader" scope="col">
+                status
+              </th>
+              <th role="columnheader" scope="col">
+                details
+              </th>
+              <th role="columnheader" scope="col">
+                fetched
+              </th>
             </tr>
           </thead>
           <tbody role="rowgroup">
             {overview.sources.map((source, index) => (
               <tr role="row" className={styles.sourceRow} key={source.source}>
-                <td role="cell" className={styles.position}>{index + 1}</td>
+                <td role="cell" className={styles.position}>
+                  {index + 1}
+                </td>
                 <th role="rowheader" scope="row" className={styles.sourceName}>
                   {sourceName(source.source)}
                 </th>
@@ -165,7 +186,11 @@ export default function OverviewPage() {
                 >
                   {sourceStateLabels[source.state]}
                 </td>
-                <td role="cell" className={styles.sourceNote} title={source.note}>
+                <td
+                  role="cell"
+                  className={styles.sourceNote}
+                  title={source.note}
+                >
                   {source.note}
                 </td>
                 <td role="cell" className={styles.sourceFetched}>
@@ -200,23 +225,39 @@ export default function OverviewPage() {
                 <th role="columnheader" scope="col">
                   <span className={styles.srOnly}>position</span>
                 </th>
-                <th role="columnheader" scope="col">author</th>
-                <th role="columnheader" scope="col">action</th>
-                <th role="columnheader" scope="col">reviewer</th>
-                <th role="columnheader" scope="col">when</th>
+                <th role="columnheader" scope="col">
+                  author
+                </th>
+                <th role="columnheader" scope="col">
+                  action
+                </th>
+                <th role="columnheader" scope="col">
+                  reviewer
+                </th>
+                <th role="columnheader" scope="col">
+                  when
+                </th>
               </tr>
             </thead>
             <tbody role="rowgroup">
               {activity.slice(0, ACTIVITY_PREVIEW).map((event, index) => (
                 <tr role="row" className={styles.activityRow} key={event.id}>
-                  <td role="cell" className={styles.position}>{index + 1}</td>
-                  <th role="rowheader" scope="row" className={styles.activityTarget}>
+                  <td role="cell" className={styles.position}>
+                    {index + 1}
+                  </td>
+                  <th
+                    role="rowheader"
+                    scope="row"
+                    className={styles.activityTarget}
+                  >
                     {event.target_name}
                   </th>
                   <td role="cell" className={styles.activityAction}>
                     {actionLabels[event.action_type]}
                   </td>
-                  <td role="cell" className={styles.activityActor}>{event.actor}</td>
+                  <td role="cell" className={styles.activityActor}>
+                    {event.actor}
+                  </td>
                   <td role="cell" className={styles.activityTime}>
                     {formatEventTime(event.created_at)}
                   </td>
@@ -237,7 +278,6 @@ export default function OverviewPage() {
   );
 }
 
-
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div className={styles.stat}>
@@ -256,7 +296,9 @@ function CaseRow({
 }) {
   return (
     <tr role="row" className={styles.caseRow}>
-      <td role="cell" className={styles.position}>{position}</td>
+      <td role="cell" className={styles.position}>
+        {position}
+      </td>
       <th role="rowheader" scope="row" className={styles.caseName}>
         <Link to={`/reviews/${reviewCase.id}`} className={styles.caseLink}>
           {reviewCase.target.author_name}
@@ -270,7 +312,9 @@ function CaseRow({
       <td role="cell" className={styles.candidateCount}>
         {reviewCase.detail.candidate_ids.length}
       </td>
-      <td role="cell" className={styles.affectedCount}>{reviewCase.affected_count}</td>
+      <td role="cell" className={styles.affectedCount}>
+        {reviewCase.affected_count}
+      </td>
     </tr>
   );
 }

@@ -36,7 +36,8 @@ export default function ClustersPage() {
   if (missing) {
     return (
       <p className={styles.pageState} role="alert">
-        No case with id {caseId}{" · "}
+        No case with id {caseId}
+        {" · "}
         <Link to="/reviews" className={styles.stateLink}>
           back to the queue
         </Link>
@@ -91,7 +92,9 @@ export default function ClustersPage() {
                   <span className={styles.position}>{index + 1}</span>
                 </span>
                 <span className={styles.identifier}>{candidate.id}</span>
-                <span className={styles.share}>{candidate.share.toFixed(1)}%</span>
+                <span className={styles.share}>
+                  {candidate.share.toFixed(1)}%
+                </span>
                 <span className={styles.span}>{span ?? "—"}</span>
                 <span className={styles.title}>{leadTitle(candidate)}</span>
               </button>

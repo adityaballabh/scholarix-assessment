@@ -33,7 +33,9 @@ export default function SortHeader({
       type="button"
       className={`${styles.header} ${active ? styles.active : ""}`}
       aria-label={
-        next === null ? `Clear sorting by ${label}` : `Sort by ${label}, ${next}ending`
+        next === null
+          ? `Clear sorting by ${label}`
+          : `Sort by ${label}, ${next}ending`
       }
       onClick={() => onSort(next)}
     >
@@ -47,8 +49,14 @@ export default function SortHeader({
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M1 4.6 4.5 1.2 8 4.6" className={up ? styles.on : styles.off} />
-        <path d="M1 7.4 4.5 10.8 8 7.4" className={down ? styles.on : styles.off} />
+        <path
+          d="M1 4.6 4.5 1.2 8 4.6"
+          className={up ? styles.on : styles.off}
+        />
+        <path
+          d="M1 7.4 4.5 10.8 8 7.4"
+          className={down ? styles.on : styles.off}
+        />
       </svg>
     </button>
   );

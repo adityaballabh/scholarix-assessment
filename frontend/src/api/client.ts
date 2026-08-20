@@ -16,7 +16,11 @@ const API_BASE_URL = import.meta.env.VITE_API_URL as string | undefined;
 const MOCK_RESPONSE_DELAY_MS = 200;
 const MOCK_REVIEWER = "aditya";
 
-const PRIORITY_RANK: Record<CasePriority, number> = { high: 0, medium: 1, low: 2 };
+const PRIORITY_RANK: Record<CasePriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
 
 const mockCases = (casesJson as unknown as { cases: ValidationCase[] }).cases;
 
@@ -75,7 +79,8 @@ async function getFromApiOrMock<T>(
 }
 
 function compareCases(a: ValidationCase, b: ValidationCase): number {
-  const deferred = Number(a.status === "deferred") - Number(b.status === "deferred");
+  const deferred =
+    Number(a.status === "deferred") - Number(b.status === "deferred");
   if (deferred) return deferred;
 
   const priority = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
@@ -97,13 +102,19 @@ function caseMatchesFilters(
   filters: CaseQueryFilters,
 ): boolean {
   if (filters.status) {
-    const wanted = Array.isArray(filters.status) ? filters.status : [filters.status];
+    const wanted = Array.isArray(filters.status)
+      ? filters.status
+      : [filters.status];
     if (!wanted.includes(reviewCase.status)) return false;
   }
 
-  if (filters.priority && reviewCase.priority !== filters.priority) return false;
+  if (filters.priority && reviewCase.priority !== filters.priority)
+    return false;
 
-  if (filters.query && !matchesAuthorName(reviewCase.target.author_name, filters.query)) {
+  if (
+    filters.query &&
+    !matchesAuthorName(reviewCase.target.author_name, filters.query)
+  ) {
     return false;
   }
 
@@ -145,7 +156,10 @@ function getStatusAfterDecision(
 }
 
 export function getOverview(): Promise<ReviewOverview> {
-  return getFromApiOrMock("/api/overview", () => overviewJson as ReviewOverview);
+  return getFromApiOrMock(
+    "/api/overview",
+    () => overviewJson as ReviewOverview,
+  );
 }
 
 export function listCases(

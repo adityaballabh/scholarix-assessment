@@ -88,7 +88,9 @@ export default function ActivityPage() {
   }, []);
 
   const reviewerOptions = useMemo<SelectOption<string>[]>(() => {
-    const actors = [...new Set((events ?? []).map((event) => event.actor))].sort();
+    const actors = [
+      ...new Set((events ?? []).map((event) => event.actor)),
+    ].sort();
     return [
       { value: "", label: "all reviewers" },
       ...actors.map((actor) => ({ value: actor, label: actor })),
@@ -96,7 +98,13 @@ export default function ActivityPage() {
   }, [events]);
 
   const filtered = Boolean(
-    query || noteQuery || from || to || reviewer || since || explicitSort !== null,
+    query ||
+      noteQuery ||
+      from ||
+      to ||
+      reviewer ||
+      since ||
+      explicitSort !== null,
   );
 
   const cutoff = !since
@@ -111,7 +119,8 @@ export default function ActivityPage() {
       (!to || event.after === to) &&
       (!reviewer || event.actor === reviewer) &&
       (!query || matchesAuthorName(event.target_name, query)) &&
-      (!noteQuery || (event.note !== null && matchesNote(event.note, noteQuery))) &&
+      (!noteQuery ||
+        (event.note !== null && matchesNote(event.note, noteQuery))) &&
       (cutoff === null || new Date(event.created_at).getTime() >= cutoff),
   );
 
@@ -341,7 +350,11 @@ function Note({ text, revealed }: { text: string; revealed: boolean }) {
     <span
       className={styles.noteWrap}
       data-hint={
-        interactive ? (open ? "click to collapse" : "click to expand") : undefined
+        interactive
+          ? open
+            ? "click to collapse"
+            : "click to expand"
+          : undefined
       }
     >
       <button

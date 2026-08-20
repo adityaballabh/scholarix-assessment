@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { getCase, listActivity, listCases, postDecision } from "../../api/client";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import {
+  getCase,
+  listActivity,
+  listCases,
+  postDecision,
+} from "../../api/client";
 import type {
   ActivityEvent,
   DecisionAction,
@@ -60,7 +70,8 @@ export default function CasePage() {
   if (missing) {
     return (
       <p className={styles.pageState} role="alert">
-        No case with id {caseId}{" · "}
+        No case with id {caseId}
+        {" · "}
         <Link to="/reviews" className={styles.stateLink}>
           back to the queue
         </Link>
@@ -74,7 +85,8 @@ export default function CasePage() {
 
   const position = queue.findIndex((entry) => entry.id === reviewCase.id);
   const previous = position > 0 ? queue[position - 1] : null;
-  const next = position >= 0 && position < queue.length - 1 ? queue[position + 1] : null;
+  const next =
+    position >= 0 && position < queue.length - 1 ? queue[position + 1] : null;
 
   function decide(action: DecisionAction, note: string) {
     setDeciding(true);
@@ -105,13 +117,23 @@ export default function CasePage() {
 
         <nav className={styles.queueNav} aria-label="Queue">
           <div className={styles.step}>
-            <StepLink to={previous} search={search} direction="previous" label="‹ prev" />
+            <StepLink
+              to={previous}
+              search={search}
+              direction="previous"
+              label="‹ prev"
+            />
             {position >= 0 && (
               <span className={styles.position}>
                 {position + 1} of {queue.length}
               </span>
             )}
-            <StepLink to={next} search={search} direction="next" label="next ›" />
+            <StepLink
+              to={next}
+              search={search}
+              direction="next"
+              label="next ›"
+            />
           </div>
         </nav>
       </div>
@@ -143,7 +165,6 @@ export default function CasePage() {
   );
 }
 
-
 function StepLink({
   to,
   search,
@@ -157,7 +178,10 @@ function StepLink({
 }) {
   if (!to) {
     return (
-      <span className={`${styles.stepLink} ${styles.stepLinkOff}`} aria-hidden="true">
+      <span
+        className={`${styles.stepLink} ${styles.stepLinkOff}`}
+        aria-hidden="true"
+      >
         {label}
       </span>
     );

@@ -91,7 +91,9 @@ export default function Matrix({
   const fields = [...new Set(evidence.map((record) => record.field))];
 
   const at = (field: string, source: string) =>
-    evidence.find((record) => record.field === field && record.source === source);
+    evidence.find(
+      (record) => record.field === field && record.source === source,
+    );
 
   const columnState = (source: string): SourceFetchStatus | null => {
     const cells = evidence.filter((record) => record.source === source);
@@ -102,7 +104,9 @@ export default function Matrix({
     return uniform && first !== "success" ? first : null;
   };
 
-  const deadColumns = new Map(sources.map((source) => [source, columnState(source)]));
+  const deadColumns = new Map(
+    sources.map((source) => [source, columnState(source)]),
+  );
 
   const echoRows = new Map(
     sources.map((source) => [
@@ -121,75 +125,79 @@ export default function Matrix({
 
   return (
     <div className={styles.scroll}>
-    <div
-      role="table"
-      aria-label="Evidence by field and source"
-      className={styles.matrix}
-      style={
-        {
-          "--matrix-columns": `var(--matrix-rail, 36px) var(--matrix-field, 150px) repeat(${sources.length}, minmax(0, 1fr))`,
-          "--matrix-min-width": `${226 + sources.length * 130}px`,
-        } as React.CSSProperties
-      }
-    >
-      <div role="rowgroup" className={styles.head}>
-        <div role="row" className={styles.row}>
-          <div role="columnheader" className={styles.headCell}>
-            <span className={styles.srOnly}>position</span>
-          </div>
-          <div role="columnheader" className={styles.headCell}>
-            <span className={styles.srOnly}>field</span>
-          </div>
-          {sources.map((source) => {
-            const state = deadColumns.get(source);
-            const sample = evidence.find((record) => record.source === source);
+      <div
+        role="table"
+        aria-label="Evidence by field and source"
+        className={styles.matrix}
+        style={
+          {
+            "--matrix-columns": `var(--matrix-rail, 36px) var(--matrix-field, 150px) repeat(${sources.length}, minmax(0, 1fr))`,
+            "--matrix-min-width": `${226 + sources.length * 130}px`,
+          } as React.CSSProperties
+        }
+      >
+        <div role="rowgroup" className={styles.head}>
+          <div role="row" className={styles.row}>
+            <div role="columnheader" className={styles.headCell}>
+              <span className={styles.srOnly}>position</span>
+            </div>
+            <div role="columnheader" className={styles.headCell}>
+              <span className={styles.srOnly}>field</span>
+            </div>
+            {sources.map((source) => {
+              const state = deadColumns.get(source);
+              const sample = evidence.find(
+                (record) => record.source === source,
+              );
 
-            return (
-              <div
-                key={source}
-                role="columnheader"
-                className={`${styles.headCell} ${state ? styles.headCellDead : ""}`}
-              >
-                <span className={styles.sourceName}>{sourceName(source)}</span>
-                <span className={styles.provenance}>
-                  {sample ? recordLabel(sample, shares) : "—"}
-                </span>
-                <span className={styles.provenance}>
-                  {fetchedLabel(sample?.fetched_at ?? null)}
-                </span>
+              return (
+                <div
+                  key={source}
+                  role="columnheader"
+                  className={`${styles.headCell} ${state ? styles.headCellDead : ""}`}
+                >
+                  <span className={styles.sourceName}>
+                    {sourceName(source)}
+                  </span>
+                  <span className={styles.provenance}>
+                    {sample ? recordLabel(sample, shares) : "—"}
+                  </span>
+                  <span className={styles.provenance}>
+                    {fetchedLabel(sample?.fetched_at ?? null)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div role="rowgroup">
+          {fields.map((field, index) => (
+            <div role="row" className={styles.row} key={field}>
+              <div role="cell" className={styles.position}>
+                {index + 1}
               </div>
-            );
-          })}
+              <div role="rowheader" className={styles.fieldCell}>
+                <span className={styles.fieldName}>{fieldName(field)}</span>
+                {conflicted.has(field) && (
+                  <span className={styles.conflictTag}>conflict</span>
+                )}
+              </div>
+              {sources.map((source) => (
+                <Cell
+                  key={source}
+                  record={at(field, source)}
+                  source={source}
+                  field={field}
+                  columnState={deadColumns.get(source) ?? null}
+                  echoes={echoRows.get(source) === field}
+                  last={source === sources[sources.length - 1]}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       </div>
-
-      <div role="rowgroup">
-        {fields.map((field, index) => (
-          <div role="row" className={styles.row} key={field}>
-            <div role="cell" className={styles.position}>
-              {index + 1}
-            </div>
-            <div role="rowheader" className={styles.fieldCell}>
-              <span className={styles.fieldName}>{fieldName(field)}</span>
-              {conflicted.has(field) && (
-                <span className={styles.conflictTag}>conflict</span>
-              )}
-            </div>
-            {sources.map((source) => (
-              <Cell
-                key={source}
-                record={at(field, source)}
-                source={source}
-                field={field}
-                columnState={deadColumns.get(source) ?? null}
-                echoes={echoRows.get(source) === field}
-                last={source === sources[sources.length - 1]}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
     </div>
   );
 }
@@ -229,7 +237,8 @@ function Cell({
           </>
         ) : (
           <span className={styles.srOnly}>
-            {sourceName(source)} {fetchNotes[columnState]}, {fieldName(field)} unknown
+            {sourceName(source)} {fetchNotes[columnState]}, {fieldName(field)}{" "}
+            unknown
           </span>
         )}
       </div>

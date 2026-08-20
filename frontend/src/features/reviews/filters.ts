@@ -34,14 +34,26 @@ export function readOption<T extends string>(
   return options.some((option) => option.value === raw) ? (raw as T) : fallback;
 }
 
-export function getStatusFilter(status: StatusFilter): CaseQueryFilters["status"] {
+export function getStatusFilter(
+  status: StatusFilter,
+): CaseQueryFilters["status"] {
   return status === "all" ? undefined : status;
 }
 
-export function readCaseFilters(searchParams: URLSearchParams): CaseQueryFilters {
+export function readCaseFilters(
+  searchParams: URLSearchParams,
+): CaseQueryFilters {
   const query = searchParams.get("query") ?? "";
-  const priority = readOption(searchParams.get("priority"), priorityOptions, "");
-  const status = readOption(searchParams.get("status"), statusOptions, DEFAULT_STATUS);
+  const priority = readOption(
+    searchParams.get("priority"),
+    priorityOptions,
+    "",
+  );
+  const status = readOption(
+    searchParams.get("status"),
+    statusOptions,
+    DEFAULT_STATUS,
+  );
 
   return {
     query: query || undefined,

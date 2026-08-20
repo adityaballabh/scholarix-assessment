@@ -46,49 +46,56 @@ export default function Identity({
             }
           />
           <div className={styles.scroll}>
-          <div
-            role="table"
-            aria-label="Semantic Scholar candidate author IDs"
-            className={styles.candidates}
-          >
-            <div role="rowgroup">
-              <div role="row" className={`${styles.candidateRow} ${styles.head}`}>
-                <span role="columnheader">
-                  <span className={styles.srOnly}>position</span>
-                </span>
-                <span role="columnheader">S2 ID</span>
-                <span role="columnheader" className={styles.shareHeader}>
-                  share
-                  <Hint
-                    text={`Share is based on the ${matched} publications matching an S2 ID out of ${affectedCount} total`}
-                  />
-                </span>
-                <span role="columnheader">years</span>
-                <span role="columnheader">most recent publication</span>
+            <div
+              role="table"
+              aria-label="Semantic Scholar candidate author IDs"
+              className={styles.candidates}
+            >
+              <div role="rowgroup">
+                <div
+                  role="row"
+                  className={`${styles.candidateRow} ${styles.head}`}
+                >
+                  <span role="columnheader">
+                    <span className={styles.srOnly}>position</span>
+                  </span>
+                  <span role="columnheader">S2 ID</span>
+                  <span role="columnheader" className={styles.shareHeader}>
+                    share
+                    <Hint
+                      text={`Share is based on the ${matched} publications matching an S2 ID out of ${affectedCount} total`}
+                    />
+                  </span>
+                  <span role="columnheader">years</span>
+                  <span role="columnheader">most recent publication</span>
+                </div>
+              </div>
+              <div role="rowgroup">
+                {preview.map((candidate, index) => (
+                  <div
+                    role="row"
+                    className={styles.candidateRow}
+                    key={candidate.id}
+                  >
+                    <span role="cell" className={styles.position}>
+                      {index + 1}
+                    </span>
+                    <span role="cell" className={styles.identifier}>
+                      {candidate.id}
+                    </span>
+                    <span role="cell" className={styles.share}>
+                      {candidate.share.toFixed(1)}%
+                    </span>
+                    <span role="cell" className={styles.span}>
+                      {yearSpan(candidate) ?? "—"}
+                    </span>
+                    <span role="cell" className={styles.title}>
+                      {leadTitle(candidate)}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div role="rowgroup">
-              {preview.map((candidate, index) => (
-                <div role="row" className={styles.candidateRow} key={candidate.id}>
-                  <span role="cell" className={styles.position}>
-                    {index + 1}
-                  </span>
-                  <span role="cell" className={styles.identifier}>
-                    {candidate.id}
-                  </span>
-                  <span role="cell" className={styles.share}>
-                    {candidate.share.toFixed(1)}%
-                  </span>
-                  <span role="cell" className={styles.span}>
-                    {yearSpan(candidate) ?? "—"}
-                  </span>
-                  <span role="cell" className={styles.title}>
-                    {leadTitle(candidate)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
           </div>
         </>
       )}

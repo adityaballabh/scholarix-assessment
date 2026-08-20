@@ -16,7 +16,8 @@
   border-radius: 0;
   font: var(--text-micro);
   cursor: pointer;
-  transition: color var(--duration-instant) var(--ease-out),
+  transition:
+    color var(--duration-instant) var(--ease-out),
     border-color var(--duration-instant) var(--ease-out);
 }
 

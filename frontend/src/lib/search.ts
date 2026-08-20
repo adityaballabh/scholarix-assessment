@@ -1,13 +1,14 @@
 const TOKEN_SEPARATOR = /[^\p{L}\p{N}]+/u;
 
 function fold(text: string): string {
-  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 function foldText(text: string): string[] {
-  return fold(text)
-    .split(TOKEN_SEPARATOR)
-    .filter(Boolean);
+  return fold(text).split(TOKEN_SEPARATOR).filter(Boolean);
 }
 
 // Token-prefix match over folded text, so "gonza mejia" finds "González de Mejía"

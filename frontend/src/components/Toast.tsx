@@ -1,4 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import styles from "./Toast.module.css";
 
@@ -11,7 +17,9 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(
+    null,
+  );
 
   const show = useCallback((message: string) => {
     setToast({ id: Date.now(), message });
