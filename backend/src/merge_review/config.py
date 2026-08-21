@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     app_name: str = "Merge Review API"
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "postgresql+psycopg://merge_review:merge_review@localhost:5432/merge_review"
+    mailto: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

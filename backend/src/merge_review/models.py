@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -90,3 +91,36 @@ class BroadImpactRecord(Base):
     snippet: Mapped[str | None] = mapped_column(Text)
     reasoning: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict] = mapped_column(json_type)
+
+
+class SourceRecord(Base):
+    __tablename__ = "source_records"
+    __table_args__ = (
+        CheckConstraint(
+            "fetch_status IN ('success', 'pending', 'never_attempted', 'empty', "
+            "'not_found', 'rate_limited', 'timeout', 'error')",
+            name="valid_fetch_status",
+        ),
+        UniqueConstraint(
+            "dataset_snapshot_id",
+            "source",
+            "entity_type",
+            "entity_key",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    dataset_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataset_snapshots.id", ondelete="CASCADE")
+    )
+    source: Mapped[str] = mapped_column(String(32))
+    entity_type: Mapped[str] = mapped_column(String(32))
+    entity_key: Mapped[str] = mapped_column(Text)
+    source_record_id: Mapped[str | None] = mapped_column(Text)
+    url: Mapped[str | None] = mapped_column(Text)
+    fetch_status: Mapped[str] = mapped_column(String(32))
+    http_status: Mapped[int | None] = mapped_column(SmallInteger)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    from_cache: Mapped[bool] = mapped_column(Boolean)
+    error: Mapped[str | None] = mapped_column(Text)
+    payload: Mapped[dict | None] = mapped_column(json_type)
