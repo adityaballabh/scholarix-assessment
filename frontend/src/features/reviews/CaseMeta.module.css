@@ -1,0 +1,24 @@
+.meta {
+  margin-top: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.metaLabel {
+  color: var(--ink-faint);
+  font: var(--text-micro);
+}
+
+.metaValue {
+  color: var(--ink);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,100 @@
+.candidates {
+  --identity-rail: 36px;
+  min-width: 620px;
+}
+
+.scroll {
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+}
+
+.topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 9px 0 0;
+  list-style: none;
+}
+
+.topic {
+  padding: 4px 9px;
+  color: var(--ink-secondary);
+  background: var(--surface-sunk);
+  font: var(--text-micro);
+}
+
+.candidateRow {
+  display: grid;
+  align-items: center;
+  gap: 14px;
+  height: 34px;
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.candidateRow {
+  grid-template-columns: var(--identity-rail) 110px 64px 92px minmax(0, 1fr);
+}
+
+.head {
+  height: 34px;
+  color: var(--ink-muted);
+  font: var(--text-micro);
+}
+
+.position {
+  color: var(--ink-muted);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.identifier,
+.share,
+.span {
+  color: var(--ink-secondary);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.share {
+  color: var(--ink);
+}
+
+.shareHeader {
+  display: inline-flex;
+  align-items: center;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--ink);
+  font: var(--text-cell);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.seeAll {
+  color: inherit;
+  border-bottom: var(--hairline) solid var(--rule-strong);
+  text-decoration: none;
+}
+
+.seeAll:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}

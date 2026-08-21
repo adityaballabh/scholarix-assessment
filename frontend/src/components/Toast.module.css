@@ -1,0 +1,32 @@
+.region {
+  position: fixed;
+  bottom: 16px;
+  right: 24px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.toast {
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--hairline) solid var(--rule-strong);
+  box-shadow: 0 8px 24px -12px rgba(22, 24, 28, 0.28);
+  font: var(--text-micro);
+  animation: rise var(--duration-quick, 140ms) var(--ease-out);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (max-width: 720px) {
+  .region {
+    left: 12px;
+    right: 12px;
+  }
+}

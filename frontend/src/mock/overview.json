@@ -1,0 +1,36 @@
+{
+ "authors": 2,
+ "publications": 211,
+ "authors_audited": 50,
+ "publications_audited": 5371,
+ "audited_at": "2026-08-14T09:15:00Z",
+ "by_priority": {
+  "high": 2
+ },
+ "sources": [
+  {
+   "source": "semantic_scholar",
+   "fetched_at": "2026-08-14T09:15:00Z",
+   "state": "success",
+   "note": "Candidates found for all 2 profiles"
+  },
+  {
+   "source": "openalex",
+   "fetched_at": "2026-08-14T09:15:00Z",
+   "state": "success",
+   "note": "Records found for all 2 profiles"
+  },
+  {
+   "source": "orcid",
+   "fetched_at": "2026-08-14T09:15:00Z",
+   "state": "success",
+   "note": "2 of 2 have a verified ORCID"
+  },
+  {
+   "source": "google_scholar",
+   "fetched_at": "2026-08-14T09:15:00Z",
+   "state": "rate_limited",
+   "note": "HTTP 429 for all 2. No links verified"
+  }
+ ]
+}

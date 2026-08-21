@@ -1,0 +1,275 @@
+.page {
+  min-height: 100%;
+}
+
+.pageState {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--ink-muted);
+  font: var(--text-micro);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0 16px;
+}
+
+.searchLabel {
+  display: inline-flex;
+}
+
+.resetFilters {
+  height: 28px;
+  padding: 0 9px;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: 0;
+  font: var(--text-micro);
+  cursor: pointer;
+}
+
+.resetFilters:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
+.resetFilters:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.search {
+  width: 240px;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: 0;
+  font: var(--text-micro);
+}
+
+.search::placeholder {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+.search:hover {
+  border-color: var(--ink-faint);
+}
+
+.search:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.table {
+  min-width: 1080px;
+}
+
+.row {
+  display: grid;
+  border-bottom: var(--hairline) solid var(--rule);
+  grid-template-columns: 36px 190px 110px 180px 120px 130px minmax(200px, 1fr);
+  align-items: baseline;
+  gap: 14px;
+  padding: 7px 0;
+}
+
+.head {
+  color: var(--ink-muted);
+  font: var(--text-micro);
+}
+
+.position,
+.case,
+.transition,
+.actor,
+.time {
+  color: var(--ink-muted);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.actionHeader {
+  display: inline-flex;
+  align-items: center;
+}
+
+.caseLink {
+  color: inherit;
+  border-bottom: var(--hairline) solid var(--rule-strong);
+  text-decoration: none;
+}
+
+.caseLink:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.author {
+  overflow: hidden;
+  color: var(--ink);
+  font: var(--text-cell);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noteCell {
+  min-width: 0;
+}
+
+.noteWrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.noteWrap[data-hint]:hover::after {
+  content: attr(data-hint);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  width: max-content;
+  padding: 6px 9px;
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: var(--hairline) solid var(--rule-strong);
+  font: var(--text-micro);
+}
+
+.note {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  color: var(--ink-secondary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  font: var(--text-cell);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.note:disabled {
+  cursor: default;
+}
+
+.note:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.note:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.noteOpen {
+  overflow: visible;
+  white-space: normal;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .filters {
+    align-items: stretch;
+    flex-wrap: wrap;
+    padding: 10px 0;
+  }
+
+  .searchLabel {
+    flex-basis: 100%;
+  }
+
+  .search {
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .searchLabel {
+    display: inline-flex;
+  }
+
+  .resetFilters {
+    height: 28px;
+    padding: 0 9px;
+    color: var(--ink-secondary);
+    background: transparent;
+    border: var(--hairline) solid var(--rule-strong);
+    border-radius: 0;
+    font: var(--text-micro);
+    cursor: pointer;
+  }
+
+  .resetFilters:hover {
+    color: var(--ink);
+    border-color: var(--ink-faint);
+  }
+
+  .resetFilters:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .search {
+    width: 240px;
+    height: 28px;
+    padding: 0 8px;
+    color: var(--ink-secondary);
+    background: transparent;
+    border: var(--hairline) solid var(--rule-strong);
+    border-radius: 0;
+    font: var(--text-micro);
+  }
+
+  .search::placeholder {
+    color: var(--ink-faint);
+    opacity: 1;
+  }
+
+  .search:hover {
+    border-color: var(--ink-faint);
+  }
+
+  .search:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .row {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: 2px;
+    padding: 8px 0;
+  }
+
+  .row > :nth-child(n + 4) {
+    grid-column: 2 / -1;
+  }
+
+  .head {
+    display: none;
+  }
+
+  .note {
+    white-space: normal;
+  }
+}

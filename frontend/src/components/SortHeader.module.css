@@ -1,0 +1,43 @@
+.header {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.header:hover {
+  color: var(--ink);
+}
+
+.header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.active {
+  color: var(--ink);
+}
+
+.arrows {
+  width: 7.5px;
+  height: 10px;
+  flex: 0 0 auto;
+}
+
+.off {
+  stroke: var(--rule-strong);
+}
+
+.on {
+  stroke: var(--ink);
+}
+
+.header:hover .off {
+  stroke: var(--ink-faint);
+}

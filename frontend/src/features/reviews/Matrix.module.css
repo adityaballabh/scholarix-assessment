@@ -1,0 +1,166 @@
+.matrix {
+  --matrix-row-height: 62px;
+  min-width: var(--matrix-min-width);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--matrix-columns);
+  align-items: stretch;
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--canvas);
+}
+
+.head .row {
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.headCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 8px;
+  color: var(--ink-muted);
+  font: var(--text-micro);
+}
+
+.sourceName {
+  color: var(--ink);
+  font: var(--text-micro);
+}
+
+.provenance {
+  color: var(--ink-faint);
+  font: var(--text-nano);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headCellDead .sourceName {
+  color: var(--ink-muted);
+}
+
+.position {
+  display: flex;
+  align-items: center;
+  height: var(--matrix-row-height);
+  padding: 8px 12px;
+  color: var(--ink-faint);
+  font: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.fieldCell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  height: var(--matrix-row-height);
+  padding: 8px 12px;
+}
+
+.fieldName {
+  color: var(--ink-muted);
+  font: var(--text-micro);
+}
+
+.conflictTag {
+  color: var(--alert);
+  font: var(--text-nano);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  height: var(--matrix-row-height);
+  padding: 8px 12px;
+}
+
+.cellLine {
+  display: block;
+}
+
+.value {
+  color: var(--ink);
+  font: var(--text-cell);
+}
+
+.cellConflict {
+  background: var(--alert-weak);
+}
+
+.absence {
+  color: var(--ink-faint);
+  font: var(--text-micro);
+}
+
+.reason {
+  color: var(--ink-faint);
+  font: var(--text-nano);
+}
+
+.cellNever {
+  background: var(--surface-sunk);
+}
+
+.cellBroken {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 5px,
+    var(--surface-sunk) 5px 6px
+  );
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Positioned so the visually-hidden cells resolve here and stay inside the
+   clip; against `main` they escape and widen the page */
+.scroll {
+  position: relative;
+}
+
+/* overflow-x forces overflow-y to auto and that clips the cell hints */
+@media (max-width: 900px) {
+  .scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .matrix {
+    --matrix-rail: 26px;
+    --matrix-field: 104px;
+  }
+
+  .cell,
+  .fieldCell,
+  .position {
+    height: auto;
+    min-height: var(--matrix-row-height);
+  }
+
+  .cell,
+  .fieldCell {
+    padding: 8px;
+  }
+
+  .provenance {
+    overflow: visible;
+    white-space: normal;
+  }
+}
