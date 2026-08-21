@@ -11,6 +11,10 @@ OUTPUT_DIR = PROJECT_DIR / "frontend" / "src" / "mock"
 AUDIT_FETCHED_AT = "2026-08-14T09:15:00Z"
 
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+AFFILIATION_CONFLICT_NOTE = (
+    "Different institutions could mean concurrent appointments "
+    "or records captured at different times"
+)
 
 
 def build_case_id(author_slug):
@@ -140,9 +144,7 @@ def build_identity_case(author):
                 "affiliation",
                 "; ".join(institutions),
                 "supports" if agrees else "conflict",
-                ""
-                if agrees
-                else "Different institutions could mean concurrent appointments or records captured at different times",
+                "" if agrees else AFFILIATION_CONFLICT_NOTE,
             )
         )
     elif orcid.get("orcid_id"):
@@ -159,7 +161,12 @@ def build_identity_case(author):
     else:
         evidence.append(
             build_evidence(
-                "orcid", [], "affiliation", None, "missing", "",
+                "orcid",
+                [],
+                "affiliation",
+                None,
+                "missing",
+                "",
                 fetch_status="never_attempted",
             )
         )
@@ -167,7 +174,12 @@ def build_identity_case(author):
     # Google Scholar was rate limited for every author in the dataset
     evidence.append(
         build_evidence(
-            "google_scholar", [], "profile_link", None, "unverifiable", "",
+            "google_scholar",
+            [],
+            "profile_link",
+            None,
+            "unverifiable",
+            "",
             fetch_status="rate_limited",
         )
     )

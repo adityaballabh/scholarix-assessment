@@ -10,3 +10,9 @@ ignore = ["E402"]
 [tool.ruff.lint.per-file-ignores]
 # Ignore notebook display lines
 "*.ipynb" = ["E501"]
+# Skip publication titles
+"frontend/scripts/mock_data_config.py" = ["E501"]
+
+[tool.ruff.format]
+# Publication title dicts stay one line each
+exclude = ["frontend/scripts/mock_data_config.py"]
