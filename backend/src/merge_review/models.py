@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -58,7 +59,7 @@ class Author(Base):
 class PublicationRecord(Base):
     __tablename__ = "publication_records"
     __table_args__ = (
-        CheckConstraint("position >= 0", name="position_nonnegative"),
+        CheckConstraint("position >= 0", name="publication_records_position_nonnegative"),
         UniqueConstraint("author_id", "position"),
         Index("ix_publication_records_normalized_doi", "normalized_doi"),
     )
@@ -78,7 +79,7 @@ class PublicationRecord(Base):
 class BroadImpactRecord(Base):
     __tablename__ = "broad_impact_records"
     __table_args__ = (
-        CheckConstraint("position >= 0", name="position_nonnegative"),
+        CheckConstraint("position >= 0", name="broad_impact_records_position_nonnegative"),
         UniqueConstraint("author_id", "position"),
     )
 
@@ -124,3 +125,99 @@ class SourceRecord(Base):
     from_cache: Mapped[bool] = mapped_column(Boolean)
     error: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict | None] = mapped_column(json_type)
+
+
+class ValidationCase(Base):
+    __tablename__ = "validation_cases"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'deferred', 'uncertain', 'one_author', 'needs_split')",
+            name="validation_cases_valid_status",
+        ),
+        CheckConstraint(
+            "priority IN ('high', 'medium', 'low')",
+            name="validation_cases_valid_priority",
+        ),
+        UniqueConstraint("dataset_snapshot_id", "case_type", "author_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    dataset_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataset_snapshots.id", ondelete="CASCADE")
+    )
+    author_id: Mapped[UUID] = mapped_column(ForeignKey("authors.id", ondelete="CASCADE"))
+    case_type: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    priority: Mapped[str] = mapped_column(String(16))
+    affected_count: Mapped[int] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class CaseEvidence(Base):
+    __tablename__ = "case_evidence"
+    __table_args__ = (
+        CheckConstraint(
+            "value_state IN ('supports', 'conflict', 'missing', 'unverifiable')",
+            name="case_evidence_valid_value_state",
+        ),
+        UniqueConstraint("case_id", "position"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    case_id: Mapped[str] = mapped_column(ForeignKey("validation_cases.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(32))
+    source_record_ids: Mapped[list] = mapped_column(json_type)
+    source_refs: Mapped[list] = mapped_column(json_type)
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fetch_status: Mapped[str] = mapped_column(String(32))
+    field: Mapped[str] = mapped_column(String(64))
+    value: Mapped[str | None] = mapped_column(Text)
+    value_state: Mapped[str] = mapped_column(String(32))
+    interpretation: Mapped[str] = mapped_column(Text, default="")
+
+
+class IdentityCandidate(Base):
+    __tablename__ = "identity_candidates"
+    __table_args__ = (
+        UniqueConstraint("case_id", "semantic_scholar_author_id"),
+        UniqueConstraint("case_id", "position"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    case_id: Mapped[str] = mapped_column(ForeignKey("validation_cases.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer)
+    semantic_scholar_author_id: Mapped[str] = mapped_column(String(64))
+    matched_publication_count: Mapped[int] = mapped_column(Integer)
+    share: Mapped[float] = mapped_column(Float)
+    first_year: Mapped[int | None] = mapped_column(SmallInteger)
+    last_year: Mapped[int | None] = mapped_column(SmallInteger)
+
+
+class IdentityCandidatePublication(Base):
+    __tablename__ = "identity_candidate_publications"
+    __table_args__ = (
+        UniqueConstraint("identity_candidate_id", "position"),
+        UniqueConstraint("identity_candidate_id", "doi"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    identity_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("identity_candidates.id", ondelete="CASCADE")
+    )
+    position: Mapped[int] = mapped_column(Integer)
+    doi: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text)
+    year: Mapped[int | None] = mapped_column(SmallInteger)
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="CASCADE")
+    )

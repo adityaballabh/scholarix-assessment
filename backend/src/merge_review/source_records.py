@@ -264,6 +264,3 @@ def completed_counts(
         .group_by(SourceRecord.fetch_status)
     )
     return Counter({status: count for status, count in rows})
-
-
-from collections import Counter

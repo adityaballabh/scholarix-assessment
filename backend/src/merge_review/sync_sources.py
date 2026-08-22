@@ -295,10 +295,9 @@ def sync_semantic_scholar_records(
                     "publication",
                     doi,
                     url,
-                    publication,
-                    record_id if isinstance(record_id, str) else doi,
-                    FetchStatus.SUCCESS,
-                    None,
+                    payload=publication,
+                    source_record_id=record_id if isinstance(record_id, str) else doi,
+                    status=FetchStatus.SUCCESS,
                 )
             elif batch_result.fetch_status == FetchStatus.SUCCESS:
                 result = expand_result(
@@ -306,10 +305,8 @@ def sync_semantic_scholar_records(
                     "publication",
                     doi,
                     url,
-                    None,
-                    None,
-                    FetchStatus.NOT_FOUND,
-                    "No Semantic Scholar paper matched this DOI",
+                    status=FetchStatus.NOT_FOUND,
+                    error="No Semantic Scholar paper matched this DOI",
                 )
             else:
                 result = expand_result(batch_result, "publication", doi, url)
@@ -389,10 +386,9 @@ def sync_openalex_publication_records(
                     "publication",
                     doi,
                     record_id if isinstance(record_id, str) else f"https://doi.org/{doi}",
-                    publication,
-                    record_id if isinstance(record_id, str) else doi,
-                    FetchStatus.SUCCESS,
-                    None,
+                    payload=publication,
+                    source_record_id=record_id if isinstance(record_id, str) else doi,
+                    status=FetchStatus.SUCCESS,
                 )
             elif batch_result.fetch_status == FetchStatus.SUCCESS:
                 result = expand_result(
@@ -400,10 +396,8 @@ def sync_openalex_publication_records(
                     "publication",
                     doi,
                     f"https://doi.org/{doi}",
-                    None,
-                    None,
-                    FetchStatus.NOT_FOUND,
-                    "No OpenAlex work matched this DOI",
+                    status=FetchStatus.NOT_FOUND,
+                    error="No OpenAlex work matched this DOI",
                 )
             else:
                 result = expand_result(
