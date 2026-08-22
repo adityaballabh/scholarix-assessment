@@ -1,5 +1,7 @@
+from collections.abc import Iterator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from merge_review.config import get_settings
 from merge_review.models import Base
@@ -10,3 +12,8 @@ SessionFactory = sessionmaker(bind=engine, expire_on_commit=False)
 
 def create_schema() -> None:
     Base.metadata.create_all(engine)
+
+
+def get_session() -> Iterator[Session]:
+    with SessionFactory() as session:
+        yield session

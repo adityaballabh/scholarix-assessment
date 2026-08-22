@@ -20,7 +20,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.1.1,<10"]
+dev = [
+    "httpx2>=2.10,<3",
+    "pytest>=9.1.1,<10",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q"
