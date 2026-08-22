@@ -1,17 +1,24 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_DIR = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
     app_name: str = "Merge Review API"
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "postgresql+psycopg://merge_review:merge_review@localhost:5432/merge_review"
-    mailto: str | None = None
+    mailto: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MERGE_REVIEW_MAILTO", "MAILTO"),
+    )
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(PROJECT_DIR / ".env", ".env"),
         env_prefix="MERGE_REVIEW_",
         extra="ignore",
     )

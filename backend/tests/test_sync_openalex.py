@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 from merge_review.models import Author, Base, DatasetSnapshot, SourceRecord
+from merge_review.source_records import FetchStatus
 from merge_review.sync_openalex import (
-    FetchStatus,
     fetch_openalex_author,
     sync_openalex_authors,
 )
@@ -15,13 +15,14 @@ from sqlalchemy.orm import sessionmaker
 
 DUMMY_AUTHOR_ID = "dummy"
 DUMMY_AUTHOR_NAME = "Dummy Author"
+DUMMY_FETCHED_AT = datetime(2026, 8, 21, tzinfo=UTC)
 
 
 def make_response(status_code: int, payload: object | None = None) -> Mock:
     response = Mock()
     response.status_code = status_code
     response.ok = 200 <= status_code < 400
-    response.created_at = datetime(2026, 8, 23, tzinfo=UTC)
+    response.created_at = DUMMY_FETCHED_AT
     response.from_cache = False
     if payload is None:
         response.json.side_effect = ValueError
@@ -41,7 +42,7 @@ def make_response(status_code: int, payload: object | None = None) -> Mock:
 )
 def test_fetch_openalex_author_outcomes(response: Mock, expected: FetchStatus) -> None:
     http_session = Mock()
-    http_session.get.return_value = response
+    http_session.request.return_value = response
 
     result = fetch_openalex_author(http_session, DUMMY_AUTHOR_ID)
 
@@ -51,7 +52,7 @@ def test_fetch_openalex_author_outcomes(response: Mock, expected: FetchStatus) -
 
 def test_fetch_openalex_author_timeout() -> None:
     http_session = Mock()
-    http_session.get.side_effect = Timeout
+    http_session.request.side_effect = Timeout
 
     result = fetch_openalex_author(http_session, DUMMY_AUTHOR_ID)
 
@@ -81,11 +82,11 @@ def test_sync_openalex_authors_persists_and_updates_results() -> None:
         )
 
     http_session = Mock()
-    http_session.get.return_value = make_response(429)
+    http_session.request.return_value = make_response(429)
     with session_factory.begin() as session:
         first_counts = sync_openalex_authors(session, http_session, snapshot_id)
 
-    http_session.get.return_value = make_response(
+    http_session.request.return_value = make_response(
         200,
         {
             "id": f"https://openalex.org/{DUMMY_AUTHOR_ID}",
@@ -98,7 +99,7 @@ def test_sync_openalex_authors_persists_and_updates_results() -> None:
     assert first_counts == {FetchStatus.RATE_LIMITED: 1}
     assert second_counts == {FetchStatus.SUCCESS: 1}
 
-    http_session.get.return_value = make_response(429)
+    http_session.request.return_value = make_response(429)
     with session_factory.begin() as session:
         third_counts = sync_openalex_authors(session, http_session, snapshot_id)
 
@@ -112,4 +113,4 @@ def test_sync_openalex_authors_persists_and_updates_results() -> None:
         "display_name": DUMMY_AUTHOR_NAME,
     }
     assert third_counts == {FetchStatus.SUCCESS: 1}
-    assert http_session.get.call_count == 2
+    assert http_session.request.call_count == 2
