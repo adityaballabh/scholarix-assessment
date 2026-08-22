@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 SourceFetchStatus = Literal[
     "success",
@@ -16,6 +16,14 @@ SourceFetchStatus = Literal[
 EvidenceValueState = Literal["supports", "conflict", "missing", "unverifiable"]
 ReviewStatus = Literal["pending", "deferred", "uncertain", "one_author", "needs_split"]
 CasePriority = Literal["high", "medium", "low"]
+DecisionAction = Literal[
+    "reopen",
+    "confirm_one_author",
+    "flag_for_split",
+    "mark_uncertain",
+    "defer",
+    "note",
+]
 
 
 class SourceRecordReference(BaseModel):
@@ -65,8 +73,34 @@ class ValidationCaseResponse(BaseModel):
     priority: CasePriority
     target: ReviewTarget
     affected_count: int
+    version: int
     evidence: list[EvidenceRecord]
     detail: AuthorIdentityDetail
+
+
+class DecisionRequest(BaseModel):
+    action: DecisionAction
+    note: str | None = None
+    expected_version: int = Field(ge=1)
+
+    @field_validator("note")
+    @classmethod
+    def trim_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
+class ActivityEventResponse(BaseModel):
+    id: str
+    case_id: str
+    action_type: DecisionAction
+    actor: str
+    created_at: datetime
+    target_name: str
+    note: str | None
+    before: str | None
+    after: str | None
 
 
 class SourceStatus(BaseModel):

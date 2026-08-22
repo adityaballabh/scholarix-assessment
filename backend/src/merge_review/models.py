@@ -221,3 +221,40 @@ class IdentityCandidatePublication(Base):
     source_record_id: Mapped[UUID] = mapped_column(
         ForeignKey("source_records.id", ondelete="CASCADE")
     )
+
+
+class ReviewDecision(Base):
+    __tablename__ = "review_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('reopen', 'confirm_one_author', 'flag_for_split', "
+            "'mark_uncertain', 'defer', 'note')",
+            name="review_decisions_valid_action",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    case_id: Mapped[str] = mapped_column(ForeignKey("validation_cases.id", ondelete="CASCADE"))
+    action: Mapped[str] = mapped_column(String(32))
+    note: Mapped[str | None] = mapped_column(Text)
+    reviewer_id: Mapped[str] = mapped_column(String(64))
+    expected_case_version: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ActivityEvent(Base):
+    __tablename__ = "activity_events"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    decision_id: Mapped[UUID] = mapped_column(
+        ForeignKey("review_decisions.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    case_id: Mapped[str] = mapped_column(ForeignKey("validation_cases.id", ondelete="CASCADE"))
+    action_type: Mapped[str] = mapped_column(String(32))
+    actor: Mapped[str] = mapped_column(String(64))
+    target_name: Mapped[str] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)
+    before_status: Mapped[str | None] = mapped_column(String(32))
+    after_status: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

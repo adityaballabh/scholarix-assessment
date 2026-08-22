@@ -218,3 +218,51 @@ def test_overview() -> None:
             }
         ],
     }
+
+
+def test_decisions_are_versioned_and_append_activity() -> None:
+    client = build_client()
+
+    first = client.post(
+        "/api/cases/case-one/decisions",
+        json={
+            "action": "flag_for_split",
+            "note": "  Distinct publication clusters  ",
+            "expected_version": 1,
+        },
+    )
+    stale = client.post(
+        "/api/cases/case-one/decisions",
+        json={"action": "mark_uncertain", "expected_version": 1},
+    )
+    reopened = client.post(
+        "/api/cases/case-one/decisions",
+        json={"action": "reopen", "expected_version": 2},
+    )
+    detail = client.get("/api/cases/case-one")
+    activity = client.get("/api/activity")
+
+    assert first.status_code == 200
+    assert first.json()["before"] == "pending"
+    assert first.json()["after"] == "needs_split"
+    assert first.json()["note"] == "Distinct publication clusters"
+    assert stale.status_code == 409
+    assert reopened.status_code == 200
+    assert detail.json()["status"] == "pending"
+    assert detail.json()["version"] == 3
+    assert [event["action_type"] for event in activity.json()] == [
+        "reopen",
+        "flag_for_split",
+    ]
+
+
+def test_note_requires_content() -> None:
+    client = build_client()
+
+    response = client.post(
+        "/api/cases/case-one/decisions",
+        json={"action": "note", "note": "   ", "expected_version": 1},
+    )
+
+    assert response.status_code == 422
+    assert client.get("/api/activity").json() == []

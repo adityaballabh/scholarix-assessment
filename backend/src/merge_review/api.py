@@ -1,28 +1,33 @@
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from typing import get_args
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, desc, func, select
 from sqlalchemy.orm import Session
 
+from merge_review.config import get_settings
 from merge_review.database import get_session
 from merge_review.generate_cases import normalized_words
 from merge_review.models import (
+    ActivityEvent,
     Author,
     CaseEvidence,
     DatasetSnapshot,
     IdentityCandidate,
     IdentityCandidatePublication,
     PublicationRecord,
+    ReviewDecision,
     SourceRecord,
     ValidationCase,
 )
 from merge_review.schemas import (
+    ActivityEventResponse,
     AuthorIdentityDetail,
     CasePriority,
     ClusterPublication,
+    DecisionRequest,
     EvidenceRecord,
     ReviewOverview,
     ReviewStatus,
@@ -44,6 +49,13 @@ SOURCE_ORDER = {
     "semantic_scholar": 5,
 }
 SOURCE_FAILURE_ORDER = ["rate_limited", "timeout", "error", "pending"]
+ACTION_STATUS = {
+    "reopen": "pending",
+    "confirm_one_author": "one_author",
+    "flag_for_split": "needs_split",
+    "mark_uncertain": "uncertain",
+    "defer": "deferred",
+}
 
 
 def latest_snapshot(session: Session) -> DatasetSnapshot | None:
@@ -120,6 +132,7 @@ def case_response(session: Session, review_case: ValidationCase) -> ValidationCa
             openalex_id=author.source_id,
         ),
         affected_count=review_case.affected_count,
+        version=review_case.version,
         evidence=[
             EvidenceRecord(
                 source=row.source,
@@ -202,6 +215,89 @@ def get_case(case_id: str, session: Session = Depends(get_session)) -> Validatio
     if review_case is None:
         raise HTTPException(404, detail="Case not found")
     return case_response(session, review_case)
+
+
+def activity_response(event: ActivityEvent) -> ActivityEventResponse:
+    return ActivityEventResponse(
+        id=str(event.id),
+        case_id=event.case_id,
+        action_type=event.action_type,
+        actor=event.actor,
+        created_at=utc_datetime(event.created_at),
+        target_name=event.target_name,
+        note=event.note,
+        before=event.before_status,
+        after=event.after_status,
+    )
+
+
+@router.post("/cases/{case_id}/decisions", response_model=ActivityEventResponse)
+def post_decision(
+    case_id: str,
+    request: DecisionRequest,
+    session: Session = Depends(get_session),
+) -> ActivityEventResponse:
+    review_case = session.scalar(
+        select(ValidationCase).where(ValidationCase.id == case_id).with_for_update()
+    )
+    if review_case is None:
+        raise HTTPException(404, detail="Case not found")
+    if review_case.version != request.expected_version:
+        raise HTTPException(409, detail="Case changed after it was loaded")
+    if request.action == "note" and request.note is None:
+        raise HTTPException(422, detail="A note is required")
+
+    before = review_case.status
+    after = ACTION_STATUS.get(request.action, before)
+    if request.action != "note" and after == before:
+        raise HTTPException(409, detail="Case is already in that state")
+
+    author = session.get(Author, review_case.author_id)
+    if author is None:
+        raise RuntimeError(f"Case {review_case.id} has no author")
+    created_at = datetime.now(UTC)
+    decision_id = uuid4()
+    reviewer_id = get_settings().reviewer_id
+    event = ActivityEvent(
+        id=uuid4(),
+        decision_id=decision_id,
+        case_id=review_case.id,
+        action_type=request.action,
+        actor=reviewer_id,
+        target_name=author.name,
+        note=request.note,
+        before_status=before,
+        after_status=after,
+        created_at=created_at,
+    )
+    decision = ReviewDecision(
+        id=decision_id,
+        case_id=review_case.id,
+        action=request.action,
+        note=request.note,
+        reviewer_id=reviewer_id,
+        expected_case_version=request.expected_version,
+        created_at=created_at,
+    )
+    session.add(decision)
+    session.flush()
+    session.add(event)
+    review_case.status = after
+    review_case.version += 1
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return activity_response(event)
+
+
+@router.get("/activity", response_model=list[ActivityEventResponse])
+def list_activity(session: Session = Depends(get_session)) -> list[ActivityEventResponse]:
+    events = session.scalars(
+        select(ActivityEvent).order_by(ActivityEvent.created_at.desc(), ActivityEvent.id.desc())
+    )
+    return [activity_response(event) for event in events]
 
 
 def source_state(counts: Counter[str]) -> str:
