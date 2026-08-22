@@ -49,21 +49,26 @@ def sync_openalex_authors(
     http_session: Session,
     snapshot_id: UUID,
     mailto: str | None = None,
+    author_ids: list[str] | None = None,
+    force: bool = False,
 ) -> Counter[str]:
-    author_ids = session.scalars(
-        select(Author.source_id)
-        .where(Author.dataset_snapshot_id == snapshot_id)
-        .order_by(Author.source_id)
-    )
-    successful_ids = completed_keys(session, snapshot_id, "openalex", "author")
-    counts = completed_counts(session, snapshot_id, "openalex", "author")
+    if author_ids is None:
+        author_ids = list(
+            session.scalars(
+                select(Author.source_id)
+                .where(Author.dataset_snapshot_id == snapshot_id)
+                .order_by(Author.source_id)
+            )
+        )
+    successful_ids = set() if force else completed_keys(session, snapshot_id, "openalex", "author")
+    counts = Counter() if force else completed_counts(session, snapshot_id, "openalex", "author")
 
     for author_id in author_ids:
         if author_id in successful_ids:
             continue
 
         result = fetch_openalex_author(http_session, author_id, mailto)
-        store_source_result(session, snapshot_id, result)
+        store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[result.fetch_status] += 1
 
     return counts

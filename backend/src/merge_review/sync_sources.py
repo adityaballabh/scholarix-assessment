@@ -77,15 +77,20 @@ def sync_orcid_records(
     session: DatabaseSession,
     http_session: Session,
     snapshot_id: UUID,
+    orcid_ids: list[str] | None = None,
+    force: bool = False,
 ) -> Counter[str]:
-    orcid_ids = session.scalars(
-        select(Author.orcid_id)
-        .where(Author.dataset_snapshot_id == snapshot_id, Author.orcid_id.is_not(None))
-        .distinct()
-        .order_by(Author.orcid_id)
-    )
-    done = completed_keys(session, snapshot_id, "orcid", "author")
-    counts = completed_counts(session, snapshot_id, "orcid", "author")
+    if orcid_ids is None:
+        orcid_ids = list(
+            session.scalars(
+                select(Author.orcid_id)
+                .where(Author.dataset_snapshot_id == snapshot_id, Author.orcid_id.is_not(None))
+                .distinct()
+                .order_by(Author.orcid_id)
+            )
+        )
+    done = set() if force else completed_keys(session, snapshot_id, "orcid", "author")
+    counts = Counter() if force else completed_counts(session, snapshot_id, "orcid", "author")
 
     for orcid_id in orcid_ids:
         if orcid_id in done:
@@ -102,7 +107,7 @@ def sync_orcid_records(
         )
         if result.fetch_status == FetchStatus.SUCCESS:
             result = replace(result, source_record_id=orcid_id)
-        store_source_result(session, snapshot_id, result)
+        store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[result.fetch_status] += 1
     return counts
 
@@ -113,9 +118,12 @@ def sync_crossref_records(
     snapshot_id: UUID,
     dois: list[str],
     mailto: str | None,
+    force: bool = False,
 ) -> Counter[str]:
-    done = completed_keys(session, snapshot_id, "crossref", "publication")
-    counts = completed_counts(session, snapshot_id, "crossref", "publication")
+    done = set() if force else completed_keys(session, snapshot_id, "crossref", "publication")
+    counts = (
+        Counter() if force else completed_counts(session, snapshot_id, "crossref", "publication")
+    )
 
     for doi in dois:
         if doi in done:
@@ -131,7 +139,7 @@ def sync_crossref_records(
         )
         if result.fetch_status == FetchStatus.SUCCESS:
             result = replace(result, source_record_id=doi)
-        store_source_result(session, snapshot_id, result)
+        store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[result.fetch_status] += 1
     return counts
 
@@ -158,9 +166,12 @@ def sync_datacite_records(
     http_session: Session,
     snapshot_id: UUID,
     dois: set[str],
+    force: bool = False,
 ) -> Counter[str]:
-    done = completed_keys(session, snapshot_id, "datacite", "publication")
-    counts = completed_counts(session, snapshot_id, "datacite", "publication")
+    done = set() if force else completed_keys(session, snapshot_id, "datacite", "publication")
+    counts = (
+        Counter() if force else completed_counts(session, snapshot_id, "datacite", "publication")
+    )
 
     for doi in sorted(dois):
         if doi in done:
@@ -175,7 +186,7 @@ def sync_datacite_records(
         )
         if result.fetch_status == FetchStatus.SUCCESS:
             result = replace(result, source_record_id=doi)
-        store_source_result(session, snapshot_id, result)
+        store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[result.fetch_status] += 1
     return counts
 
@@ -185,9 +196,10 @@ def sync_doi_resolutions(
     http_session: Session,
     snapshot_id: UUID,
     dois: set[str],
+    force: bool = False,
 ) -> Counter[str]:
-    done = completed_keys(session, snapshot_id, "doi", "publication")
-    counts = completed_counts(session, snapshot_id, "doi", "publication")
+    done = set() if force else completed_keys(session, snapshot_id, "doi", "publication")
+    counts = Counter() if force else completed_counts(session, snapshot_id, "doi", "publication")
 
     for doi in sorted(dois):
         if doi in done:
@@ -240,7 +252,7 @@ def sync_doi_resolutions(
                     response.status_code,
                     from_cache,
                 )
-        store_source_result(session, snapshot_id, result)
+        store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[result.fetch_status] += 1
     return counts
 
@@ -250,10 +262,17 @@ def sync_semantic_scholar_records(
     http_session: Session,
     snapshot_id: UUID,
     dois: list[str],
+    force: bool = False,
 ) -> Counter[str]:
-    done = completed_keys(session, snapshot_id, "semantic_scholar", "publication")
+    done = (
+        set() if force else completed_keys(session, snapshot_id, "semantic_scholar", "publication")
+    )
     pending = [doi for doi in dois if doi not in done]
-    counts = completed_counts(session, snapshot_id, "semantic_scholar", "publication")
+    counts = (
+        Counter()
+        if force
+        else completed_counts(session, snapshot_id, "semantic_scholar", "publication")
+    )
 
     for batch in batches(pending, 500):
         for attempt in range(4):
@@ -310,7 +329,7 @@ def sync_semantic_scholar_records(
                 )
             else:
                 result = expand_result(batch_result, "publication", doi, url)
-            store_source_result(session, snapshot_id, result)
+            store_source_result(session, snapshot_id, result, preserve_success=force)
             counts[result.fetch_status] += 1
     return counts
 
@@ -370,10 +389,13 @@ def sync_openalex_publication_records(
     snapshot_id: UUID,
     dois: list[str],
     mailto: str | None,
+    force: bool = False,
 ) -> Counter[str]:
-    done = completed_keys(session, snapshot_id, "openalex", "publication")
+    done = set() if force else completed_keys(session, snapshot_id, "openalex", "publication")
     pending = [doi for doi in dois if doi not in done]
-    counts = completed_counts(session, snapshot_id, "openalex", "publication")
+    counts = (
+        Counter() if force else completed_counts(session, snapshot_id, "openalex", "publication")
+    )
 
     for batch in batches(pending, 100):
         batch_result, publications = fetch_openalex_batch(http_session, batch, mailto)
@@ -406,7 +428,7 @@ def sync_openalex_publication_records(
                     doi,
                     f"https://doi.org/{doi}",
                 )
-            store_source_result(session, snapshot_id, result)
+            store_source_result(session, snapshot_id, result, preserve_success=force)
             counts[result.fetch_status] += 1
     return counts
 
@@ -470,20 +492,31 @@ def sync_openalex_author_publications(
     http_session: Session,
     snapshot_id: UUID,
     mailto: str | None,
+    author_ids: list[str] | None = None,
+    force: bool = False,
 ) -> Counter[str]:
-    author_ids = session.scalars(
-        select(Author.source_id)
-        .where(Author.dataset_snapshot_id == snapshot_id)
-        .order_by(Author.source_id)
+    if author_ids is None:
+        author_ids = list(
+            session.scalars(
+                select(Author.source_id)
+                .where(Author.dataset_snapshot_id == snapshot_id)
+                .order_by(Author.source_id)
+            )
+        )
+    done = (
+        set() if force else completed_keys(session, snapshot_id, "openalex", "author_publications")
     )
-    done = completed_keys(session, snapshot_id, "openalex", "author_publications")
-    counts = completed_counts(session, snapshot_id, "openalex", "author_publications")
+    counts = (
+        Counter()
+        if force
+        else completed_counts(session, snapshot_id, "openalex", "author_publications")
+    )
 
     for author_id in author_ids:
         if author_id in done:
             continue
         result = fetch_openalex_author_publications(http_session, author_id, mailto)
-        store_source_result(session, snapshot_id, result)
+        store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[result.fetch_status] += 1
     return counts
 

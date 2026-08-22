@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 SourceFetchStatus = Literal[
     "success",
@@ -15,7 +15,15 @@ SourceFetchStatus = Literal[
 ]
 EvidenceValueState = Literal["supports", "conflict", "missing", "unverifiable"]
 ReviewStatus = Literal["pending", "deferred", "uncertain", "one_author", "needs_split"]
-CasePriority = Literal["high", "medium", "low"]
+CasePriority = Literal["very_high", "high", "medium", "low", "very_low"]
+RefreshSource = Literal[
+    "openalex",
+    "crossref",
+    "datacite",
+    "doi",
+    "semantic_scholar",
+    "orcid",
+]
 DecisionAction = Literal[
     "reopen",
     "confirm_one_author",
@@ -67,10 +75,80 @@ class ReviewTarget(BaseModel):
     openalex_id: str | None
 
 
+class PriorityComponent(BaseModel):
+    value: float
+    snapshot_max: float
+    score: float
+
+
+class PriorityComponents(BaseModel):
+    publication_impact: PriorityComponent
+    fragmentation: PriorityComponent
+    cluster_ambiguity: PriorityComponent
+
+
+class PriorityConfig(BaseModel):
+    weights: dict[str, float]
+    band_minimums: dict[str, float]
+    max_top_candidate_share: float
+
+
+class PriorityWeights(BaseModel):
+    publication_impact: float = Field(ge=0)
+    fragmentation: float = Field(ge=0)
+    cluster_ambiguity: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def require_positive_total(self) -> "PriorityWeights":
+        if sum(self.model_dump().values()) <= 0:
+            raise ValueError("At least one priority weight must be positive")
+        return self
+
+
+class PriorityBandMinimums(BaseModel):
+    very_low: float = Field(default=0, ge=0, le=100)
+    low: float = Field(ge=0, le=100)
+    medium: float = Field(ge=0, le=100)
+    high: float = Field(ge=0, le=100)
+    very_high: float = Field(ge=0, le=100)
+
+    @model_validator(mode="after")
+    def require_ordered_bands(self) -> "PriorityBandMinimums":
+        values = list(self.model_dump().values())
+        if self.very_low != 0 or values != sorted(set(values)):
+            raise ValueError("Priority band minimums must start at 0 and increase")
+        return self
+
+
+class ReviewSettingsUpdate(BaseModel):
+    max_top_candidate_share: float = Field(ge=0, le=100)
+    weights: PriorityWeights
+    band_minimums: PriorityBandMinimums
+    expected_version: int = Field(ge=1)
+
+
+class ReviewSettingsResponse(BaseModel):
+    max_top_candidate_share: float
+    weights: PriorityWeights
+    band_minimums: PriorityBandMinimums
+    version: int
+    updated_at: datetime | None
+
+
+class RefreshResponse(BaseModel):
+    scope: Literal["author", "doi", "source"]
+    target: str
+    results: dict[str, int]
+    cases: dict[str, int]
+
+
 class ValidationCaseResponse(BaseModel):
     id: str
     status: ReviewStatus
     priority: CasePriority
+    priority_score: float
+    priority_components: PriorityComponents
+    priority_config: PriorityConfig
     target: ReviewTarget
     affected_count: int
     version: int

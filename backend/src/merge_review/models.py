@@ -37,6 +37,29 @@ class DatasetSnapshot(Base):
     )
 
 
+class ReviewSettings(Base):
+    __tablename__ = "review_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "max_top_candidate_share >= 0 AND max_top_candidate_share <= 100",
+            name="review_settings_valid_top_share",
+        ),
+    )
+
+    dataset_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataset_snapshots.id", ondelete="CASCADE"), primary_key=True
+    )
+    max_top_candidate_share: Mapped[float] = mapped_column(Float)
+    priority_weights: Mapped[dict] = mapped_column(json_type)
+    priority_band_minimums: Mapped[dict] = mapped_column(json_type)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class Author(Base):
     __tablename__ = "authors"
     __table_args__ = (
@@ -135,7 +158,7 @@ class ValidationCase(Base):
             name="validation_cases_valid_status",
         ),
         CheckConstraint(
-            "priority IN ('high', 'medium', 'low')",
+            "priority IN ('very_high', 'high', 'medium', 'low', 'very_low')",
             name="validation_cases_valid_priority",
         ),
         UniqueConstraint("dataset_snapshot_id", "case_type", "author_id"),
@@ -149,6 +172,10 @@ class ValidationCase(Base):
     case_type: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="pending")
     priority: Mapped[str] = mapped_column(String(16))
+    priority_score: Mapped[float] = mapped_column(Float)
+    priority_components: Mapped[dict] = mapped_column(json_type)
+    priority_config: Mapped[dict] = mapped_column(json_type)
+    evidence_sha256: Mapped[str] = mapped_column(String(64))
     affected_count: Mapped[int] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(

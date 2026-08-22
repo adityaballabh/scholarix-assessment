@@ -1,4 +1,6 @@
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -65,6 +67,16 @@ def create_http_session() -> CachedSession:
     for host, rate in limits.items():
         session.mount(host, LimiterAdapter(per_second=rate))
     return session
+
+
+@contextmanager
+def uncached_http_session() -> Iterator[CachedSession]:
+    session = create_http_session()
+    try:
+        with session.cache_disabled():
+            yield session
+    finally:
+        session.close()
 
 
 def request_json(
@@ -183,6 +195,7 @@ def store_source_result(
     session: DatabaseSession,
     snapshot_id: UUID,
     result: SourceResult,
+    preserve_success: bool = False,
 ) -> SourceRecord:
     records = source_record_map(session, snapshot_id)
     key = result.source, result.entity_type, result.entity_key
@@ -196,6 +209,13 @@ def store_source_result(
         )
         session.add(record)
         records[key] = record
+
+    if (
+        preserve_success
+        and record.fetch_status == FetchStatus.SUCCESS
+        and result.fetch_status != FetchStatus.SUCCESS
+    ):
+        return record
 
     record.source_record_id = result.source_record_id
     record.url = result.url

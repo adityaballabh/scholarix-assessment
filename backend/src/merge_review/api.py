@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 
 from merge_review.config import get_settings
 from merge_review.database import get_session
-from merge_review.generate_cases import normalized_words
+from merge_review.generate_cases import (
+    default_review_settings,
+    generate_identity_cases,
+    normalized_words,
+    review_settings,
+)
+from merge_review.import_dataset import normalize_doi
 from merge_review.models import (
     ActivityEvent,
     Author,
@@ -19,8 +25,15 @@ from merge_review.models import (
     IdentityCandidatePublication,
     PublicationRecord,
     ReviewDecision,
+    ReviewSettings,
     SourceRecord,
     ValidationCase,
+)
+from merge_review.refresh import (
+    PUBLICATION_SOURCES,
+    refresh_author_sources,
+    refresh_publication_sources,
+    refresh_source,
 )
 from merge_review.schemas import (
     ActivityEventResponse,
@@ -29,7 +42,13 @@ from merge_review.schemas import (
     ClusterPublication,
     DecisionRequest,
     EvidenceRecord,
+    PriorityComponents,
+    PriorityConfig,
+    RefreshResponse,
+    RefreshSource,
     ReviewOverview,
+    ReviewSettingsResponse,
+    ReviewSettingsUpdate,
     ReviewStatus,
     ReviewTarget,
     SemanticScholarCandidate,
@@ -37,6 +56,7 @@ from merge_review.schemas import (
     SourceStatus,
     ValidationCaseResponse,
 )
+from merge_review.source_records import uncached_http_session
 
 router = APIRouter(prefix="/api")
 VALID_STATUSES = set(get_args(ReviewStatus))
@@ -126,6 +146,9 @@ def case_response(session: Session, review_case: ValidationCase) -> ValidationCa
         id=review_case.id,
         status=review_case.status,
         priority=review_case.priority,
+        priority_score=review_case.priority_score,
+        priority_components=PriorityComponents.model_validate(review_case.priority_components),
+        priority_config=PriorityConfig.model_validate(review_case.priority_config),
         target=ReviewTarget(
             author_slug=author.slug,
             author_name=author.name,
@@ -152,6 +175,138 @@ def case_response(session: Session, review_case: ValidationCase) -> ValidationCa
             profile_topics=[topic for topic in topics or [] if isinstance(topic, str)],
         ),
     )
+
+
+def settings_response(settings: ReviewSettings) -> ReviewSettingsResponse:
+    return ReviewSettingsResponse(
+        max_top_candidate_share=settings.max_top_candidate_share,
+        weights=settings.priority_weights,
+        band_minimums=settings.priority_band_minimums,
+        version=settings.version,
+        updated_at=utc_datetime(settings.updated_at),
+    )
+
+
+@router.get("/settings", response_model=ReviewSettingsResponse)
+def get_review_settings(session: Session = Depends(get_session)) -> ReviewSettingsResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    settings = session.get(ReviewSettings, snapshot.id) or default_review_settings(snapshot.id)
+    return settings_response(settings)
+
+
+@router.put("/settings", response_model=ReviewSettingsResponse)
+def update_review_settings(
+    request: ReviewSettingsUpdate,
+    session: Session = Depends(get_session),
+) -> ReviewSettingsResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    settings = session.scalar(
+        select(ReviewSettings)
+        .where(ReviewSettings.dataset_snapshot_id == snapshot.id)
+        .with_for_update()
+    )
+    if settings is None:
+        settings = review_settings(session, snapshot.id)
+    if settings.version != request.expected_version:
+        raise HTTPException(409, detail={"current_version": settings.version})
+
+    settings.max_top_candidate_share = request.max_top_candidate_share
+    settings.priority_weights = request.weights.model_dump()
+    settings.priority_band_minimums = request.band_minimums.model_dump()
+    settings.version += 1
+    generate_identity_cases(session, snapshot.id)
+    session.commit()
+    session.refresh(settings)
+    return settings_response(settings)
+
+
+def refresh_response(
+    scope: str,
+    target: str,
+    results: Counter[str],
+    cases: dict[str, int],
+) -> RefreshResponse:
+    return RefreshResponse(
+        scope=scope,
+        target=target,
+        results=dict(sorted(results.items())),
+        cases=cases,
+    )
+
+
+@router.post("/refresh/authors/{author_slug}", response_model=RefreshResponse)
+def refresh_author(
+    author_slug: str,
+    session: Session = Depends(get_session),
+) -> RefreshResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    author = session.scalar(
+        select(Author).where(
+            Author.dataset_snapshot_id == snapshot.id,
+            Author.slug == author_slug,
+        )
+    )
+    if author is None:
+        raise HTTPException(404, detail="Author not found")
+
+    with uncached_http_session() as http_session:
+        results = refresh_author_sources(session, http_session, author)
+    cases = generate_identity_cases(session, snapshot.id)
+    session.commit()
+    return refresh_response("author", author_slug, results, cases)
+
+
+@router.post("/refresh/dois/{doi:path}", response_model=RefreshResponse)
+def refresh_doi(doi: str, session: Session = Depends(get_session)) -> RefreshResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    normalized_doi = normalize_doi(doi)
+    exists = session.scalar(
+        select(PublicationRecord.id)
+        .join(Author)
+        .where(
+            Author.dataset_snapshot_id == snapshot.id,
+            PublicationRecord.normalized_doi == normalized_doi,
+        )
+        .limit(1)
+    )
+    if normalized_doi is None or exists is None:
+        raise HTTPException(404, detail="DOI not found in the current dataset")
+
+    with uncached_http_session() as http_session:
+        results = refresh_publication_sources(
+            session,
+            http_session,
+            snapshot.id,
+            [normalized_doi],
+            set(PUBLICATION_SOURCES),
+        )
+    cases = generate_identity_cases(session, snapshot.id)
+    session.commit()
+    return refresh_response("doi", normalized_doi, results, cases)
+
+
+@router.post("/refresh/sources/{source}", response_model=RefreshResponse)
+def refresh_source_type(
+    source: RefreshSource,
+    session: Session = Depends(get_session),
+) -> RefreshResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+
+    with uncached_http_session() as http_session:
+        results = refresh_source(session, http_session, snapshot.id, source)
+    cases = generate_identity_cases(session, snapshot.id)
+    session.commit()
+    return refresh_response("source", source, results, cases)
 
 
 def parse_statuses(value: str | None) -> set[str] | None:
@@ -184,11 +339,7 @@ def list_cases(
         .where(ValidationCase.dataset_snapshot_id == snapshot.id)
         .order_by(
             case((ValidationCase.status == "deferred", 1), else_=0),
-            case(
-                (ValidationCase.priority == "high", 0),
-                (ValidationCase.priority == "medium", 1),
-                else_=2,
-            ),
+            desc(ValidationCase.priority_score),
             desc(ValidationCase.affected_count),
             ValidationCase.id,
         )

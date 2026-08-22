@@ -1,4 +1,6 @@
+from collections import Counter
 from datetime import UTC, datetime
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -24,6 +26,21 @@ from sqlalchemy.pool import StaticPool
 DUMMY_FETCHED_AT = datetime(2026, 8, 21, tzinfo=UTC)
 DUMMY_SNAPSHOT_HASH = "a" * 64
 DUMMY_DOI = "10.123/case"
+DUMMY_PRIORITY_CONFIG = {
+    "weights": {
+        "publication_impact": 1 / 3,
+        "fragmentation": 1 / 3,
+        "cluster_ambiguity": 1 / 3,
+    },
+    "band_minimums": {
+        "very_low": 0.0,
+        "low": 20.0,
+        "medium": 40.0,
+        "high": 60.0,
+        "very_high": 80.0,
+    },
+    "max_top_candidate_share": 75.0,
+}
 
 
 def build_client() -> TestClient:
@@ -97,7 +114,11 @@ def build_client() -> TestClient:
                 http_status=200,
                 fetched_at=DUMMY_FETCHED_AT,
                 from_cache=True,
-                payload={},
+                payload={
+                    "title": "Dummy Publication",
+                    "year": 2020,
+                    "authors": [{"authorId": "candidateID", "name": "Dummy Author"}],
+                },
             )
         )
         session.add_all(
@@ -109,6 +130,26 @@ def build_client() -> TestClient:
                     case_type="author_identity",
                     status="pending",
                     priority="high",
+                    priority_score=76.7,
+                    priority_components={
+                        "publication_impact": {
+                            "value": 10.0,
+                            "snapshot_max": 10.0,
+                            "score": 100.0,
+                        },
+                        "fragmentation": {
+                            "value": 40.0,
+                            "snapshot_max": 50.0,
+                            "score": 80.0,
+                        },
+                        "cluster_ambiguity": {
+                            "value": 2.0,
+                            "snapshot_max": 4.0,
+                            "score": 50.0,
+                        },
+                    },
+                    priority_config=DUMMY_PRIORITY_CONFIG,
+                    evidence_sha256="a" * 64,
                     affected_count=10,
                 ),
                 ValidationCase(
@@ -118,6 +159,26 @@ def build_client() -> TestClient:
                     case_type="author_identity",
                     status="deferred",
                     priority="medium",
+                    priority_score=41.7,
+                    priority_components={
+                        "publication_impact": {
+                            "value": 5.0,
+                            "snapshot_max": 10.0,
+                            "score": 50.0,
+                        },
+                        "fragmentation": {
+                            "value": 25.0,
+                            "snapshot_max": 50.0,
+                            "score": 50.0,
+                        },
+                        "cluster_ambiguity": {
+                            "value": 1.0,
+                            "snapshot_max": 4.0,
+                            "score": 25.0,
+                        },
+                    },
+                    priority_config=DUMMY_PRIORITY_CONFIG,
+                    evidence_sha256="b" * 64,
                     affected_count=5,
                 ),
             ]
@@ -188,6 +249,12 @@ def test_case_detail_and_errors() -> None:
     response = client.get("/api/cases/case-one")
 
     assert response.status_code == 200
+    assert response.json()["priority_score"] == 76.7
+    assert response.json()["priority_components"]["fragmentation"] == {
+        "value": 40.0,
+        "snapshot_max": 50.0,
+        "score": 80.0,
+    }
     assert response.json()["detail"]["top_share"] == 60.0
     assert response.json()["detail"]["candidate_ids"][0]["publications"] == [
         {"year": 2020, "title": "Dummy Publication"}
@@ -218,6 +285,127 @@ def test_overview() -> None:
             }
         ],
     }
+
+
+def test_review_settings_are_versioned_and_recompute_cases() -> None:
+    client = build_client()
+
+    current = client.get("/api/settings")
+    with patch(
+        "merge_review.api.generate_identity_cases",
+        return_value={"very_high": 1},
+    ) as generate:
+        updated = client.put(
+            "/api/settings",
+            json={
+                "max_top_candidate_share": 100,
+                "weights": {
+                    "publication_impact": 2,
+                    "fragmentation": 1,
+                    "cluster_ambiguity": 1,
+                },
+                "band_minimums": {
+                    "very_low": 0,
+                    "low": 20,
+                    "medium": 40,
+                    "high": 60,
+                    "very_high": 80,
+                },
+                "expected_version": 1,
+            },
+        )
+    stale = client.put(
+        "/api/settings",
+        json={
+            "max_top_candidate_share": 75,
+            "weights": {
+                "publication_impact": 1,
+                "fragmentation": 1,
+                "cluster_ambiguity": 1,
+            },
+            "band_minimums": {
+                "very_low": 0,
+                "low": 20,
+                "medium": 40,
+                "high": 60,
+                "very_high": 80,
+            },
+            "expected_version": 1,
+        },
+    )
+
+    assert current.status_code == 200
+    assert current.json()["version"] == 1
+    assert updated.status_code == 200
+    assert updated.json()["version"] == 2
+    assert updated.json()["weights"]["publication_impact"] == 2
+    assert generate.call_count == 1
+    assert stale.status_code == 409
+
+
+def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
+    client = build_client()
+    http_session = Mock()
+    http_context = Mock()
+    http_context.__enter__ = Mock(return_value=http_session)
+    http_context.__exit__ = Mock(return_value=False)
+
+    with (
+        patch("merge_review.api.uncached_http_session", return_value=http_context),
+        patch(
+            "merge_review.api.refresh_publication_sources",
+            return_value=Counter({"semantic_scholar:success": 1}),
+        ) as refresh,
+        patch(
+            "merge_review.api.generate_identity_cases",
+            return_value={"very_high": 1},
+        ) as generate,
+    ):
+        response = client.post(f"/api/refresh/dois/{DUMMY_DOI}")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "scope": "doi",
+        "target": DUMMY_DOI,
+        "results": {"semantic_scholar:success": 1},
+        "cases": {"very_high": 1},
+    }
+    assert refresh.call_args.args[3] == [DUMMY_DOI]
+    assert generate.call_count == 1
+
+
+def test_refresh_author_and_source_scopes() -> None:
+    client = build_client()
+    http_session = Mock()
+    http_context = Mock()
+    http_context.__enter__ = Mock(return_value=http_session)
+    http_context.__exit__ = Mock(return_value=False)
+
+    with (
+        patch("merge_review.api.uncached_http_session", return_value=http_context),
+        patch(
+            "merge_review.api.refresh_author_sources",
+            return_value=Counter({"openalex_author:success": 1}),
+        ) as refresh_author,
+        patch(
+            "merge_review.api.refresh_source",
+            return_value=Counter({"orcid:success": 1}),
+        ) as refresh_source,
+        patch(
+            "merge_review.api.generate_identity_cases",
+            return_value={"very_high": 1},
+        ),
+    ):
+        author_response = client.post("/api/refresh/authors/Dummy_Author")
+        source_response = client.post("/api/refresh/sources/orcid")
+
+    assert author_response.status_code == 200
+    assert author_response.json()["scope"] == "author"
+    assert source_response.status_code == 200
+    assert source_response.json()["scope"] == "source"
+    assert refresh_author.call_count == 1
+    assert refresh_source.call_args.args[3] == "orcid"
+    assert client.post("/api/refresh/sources/unknown").status_code == 422
 
 
 def test_decisions_are_versioned_and_append_activity() -> None:

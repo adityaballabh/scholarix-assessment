@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass
@@ -17,14 +18,27 @@ from merge_review.models import (
     IdentityCandidate,
     IdentityCandidatePublication,
     PublicationRecord,
+    ReviewSettings,
     SourceRecord,
     ValidationCase,
 )
 from merge_review.source_records import FetchStatus
 
 CASE_TYPE = "author_identity"
-HIGH_PRIORITY_CANDIDATE_THRESHOLD = 11
 MAX_TOP_CANDIDATE_SHARE = 75.0
+PRIORITY_WEIGHTS = {
+    "publication_impact": 1.0,
+    "fragmentation": 1.0,
+    "cluster_ambiguity": 1.0,
+}
+PRIORITY_BAND_MINIMUMS = {
+    "very_low": 0.0,
+    "low": 20.0,
+    "medium": 40.0,
+    "high": 60.0,
+    "very_high": 80.0,
+}
+PRIORITY_BANDS = ("very_low", "low", "medium", "high", "very_high")
 
 
 @dataclass(frozen=True)
@@ -42,6 +56,25 @@ class Candidate:
     share: float
     first_year: int | None
     last_year: int | None
+
+
+@dataclass(frozen=True)
+class IdentityCaseData:
+    author: Author
+    candidates: list[Candidate]
+    publications: list[PublicationRecord]
+    source_records: dict[str, SourceRecord]
+
+    @property
+    def fragmentation(self) -> float:
+        return round(100.0 - self.candidates[0].share, 1)
+
+
+@dataclass(frozen=True)
+class PriorityMaximums:
+    publication_impact: float
+    fragmentation: float
+    cluster_ambiguity: float
 
 
 def normalized_words(value: str | None) -> list[str]:
@@ -66,6 +99,78 @@ def case_id(slug: str) -> str:
 
 def requires_identity_review(candidates: list[Candidate]) -> bool:
     return bool(candidates) and candidates[0].share <= MAX_TOP_CANDIDATE_SHARE
+
+
+def default_review_settings(snapshot_id: UUID) -> ReviewSettings:
+    return ReviewSettings(
+        dataset_snapshot_id=snapshot_id,
+        max_top_candidate_share=MAX_TOP_CANDIDATE_SHARE,
+        priority_weights=PRIORITY_WEIGHTS.copy(),
+        priority_band_minimums=PRIORITY_BAND_MINIMUMS.copy(),
+        version=1,
+    )
+
+
+def review_settings(session: Session, snapshot_id: UUID) -> ReviewSettings:
+    settings = session.get(ReviewSettings, snapshot_id)
+    if settings is None:
+        settings = default_review_settings(snapshot_id)
+        session.add(settings)
+        session.flush()
+    return settings
+
+
+def normalized_component(value: float, snapshot_max: float) -> float:
+    return round(100.0 * value / snapshot_max, 1) if snapshot_max else 0.0
+
+
+def priority_band(score: float) -> str:
+    return configured_priority_band(score, PRIORITY_BAND_MINIMUMS)
+
+
+def configured_priority_band(score: float, band_minimums: dict[str, float]) -> str:
+    return next(name for name in reversed(PRIORITY_BANDS) if score >= band_minimums[name])
+
+
+def priority_values(
+    data: IdentityCaseData,
+    maximums: PriorityMaximums,
+    weights: dict[str, float] | None = None,
+    band_minimums: dict[str, float] | None = None,
+    max_top_candidate_share: float = MAX_TOP_CANDIDATE_SHARE,
+) -> tuple[str, float, dict[str, dict[str, float]], dict[str, Any]]:
+    weights = weights or PRIORITY_WEIGHTS
+    band_minimums = band_minimums or PRIORITY_BAND_MINIMUMS
+    raw_values = {
+        "publication_impact": float(len(data.publications)),
+        "fragmentation": data.fragmentation,
+        "cluster_ambiguity": float(len(data.candidates)),
+    }
+    snapshot_maximums = {
+        "publication_impact": maximums.publication_impact,
+        "fragmentation": maximums.fragmentation,
+        "cluster_ambiguity": maximums.cluster_ambiguity,
+    }
+    components = {
+        name: {
+            "value": value,
+            "snapshot_max": snapshot_maximums[name],
+            "score": normalized_component(value, snapshot_maximums[name]),
+        }
+        for name, value in raw_values.items()
+    }
+    weight_total = sum(weights.values())
+    normalized_weights = {name: weight / weight_total for name, weight in weights.items()}
+    score = round(
+        sum(components[name]["score"] * normalized_weights[name] for name in normalized_weights),
+        1,
+    )
+    config = {
+        "weights": normalized_weights,
+        "band_minimums": band_minimums.copy(),
+        "max_top_candidate_share": max_top_candidate_share,
+    }
+    return configured_priority_band(score, band_minimums), score, components, config
 
 
 def candidate_publications(
@@ -346,21 +451,62 @@ def clear_case_details(session: Session, case_id_value: str) -> None:
     session.execute(delete(CaseEvidence).where(CaseEvidence.case_id == case_id_value))
 
 
+def case_signature(
+    data: IdentityCaseData,
+    evidence: list[dict[str, Any]],
+    score: float,
+    components: dict[str, dict[str, float]],
+    config: dict[str, Any],
+) -> str:
+    content = {
+        "candidates": [
+            {
+                "author_id": candidate.author_id,
+                "share": candidate.share,
+                "first_year": candidate.first_year,
+                "last_year": candidate.last_year,
+                "publications": [
+                    {
+                        "doi": publication.doi,
+                        "title": publication.title,
+                        "year": publication.year,
+                        "source_record_id": str(publication.source_record_id),
+                    }
+                    for publication in candidate.publications
+                ],
+            }
+            for candidate in data.candidates
+        ],
+        "evidence": evidence,
+        "score": score,
+        "components": components,
+        "config": config,
+    }
+    serialized = json.dumps(content, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode()).hexdigest()
+
+
 def generate_identity_case(
     session: Session,
-    author: Author,
-) -> ValidationCase | None:
-    candidates, publications, s2_records = candidate_publications(session, author)
+    data: IdentityCaseData,
+    maximums: PriorityMaximums,
+    settings: ReviewSettings,
+) -> ValidationCase:
+    author = data.author
+    candidates = data.candidates
+    publications = data.publications
+    s2_records = data.source_records
     case_id_value = case_id(author.slug)
     review_case = session.get(ValidationCase, case_id_value)
-
-    if not requires_identity_review(candidates):
-        if review_case is not None and review_case.status == "pending":
-            clear_case_details(session, case_id_value)
-            session.delete(review_case)
-        return None
-
-    priority = "high" if len(candidates) >= HIGH_PRIORITY_CANDIDATE_THRESHOLD else "medium"
+    priority, score, components, config = priority_values(
+        data,
+        maximums,
+        settings.priority_weights,
+        settings.priority_band_minimums,
+        settings.max_top_candidate_share,
+    )
+    evidence = evidence_rows(session, author, candidates, s2_records)
+    signature = case_signature(data, evidence, score, components, config)
     if review_case is None:
         review_case = ValidationCase(
             id=case_id_value,
@@ -368,16 +514,26 @@ def generate_identity_case(
             author_id=author.id,
             case_type=CASE_TYPE,
             priority=priority,
+            priority_score=score,
+            priority_components=components,
+            priority_config=config,
+            evidence_sha256=signature,
             affected_count=len(publications),
         )
         session.add(review_case)
     else:
         clear_case_details(session, case_id_value)
+        if review_case.evidence_sha256 != signature:
+            review_case.version += 1
         review_case.priority = priority
+        review_case.priority_score = score
+        review_case.priority_components = components
+        review_case.priority_config = config
+        review_case.evidence_sha256 = signature
         review_case.affected_count = len(publications)
     session.flush()
 
-    for position, row in enumerate(evidence_rows(session, author, candidates, s2_records)):
+    for position, row in enumerate(evidence):
         session.add(CaseEvidence(case_id=case_id_value, position=position, **row))
 
     for position, candidate in enumerate(candidates):
@@ -410,14 +566,30 @@ def generate_identity_case(
 
 
 def generate_identity_cases(session: Session, snapshot_id: UUID) -> dict[str, int]:
+    settings = review_settings(session, snapshot_id)
     authors = session.scalars(
         select(Author).where(Author.dataset_snapshot_id == snapshot_id).order_by(Author.name)
     )
-    counts = {"high": 0, "medium": 0}
+    case_data = []
     for author in authors:
-        review_case = generate_identity_case(session, author)
-        if review_case is not None:
-            counts[review_case.priority] += 1
+        candidates, publications, source_records = candidate_publications(session, author)
+        if candidates and candidates[0].share <= settings.max_top_candidate_share:
+            case_data.append(IdentityCaseData(author, candidates, publications, source_records))
+            continue
+        review_case = session.get(ValidationCase, case_id(author.slug))
+        if review_case is not None and review_case.status == "pending":
+            clear_case_details(session, review_case.id)
+            session.delete(review_case)
+
+    maximums = PriorityMaximums(
+        publication_impact=max((len(data.publications) for data in case_data), default=0),
+        fragmentation=max((data.fragmentation for data in case_data), default=0.0),
+        cluster_ambiguity=max((len(data.candidates) for data in case_data), default=0),
+    )
+    counts = {priority: 0 for priority in PRIORITY_BANDS}
+    for data in case_data:
+        review_case = generate_identity_case(session, data, maximums, settings)
+        counts[review_case.priority] += 1
     return counts
 
 
@@ -432,8 +604,8 @@ def main() -> None:
         counts = generate_identity_cases(session, snapshot.id)
 
     print(f"Identity cases for snapshot {snapshot.id}")
-    print(f"High priority: {counts['high']}")
-    print(f"Medium priority: {counts['medium']}")
+    for priority, count in reversed(counts.items()):
+        print(f"{priority.replace('_', ' ').title()} priority: {count}")
 
 
 if __name__ == "__main__":

@@ -114,3 +114,41 @@ def test_sync_openalex_authors_persists_and_updates_results() -> None:
     }
     assert third_counts == {FetchStatus.SUCCESS: 1}
     assert http_session.request.call_count == 2
+
+    http_session.request.return_value = make_response(
+        200,
+        {
+            "id": f"https://openalex.org/{DUMMY_AUTHOR_ID}",
+            "display_name": "Updated Dummy Author",
+        },
+    )
+    with session_factory.begin() as session:
+        forced_counts = sync_openalex_authors(
+            session,
+            http_session,
+            snapshot_id,
+            force=True,
+        )
+
+    with session_factory() as session:
+        refreshed = session.scalar(select(SourceRecord))
+
+    assert forced_counts == {FetchStatus.SUCCESS: 1}
+    assert refreshed.payload["display_name"] == "Updated Dummy Author"
+    assert http_session.request.call_count == 3
+
+    http_session.request.return_value = make_response(429)
+    with session_factory.begin() as session:
+        failed_refresh_counts = sync_openalex_authors(
+            session,
+            http_session,
+            snapshot_id,
+            force=True,
+        )
+
+    with session_factory() as session:
+        preserved = session.scalar(select(SourceRecord))
+
+    assert failed_refresh_counts == {FetchStatus.RATE_LIMITED: 1}
+    assert preserved.fetch_status == FetchStatus.SUCCESS
+    assert preserved.payload["display_name"] == "Updated Dummy Author"
