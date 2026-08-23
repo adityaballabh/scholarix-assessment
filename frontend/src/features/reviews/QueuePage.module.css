@@ -23,8 +23,13 @@
   font: var(--text-micro);
 }
 
-.scopeLink {
+.queueLinks {
   margin-left: auto;
+  display: flex;
+  gap: 14px;
+}
+
+.scopeLink {
   color: var(--ink-muted);
   font: var(--text-micro);
   text-underline-offset: 3px;
@@ -66,7 +71,7 @@
   transition: opacity var(--duration-instant) var(--ease-out);
 }
 
-.shareHeader {
+.hintHeader {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -146,7 +151,7 @@
 
 .position,
 .numericValue,
-.priority,
+.score,
 .status {
   color: var(--ink-muted);
   font: var(--text-micro);
@@ -184,7 +189,7 @@
     width: 100%;
   }
 
-  .scopeLink {
+  .queueLinks {
     margin-left: 0;
   }
 }

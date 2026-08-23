@@ -1,7 +1,7 @@
 export type SourceFetchStatus =
   | "success"
   | "pending"
-  | "never_attempted"
+  | "not_applicable"
   | "empty"
   | "not_found"
   | "rate_limited"
@@ -25,7 +25,6 @@ export type ReviewStatus =
   | "one_author"
   | "needs_split";
 
-export type CasePriority = "very_high" | "high" | "medium" | "low" | "very_low";
 export type QueueScope = "active" | "archived";
 export type EvidenceEntityType = "author" | "publication";
 
@@ -74,7 +73,6 @@ export interface ValidationCase {
   id: string;
   status: ReviewStatus;
   queue_eligible: boolean;
-  priority: CasePriority;
   priority_score: number;
   priority_components: PriorityComponents;
   priority_config: PriorityConfig;
@@ -103,18 +101,27 @@ export interface PriorityWeights {
   cluster_ambiguity: number;
 }
 
-export interface PriorityBandMinimums {
-  very_low: number;
-  low: number;
-  medium: number;
-  high: number;
-  very_high: number;
-}
-
 export interface PriorityConfig {
   weights: PriorityWeights;
-  band_minimums: PriorityBandMinimums;
   max_top_candidate_share: number;
+}
+
+export interface AuditConfig {
+  max_top_candidate_share: number;
+  weights: PriorityWeights;
+  version: number;
+  updated_at: string | null;
+}
+
+export interface AuditConfigUpdate {
+  max_top_candidate_share: number;
+  weights: PriorityWeights;
+  expected_version: number;
+}
+
+export interface AuditResult {
+  config_version: number;
+  cases: number;
 }
 
 export type DecisionAction =
@@ -157,13 +164,11 @@ export interface ReviewOverview {
   authors_audited: number;
   publications_audited: number;
   audited_at: string | null;
-  by_priority: Partial<Record<CasePriority, number>>;
   sources: SourceStatus[];
 }
 
 export interface CaseQueryFilters {
   status?: ReviewStatus | ReviewStatus[];
-  priority?: CasePriority;
   scope?: QueueScope;
   query?: string;
 }

@@ -108,10 +108,7 @@
   font: var(--text-nano);
 }
 
-.cellNever {
-  background: var(--surface-sunk);
-}
-
+.cellNever,
 .cellBroken {
   background: repeating-linear-gradient(
     45deg,

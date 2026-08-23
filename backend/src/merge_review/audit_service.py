@@ -7,7 +7,7 @@ from merge_review.generate_cases import generate_identity_cases
 from merge_review.models import DatasetSnapshot, ValidationCase
 
 
-def run_audit(session: Session, snapshot_id: UUID) -> dict[str, int]:
+def run_audit(session: Session, snapshot_id: UUID) -> int:
     session.scalar(
         select(DatasetSnapshot).where(DatasetSnapshot.id == snapshot_id).with_for_update()
     )

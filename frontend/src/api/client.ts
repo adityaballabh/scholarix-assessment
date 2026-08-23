@@ -1,5 +1,8 @@
 import type {
   ActivityEvent,
+  AuditConfig,
+  AuditConfigUpdate,
+  AuditResult,
   AuditRun,
   CaseQueryFilters,
   DecisionRequest,
@@ -88,4 +91,22 @@ export function startAudit(): Promise<AuditRun> {
 
 export function abandonAudit(auditId: string): Promise<AuditRun> {
   return requestJson(`/api/fetches/${auditId}/abandon`, { method: "POST" });
+}
+
+export function getAuditConfig(): Promise<AuditConfig> {
+  return requestJson("/api/audit-config");
+}
+
+export function updateAuditConfig(
+  config: AuditConfigUpdate,
+): Promise<AuditConfig> {
+  return requestJson("/api/audit-config", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(config),
+  });
+}
+
+export function runAudit(): Promise<AuditResult> {
+  return requestJson("/api/audits", { method: "POST" });
 }

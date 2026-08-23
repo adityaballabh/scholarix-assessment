@@ -89,6 +89,23 @@
   font: var(--text-micro);
 }
 
+.hintHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.headerLink {
+  color: var(--ink-muted);
+  border-bottom: var(--hairline) solid var(--rule-strong);
+  text-decoration: none;
+}
+
+.headerLink:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
 .caseRow {
   position: relative;
   min-height: 34px;
@@ -125,7 +142,7 @@
 }
 
 .position,
-.priority,
+.score,
 .topShare,
 .candidateCount,
 .affectedCount {
@@ -143,7 +160,7 @@
 }
 
 .topShare,
-.priority,
+.score,
 .candidateCount,
 .affectedCount {
   text-align: left;

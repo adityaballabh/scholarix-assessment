@@ -33,13 +33,6 @@ DUMMY_PRIORITY_CONFIG = {
         "fragmentation": 1 / 3,
         "cluster_ambiguity": 1 / 3,
     },
-    "band_minimums": {
-        "very_low": 0.0,
-        "low": 20.0,
-        "medium": 40.0,
-        "high": 60.0,
-        "very_high": 80.0,
-    },
     "max_top_candidate_share": 75.0,
 }
 
@@ -168,7 +161,6 @@ def build_client(
                     case_type="author_identity",
                     status="pending",
                     queue_eligible=True,
-                    priority="high",
                     priority_score=76.7,
                     priority_components={
                         "publication_impact": {
@@ -198,7 +190,6 @@ def build_client(
                     case_type="author_identity",
                     status="deferred",
                     queue_eligible=second_case_eligible,
-                    priority="medium",
                     priority_score=41.7,
                     priority_components={
                         "publication_impact": {
@@ -344,7 +335,6 @@ def test_overview() -> None:
         "authors_audited": 2,
         "publications_audited": 2,
         "audited_at": "2026-08-21T00:00:00Z",
-        "by_priority": {"high": 1, "medium": 1},
         "sources": [
             {
                 "source": "semantic_scholar",
@@ -362,7 +352,7 @@ def test_audit_config_is_versioned_and_audit_recomputes_cases() -> None:
     current = client.get("/api/audit-config")
     with patch(
         "merge_review.api.run_audit",
-        return_value={"very_high": 1},
+        return_value=1,
     ) as run_audit:
         updated = client.put(
             "/api/audit-config",
@@ -372,13 +362,6 @@ def test_audit_config_is_versioned_and_audit_recomputes_cases() -> None:
                     "publication_impact": 2,
                     "fragmentation": 1,
                     "cluster_ambiguity": 1,
-                },
-                "band_minimums": {
-                    "very_low": 0,
-                    "low": 20,
-                    "medium": 40,
-                    "high": 60,
-                    "very_high": 80,
                 },
                 "expected_version": 1,
             },
@@ -393,13 +376,6 @@ def test_audit_config_is_versioned_and_audit_recomputes_cases() -> None:
                 "fragmentation": 1,
                 "cluster_ambiguity": 1,
             },
-            "band_minimums": {
-                "very_low": 0,
-                "low": 20,
-                "medium": 40,
-                "high": 60,
-                "very_high": 80,
-            },
             "expected_version": 1,
         },
     )
@@ -412,7 +388,7 @@ def test_audit_config_is_versioned_and_audit_recomputes_cases() -> None:
     assert audit.status_code == 200
     assert audit.json() == {
         "config_version": 2,
-        "cases": {"very_high": 1},
+        "cases": 1,
     }
     assert run_audit.call_count == 1
     assert stale.status_code == 409
@@ -460,7 +436,7 @@ def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
         ) as refresh,
         patch(
             "merge_review.api.generate_identity_cases",
-            return_value={"very_high": 1},
+            return_value=1,
         ) as generate,
     ):
         response = client.post(f"/api/refresh/dois/{DUMMY_DOI}")
@@ -470,7 +446,7 @@ def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
         "scope": "doi",
         "target": DUMMY_DOI,
         "results": {"semantic_scholar:success": 1},
-        "cases": {"very_high": 1},
+        "cases": 1,
     }
     assert refresh.call_args.args[3] == [DUMMY_DOI]
     assert lock_cases.call_count == 1
@@ -497,7 +473,7 @@ def test_refresh_author_and_source_scopes() -> None:
         ) as refresh_source,
         patch(
             "merge_review.api.generate_identity_cases",
-            return_value={"very_high": 1},
+            return_value=1,
         ),
     ):
         author_response = client.post("/api/refresh/authors/Dummy_Author")

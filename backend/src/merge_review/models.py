@@ -51,7 +51,6 @@ class ReviewSettings(Base):
     )
     max_top_candidate_share: Mapped[float] = mapped_column(Float)
     priority_weights: Mapped[dict] = mapped_column(json_type)
-    priority_band_minimums: Mapped[dict] = mapped_column(json_type)
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -144,7 +143,7 @@ class SourceRecord(Base):
     __tablename__ = "source_records"
     __table_args__ = (
         CheckConstraint(
-            "fetch_status IN ('success', 'pending', 'never_attempted', 'empty', "
+            "fetch_status IN ('success', 'pending', 'not_applicable', 'empty', "
             "'not_found', 'rate_limited', 'timeout', 'error')",
             name="valid_fetch_status",
         ),
@@ -180,10 +179,6 @@ class ValidationCase(Base):
             "status IN ('pending', 'deferred', 'uncertain', 'one_author', 'needs_split')",
             name="validation_cases_valid_status",
         ),
-        CheckConstraint(
-            "priority IN ('very_high', 'high', 'medium', 'low', 'very_low')",
-            name="validation_cases_valid_priority",
-        ),
         Index(
             "ix_validation_cases_snapshot_queue",
             "dataset_snapshot_id",
@@ -200,7 +195,6 @@ class ValidationCase(Base):
     case_type: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="pending")
     queue_eligible: Mapped[bool] = mapped_column(Boolean, default=True)
-    priority: Mapped[str] = mapped_column(String(16))
     priority_score: Mapped[float] = mapped_column(Float)
     priority_components: Mapped[dict] = mapped_column(json_type)
     priority_config: Mapped[dict] = mapped_column(json_type)

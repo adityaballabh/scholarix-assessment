@@ -31,14 +31,6 @@ PRIORITY_WEIGHTS = {
     "fragmentation": 1.0,
     "cluster_ambiguity": 1.0,
 }
-PRIORITY_BAND_MINIMUMS = {
-    "very_low": 0.0,
-    "low": 20.0,
-    "medium": 40.0,
-    "high": 60.0,
-    "very_high": 80.0,
-}
-PRIORITY_BANDS = ("very_low", "low", "medium", "high", "very_high")
 
 
 @dataclass(frozen=True)
@@ -89,7 +81,15 @@ def author_key(value: str | None) -> str | None:
 
 
 def normalized_institution(value: str | None) -> str:
-    return " ".join(normalized_words(value))
+    return " ".join(
+        word for word in normalized_words(value) if word not in {"at", "and", "the"}
+    )
+
+
+def institutions_match(first: str | None, second: str | None) -> bool:
+    first_name = normalized_institution(first)
+    second_name = normalized_institution(second)
+    return bool(first_name) and first_name == second_name
 
 
 def case_id(snapshot_id: UUID, slug: str) -> str:
@@ -106,7 +106,6 @@ def default_review_settings(snapshot_id: UUID) -> ReviewSettings:
         dataset_snapshot_id=snapshot_id,
         max_top_candidate_share=MAX_TOP_CANDIDATE_SHARE,
         priority_weights=PRIORITY_WEIGHTS.copy(),
-        priority_band_minimums=PRIORITY_BAND_MINIMUMS.copy(),
         version=1,
     )
 
@@ -124,23 +123,13 @@ def normalized_component(value: float, snapshot_max: float) -> float:
     return round(100.0 * value / snapshot_max, 1) if snapshot_max else 0.0
 
 
-def priority_band(score: float) -> str:
-    return configured_priority_band(score, PRIORITY_BAND_MINIMUMS)
-
-
-def configured_priority_band(score: float, band_minimums: dict[str, float]) -> str:
-    return next(name for name in reversed(PRIORITY_BANDS) if score >= band_minimums[name])
-
-
-def priority_values(
+def score_values(
     data: IdentityCaseData,
     maximums: PriorityMaximums,
     weights: dict[str, float] | None = None,
-    band_minimums: dict[str, float] | None = None,
     max_top_candidate_share: float = MAX_TOP_CANDIDATE_SHARE,
-) -> tuple[str, float, dict[str, dict[str, float]], dict[str, Any]]:
+) -> tuple[float, dict[str, dict[str, float]], dict[str, Any]]:
     weights = weights or PRIORITY_WEIGHTS
-    band_minimums = band_minimums or PRIORITY_BAND_MINIMUMS
     raw_values = {
         "publication_impact": float(len(data.publications)),
         "fragmentation": data.fragmentation,
@@ -167,10 +156,9 @@ def priority_values(
     )
     config = {
         "weights": normalized_weights,
-        "band_minimums": band_minimums.copy(),
         "max_top_candidate_share": max_top_candidate_share,
     }
-    return configured_priority_band(score, band_minimums), score, components, config
+    return score, components, config
 
 
 def candidate_publications(
@@ -363,8 +351,7 @@ def evidence_rows(
                 "affiliation",
                 external_affiliation,
                 "supports"
-                if normalized_institution(external_affiliation)
-                == normalized_institution(author.affiliation)
+                if institutions_match(external_affiliation, author.affiliation)
                 else "conflict",
             ),
         ]
@@ -392,8 +379,10 @@ def evidence_rows(
     else:
         orcid_state = (
             "supports"
-            if normalized_institution(author.affiliation)
-            in {normalized_institution(institution) for institution in institutions}
+            if any(
+                institutions_match(author.affiliation, institution)
+                for institution in institutions
+            )
             else "conflict"
         )
     rows.append(
@@ -418,7 +407,9 @@ def source_evidence(
     value_state: str,
 ) -> dict[str, Any]:
     if record is None:
-        fetch_status = FetchStatus.NEVER_ATTEMPTED
+        if source_id:
+            raise RuntimeError(f"Missing {source} record for {source_id}")
+        fetch_status = FetchStatus.NOT_APPLICABLE
     else:
         fetch_status = record.fetch_status
     if fetch_status != FetchStatus.SUCCESS:
@@ -500,11 +491,10 @@ def generate_identity_case(
     s2_records = data.source_records
     case_id_value = case_id(author.dataset_snapshot_id, author.slug)
     review_case = session.get(ValidationCase, case_id_value)
-    priority, score, components, config = priority_values(
+    score, components, config = score_values(
         data,
         maximums,
         settings.priority_weights,
-        settings.priority_band_minimums,
         settings.max_top_candidate_share,
     )
     evidence = evidence_rows(session, author, candidates, s2_records)
@@ -516,7 +506,6 @@ def generate_identity_case(
             author_id=author.id,
             case_type=CASE_TYPE,
             queue_eligible=True,
-            priority=priority,
             priority_score=score,
             priority_components=components,
             priority_config=config,
@@ -529,7 +518,6 @@ def generate_identity_case(
         if not review_case.queue_eligible or review_case.evidence_sha256 != signature:
             review_case.version += 1
         review_case.queue_eligible = True
-        review_case.priority = priority
         review_case.priority_score = score
         review_case.priority_components = components
         review_case.priority_config = config
@@ -569,7 +557,7 @@ def generate_identity_case(
     return review_case
 
 
-def generate_identity_cases(session: Session, snapshot_id: UUID) -> dict[str, int]:
+def generate_identity_cases(session: Session, snapshot_id: UUID) -> int:
     settings = review_settings(session, snapshot_id)
     authors = session.scalars(
         select(Author).where(Author.dataset_snapshot_id == snapshot_id).order_by(Author.name)
@@ -593,11 +581,9 @@ def generate_identity_cases(session: Session, snapshot_id: UUID) -> dict[str, in
         fragmentation=max((data.fragmentation for data in case_data), default=0.0),
         cluster_ambiguity=max((len(data.candidates) for data in case_data), default=0),
     )
-    counts = {priority: 0 for priority in PRIORITY_BANDS}
     for data in case_data:
-        review_case = generate_identity_case(session, data, maximums, settings)
-        counts[review_case.priority] += 1
-    return counts
+        generate_identity_case(session, data, maximums, settings)
+    return len(case_data)
 
 
 def main() -> None:
@@ -608,11 +594,10 @@ def main() -> None:
         )
         if snapshot is None:
             raise RuntimeError("Import a dataset before generating cases")
-        counts = generate_identity_cases(session, snapshot.id)
+        case_count = generate_identity_cases(session, snapshot.id)
 
     print(f"Identity cases for snapshot {snapshot.id}")
-    for priority, count in reversed(counts.items()):
-        print(f"{priority.replace('_', ' ').title()} priority: {count}")
+    print(f"Cases: {case_count}")
 
 
 if __name__ == "__main__":

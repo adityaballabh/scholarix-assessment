@@ -74,8 +74,8 @@ export default function AuditConfirmDialog({
         </p>
         {!initialAudit && (
           <p className={styles.reviewLockout}>
-            Review actions will be unavailable until the fetch is complete.
-            Are you sure you want to continue?
+            Review actions will be unavailable until the fetch is complete. Are
+            you sure you want to continue?
           </p>
         )}
         {error && (

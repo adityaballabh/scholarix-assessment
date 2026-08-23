@@ -7,9 +7,11 @@ import type {
   SourceHealthState,
   ValidationCase,
 } from "../../api/types";
+import Hint from "../../components/Hint";
 import SectionRule from "../../components/SectionRule";
 import { formatEventTime, formatFetchedAt } from "../../lib/datetime";
 import { actionLabels } from "../../lib/decisions";
+import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
 import styles from "./OverviewPage.module.css";
 
 const sourceNames: Record<string, string> = {
@@ -111,7 +113,14 @@ export default function OverviewPage() {
         />
       </div>
 
-      <SectionRule label="Pending Cases" />
+      <SectionRule
+        label="Pending Cases"
+        hint={
+          <Link to="/reviews" className={styles.headerLink}>
+            see all pending
+          </Link>
+        }
+      />
       <div className={styles.caseList}>
         <table role="table" className={styles.table}>
           <thead role="rowgroup" className={styles.caseHead}>
@@ -122,14 +131,17 @@ export default function OverviewPage() {
               <th role="columnheader" scope="col">
                 author
               </th>
-              <th role="columnheader" scope="col">
-                priority
+              <th role="columnheader" scope="col" className={styles.hintHeader}>
+                score
+                <Hint text={SCORE_HINT} />
               </th>
-              <th role="columnheader" scope="col">
+              <th role="columnheader" scope="col" className={styles.hintHeader}>
                 top share
+                <Hint text={SHARE_HINT} />
               </th>
-              <th role="columnheader" scope="col">
+              <th role="columnheader" scope="col" className={styles.hintHeader}>
                 candidates
+                <Hint text={CANDIDATES_HINT} />
               </th>
               <th role="columnheader" scope="col">
                 publications
@@ -207,7 +219,14 @@ export default function OverviewPage() {
         </table>
       </div>
 
-      <SectionRule label="Recent Activity" />
+      <SectionRule
+        label="Recent Activity"
+        hint={
+          <Link to="/activity" className={styles.headerLink}>
+            see all activity
+          </Link>
+        }
+      />
       {activity.length === 0 ? (
         <p className={styles.emptyState}>
           No{" "}
@@ -303,8 +322,8 @@ function CaseRow({
           {reviewCase.target.author_name}
         </Link>
       </th>
-      <td role="cell" className={styles.priority}>
-        {reviewCase.priority.replace(/_/g, " ")}
+      <td role="cell" className={styles.score}>
+        {Math.round(reviewCase.priority_score)}
       </td>
       <td role="cell" className={styles.topShare}>
         {reviewCase.detail.top_share === null

@@ -9,13 +9,12 @@ export default function CaseMeta({
   return (
     <div className={styles.meta}>
       <Meta label="case" value={reviewCase.id.replace(/^c-/, "#")} />
-      <Meta label="priority" value={reviewCase.priority.replace(/_/g, " ")} />
-      <Meta label="score" value={reviewCase.priority_score.toFixed(1)} />
-      <Meta label="status" value={reviewCase.status.replace(/_/g, " ")} />
       <Meta
-        label="queue"
-        value={reviewCase.queue_eligible ? "active" : "archived"}
+        label="score"
+        value={Math.round(reviewCase.priority_score).toString()}
       />
+      <Meta label="status" value={reviewCase.status.replace(/_/g, " ")} />
+      {!reviewCase.queue_eligible && <Meta label="queue" value="archived" />}
       <Meta
         label="affected"
         value={`${reviewCase.affected_count.toLocaleString()} publications`}

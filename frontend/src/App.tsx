@@ -15,6 +15,7 @@ import OverviewPage from "./features/overview/OverviewPage";
 import CasePage from "./features/reviews/CasePage";
 import ClustersPage from "./features/reviews/ClustersPage";
 import QueuePage from "./features/reviews/QueuePage";
+import ScoreSettingsPage from "./features/settings/ScoreSettingsPage";
 import { ToastProvider } from "./components/Toast";
 import { abandonAudit, getAudit, startAudit } from "./api/client";
 import type { AuditRun } from "./api/types";
@@ -42,7 +43,10 @@ export default function App() {
 
   useEffect(() => {
     const section = sectionOf(location.pathname);
-    if (FILTERED_SECTIONS.includes(section)) {
+    if (
+      FILTERED_SECTIONS.includes(section) &&
+      location.pathname !== "/reviews/settings"
+    ) {
       rememberSearch(section, location.search);
     }
   }, [location]);
@@ -213,6 +217,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<OverviewPage />} />
             <Route path="/reviews" element={<QueuePage />} />
+            <Route path="/reviews/settings" element={<ScoreSettingsPage />} />
             <Route path="/reviews/:caseId" element={<CasePage />} />
             <Route path="/reviews/:caseId/ids" element={<ClustersPage />} />
             <Route path="/activity" element={<ActivityPage />} />

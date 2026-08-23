@@ -29,7 +29,7 @@ const fieldNames: Record<string, string> = {
 const fetchNotes: Record<SourceFetchStatus, string> = {
   success: "200 ok",
   pending: "fetching",
-  never_attempted: "not fetched",
+  not_applicable: "no identifier available",
   empty: "empty response",
   not_found: "404 not found",
   rate_limited: "429 rate limited",
@@ -162,9 +162,11 @@ export default function Matrix({
                   <span className={styles.provenance}>
                     {sample ? recordLabel(sample, shares) : "—"}
                   </span>
-                  <span className={styles.provenance}>
-                    {fetchedLabel(sample?.fetched_at ?? null)}
-                  </span>
+                  {sample?.fetch_status !== "not_applicable" && (
+                    <span className={styles.provenance}>
+                      {fetchedLabel(sample?.fetched_at ?? null)}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -229,11 +231,9 @@ function Cell({
         {echoes ? (
           <>
             <span className={styles.absence}>{fetchNotes[columnState]}</span>
-            <span className={styles.reason}>
-              {columnState === "never_attempted"
-                ? "we never asked"
-                : "no answer received"}
-            </span>
+            {columnState !== "not_applicable" && (
+              <span className={styles.reason}>no answer received</span>
+            )}
           </>
         ) : (
           <span className={styles.srOnly}>
@@ -255,7 +255,10 @@ function Cell({
     );
   }
 
-  const word = emptyWords[record.value_state];
+  const word =
+    record.value_state === "missing" && field === "affiliation"
+      ? "no affiliations found"
+      : emptyWords[record.value_state];
   if (word || record.value === null) {
     return (
       <div role="cell" className={styles.cell}>

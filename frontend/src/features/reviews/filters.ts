@@ -1,22 +1,11 @@
 import type { SelectOption } from "../../components/Select";
 import type {
-  CasePriority,
   CaseQueryFilters,
   QueueScope,
   ReviewStatus,
 } from "../../api/types";
 
 export type StatusFilter = ReviewStatus | "all";
-export type PriorityFilter = CasePriority | "";
-
-export const priorityOptions: SelectOption<PriorityFilter>[] = [
-  { value: "", label: "all priorities" },
-  { value: "very_high", label: "very high" },
-  { value: "high", label: "high" },
-  { value: "medium", label: "medium" },
-  { value: "low", label: "low" },
-  { value: "very_low", label: "very low" },
-];
 
 export const statusOptions: SelectOption<StatusFilter>[] = [
   { value: "all", label: "all states" },
@@ -56,11 +45,6 @@ export function readCaseFilters(
 ): CaseQueryFilters {
   const scope = readQueueScope(searchParams.get("scope"));
   const query = searchParams.get("query") ?? "";
-  const priority = readOption(
-    searchParams.get("priority"),
-    priorityOptions,
-    "",
-  );
   const status = readOption(
     searchParams.get("status"),
     statusOptions,
@@ -69,7 +53,6 @@ export function readCaseFilters(
 
   return {
     query: query || undefined,
-    priority: priority || undefined,
     scope,
     status: getStatusFilter(status),
   };

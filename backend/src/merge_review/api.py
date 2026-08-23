@@ -46,7 +46,6 @@ from merge_review.schemas import (
     AuditRunResponse,
     AuditSourceProgress,
     AuthorIdentityDetail,
-    CasePriority,
     ClusterPublication,
     DecisionRequest,
     EvidenceRecord,
@@ -184,7 +183,6 @@ def case_response(
         id=review_case.id,
         status=review_case.status,
         queue_eligible=review_case.queue_eligible,
-        priority=review_case.priority,
         priority_score=review_case.priority_score,
         priority_components=PriorityComponents.model_validate(review_case.priority_components),
         priority_config=PriorityConfig.model_validate(review_case.priority_config),
@@ -272,7 +270,6 @@ def audit_config_response(settings: ReviewSettings) -> AuditConfigResponse:
     return AuditConfigResponse(
         max_top_candidate_share=settings.max_top_candidate_share,
         weights=settings.priority_weights,
-        band_minimums=settings.priority_band_minimums,
         version=settings.version,
         updated_at=utc_datetime(settings.updated_at),
     )
@@ -374,7 +371,6 @@ def update_audit_config(
 
     settings.max_top_candidate_share = request.max_top_candidate_share
     settings.priority_weights = request.weights.model_dump()
-    settings.priority_band_minimums = request.band_minimums.model_dump()
     settings.version += 1
     session.commit()
     session.refresh(settings)
@@ -401,7 +397,7 @@ def refresh_response(
     scope: str,
     target: str,
     results: Counter[str],
-    cases: dict[str, int],
+    cases: int,
 ) -> RefreshResponse:
     return RefreshResponse(
         scope=scope,
@@ -501,7 +497,6 @@ def parse_statuses(value: str | None) -> set[str] | None:
 @router.get("/cases", response_model=list[ValidationCaseResponse])
 def list_cases(
     status: str | None = None,
-    priority: CasePriority | None = None,
     scope: QueueScope = "active",
     query: str | None = None,
     limit: int = Query(50, ge=1, le=200),
@@ -530,8 +525,6 @@ def list_cases(
     )
     if statuses:
         statement = statement.where(ValidationCase.status.in_(statuses))
-    if priority:
-        statement = statement.where(ValidationCase.priority == priority)
 
     if query:
         rows = [
@@ -686,7 +679,6 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
             authors_audited=0,
             publications_audited=0,
             audited_at=None,
-            by_priority={},
             sources=[],
         )
     ensure_audit_idle(session)
@@ -751,6 +743,5 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
         authors_audited=authors_audited or 0,
         publications_audited=publications_audited or 0,
         audited_at=utc_datetime(audited_at),
-        by_priority=dict(Counter(review_case.priority for review_case in review_cases)),
         sources=sources,
     )

@@ -26,7 +26,7 @@ ProgressCallback = Callable[[str, int, int, Counter[str]], None]
 class FetchStatus(StrEnum):
     SUCCESS = "success"
     PENDING = "pending"
-    NEVER_ATTEMPTED = "never_attempted"
+    NOT_APPLICABLE = "not_applicable"
     EMPTY = "empty"
     NOT_FOUND = "not_found"
     RATE_LIMITED = "rate_limited"

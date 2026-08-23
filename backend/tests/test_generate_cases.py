@@ -7,12 +7,12 @@ from merge_review.generate_cases import (
     IdentityCaseData,
     PriorityMaximums,
     case_id,
-    configured_priority_band,
     generate_identity_cases,
+    institutions_match,
     normalized_component,
-    priority_band,
-    priority_values,
+    normalized_institution,
     requires_identity_review,
+    score_values,
 )
 from merge_review.models import (
     ActivityEvent,
@@ -70,22 +70,27 @@ def test_snapshot_max_normalization() -> None:
     assert normalized_component(0, 0) == 0.0
 
 
-def test_priority_bands() -> None:
-    assert priority_band(0) == "very_low"
-    assert priority_band(20) == "low"
-    assert priority_band(40) == "medium"
-    assert priority_band(60) == "high"
-    assert priority_band(80) == "very_high"
-    assert (
-        configured_priority_band(
-            65,
-            {"high": 60, "low": 20, "medium": 40, "very_high": 80, "very_low": 0},
-        )
-        == "high"
+def test_institution_normalization_ignores_at() -> None:
+    assert normalized_institution(
+        "University of Illinois Urbana-Champaign"
+    ) == normalized_institution("University of Illinois at Urbana-Champaign")
+    assert normalized_institution("Research and Development Center") == (
+        normalized_institution("The Research Development Center")
     )
 
 
-def test_configured_weights_change_priority_score() -> None:
+def test_institution_matching_does_not_infer_parent_system() -> None:
+    assert not institutions_match(
+        "University of Illinois Urbana-Champaign",
+        "University of Illinois System",
+    )
+    assert not institutions_match(
+        "University of Illinois Urbana-Champaign",
+        "Argonne National Laboratory",
+    )
+
+
+def test_configured_weights_change_score() -> None:
     author = Author(
         source_id=DUMMY_AUTHOR_ID,
         slug="Dummy_Author",
@@ -99,13 +104,12 @@ def test_configured_weights_change_priority_score() -> None:
     data = IdentityCaseData(author, candidates, [Mock()] * 5, {})
     maximums = PriorityMaximums(10, 50, 4)
 
-    priority, score, _, config = priority_values(
+    score, _, config = score_values(
         data,
         maximums,
         {"publication_impact": 0, "fragmentation": 1, "cluster_ambiguity": 0},
     )
 
-    assert priority == "very_high"
     assert score == 100.0
     assert config["weights"] == {
         "publication_impact": 0.0,
@@ -306,15 +310,8 @@ def test_generate_identity_cases() -> None:
         decision_count = session.scalar(select(func.count(ReviewDecision.id)))
         activity_count = session.scalar(select(func.count(ActivityEvent.id)))
 
-    assert first_counts == {
-        "very_low": 0,
-        "low": 0,
-        "medium": 0,
-        "high": 0,
-        "very_high": 1,
-    }
+    assert first_counts == 1
     assert second_counts == first_counts
-    assert review_case.priority == "very_high"
     assert review_case.priority_score == 100.0
     assert review_case.queue_eligible is True
     assert review_case.version == 5
@@ -329,20 +326,8 @@ def test_generate_identity_cases() -> None:
     assert publication_count == 3
     assert decision_count == 1
     assert activity_count == 1
-    assert archived_counts == {
-        "very_low": 0,
-        "low": 0,
-        "medium": 0,
-        "high": 0,
-        "very_high": 0,
-    }
-    assert reactivated_counts == {
-        "very_low": 0,
-        "low": 0,
-        "medium": 0,
-        "high": 0,
-        "very_high": 1,
-    }
+    assert archived_counts == 0
+    assert reactivated_counts == 1
     assert [row.value_state for row in evidence] == [
         "conflict",
         "supports",
