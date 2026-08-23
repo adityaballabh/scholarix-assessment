@@ -44,6 +44,7 @@ from merge_review.schemas import (
     EvidenceRecord,
     PriorityComponents,
     PriorityConfig,
+    QueueScope,
     RefreshResponse,
     RefreshSource,
     ReviewOverview,
@@ -84,6 +85,18 @@ def latest_snapshot(session: Session) -> DatasetSnapshot | None:
     )
 
 
+def lock_snapshot_cases(session: Session, snapshot_id: UUID) -> None:
+    session.scalar(
+        select(DatasetSnapshot).where(DatasetSnapshot.id == snapshot_id).with_for_update()
+    )
+    session.scalars(
+        select(ValidationCase)
+        .where(ValidationCase.dataset_snapshot_id == snapshot_id)
+        .order_by(ValidationCase.id)
+        .with_for_update()
+    ).all()
+
+
 def utc_datetime(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -98,35 +111,13 @@ def matches_author_name(author_name: str, query: str) -> bool:
     )
 
 
-def case_response(session: Session, review_case: ValidationCase) -> ValidationCaseResponse:
-    author = session.get(Author, review_case.author_id)
-    if author is None:
-        raise RuntimeError(f"Case {review_case.id} has no author")
-
-    evidence = session.scalars(
-        select(CaseEvidence)
-        .where(CaseEvidence.case_id == review_case.id)
-        .order_by(CaseEvidence.position)
-    ).all()
-    candidates = session.scalars(
-        select(IdentityCandidate)
-        .where(IdentityCandidate.case_id == review_case.id)
-        .order_by(IdentityCandidate.position)
-    ).all()
-    candidate_ids = [candidate.id for candidate in candidates]
-    publications_by_candidate: dict[UUID, list[IdentityCandidatePublication]] = defaultdict(list)
-    if candidate_ids:
-        publications = session.scalars(
-            select(IdentityCandidatePublication)
-            .where(IdentityCandidatePublication.identity_candidate_id.in_(candidate_ids))
-            .order_by(
-                IdentityCandidatePublication.identity_candidate_id,
-                IdentityCandidatePublication.position,
-            )
-        )
-        for publication in publications:
-            publications_by_candidate[publication.identity_candidate_id].append(publication)
-
+def case_response(
+    review_case: ValidationCase,
+    author: Author,
+    evidence: list[CaseEvidence],
+    candidates: list[IdentityCandidate],
+    publications_by_candidate: dict[UUID, list[IdentityCandidatePublication]],
+) -> ValidationCaseResponse:
     candidate_responses = [
         SemanticScholarCandidate(
             id=candidate.semantic_scholar_author_id,
@@ -145,6 +136,7 @@ def case_response(session: Session, review_case: ValidationCase) -> ValidationCa
     return ValidationCaseResponse(
         id=review_case.id,
         status=review_case.status,
+        queue_eligible=review_case.queue_eligible,
         priority=review_case.priority,
         priority_score=review_case.priority_score,
         priority_components=PriorityComponents.model_validate(review_case.priority_components),
@@ -177,6 +169,58 @@ def case_response(session: Session, review_case: ValidationCase) -> ValidationCa
     )
 
 
+def case_responses(
+    session: Session,
+    case_rows: list[tuple[ValidationCase, Author]],
+) -> list[ValidationCaseResponse]:
+    if not case_rows:
+        return []
+
+    case_ids = [review_case.id for review_case, _ in case_rows]
+    evidence_by_case: dict[str, list[CaseEvidence]] = defaultdict(list)
+    for row in session.scalars(
+        select(CaseEvidence)
+        .where(CaseEvidence.case_id.in_(case_ids))
+        .order_by(CaseEvidence.case_id, CaseEvidence.position)
+    ):
+        evidence_by_case[row.case_id].append(row)
+
+    candidates_by_case: dict[str, list[IdentityCandidate]] = defaultdict(list)
+    candidates = list(
+        session.scalars(
+            select(IdentityCandidate)
+            .where(IdentityCandidate.case_id.in_(case_ids))
+            .order_by(IdentityCandidate.case_id, IdentityCandidate.position)
+        )
+    )
+    for candidate in candidates:
+        candidates_by_case[candidate.case_id].append(candidate)
+
+    publications_by_candidate: dict[UUID, list[IdentityCandidatePublication]] = defaultdict(list)
+    candidate_ids = [candidate.id for candidate in candidates]
+    if candidate_ids:
+        for publication in session.scalars(
+            select(IdentityCandidatePublication)
+            .where(IdentityCandidatePublication.identity_candidate_id.in_(candidate_ids))
+            .order_by(
+                IdentityCandidatePublication.identity_candidate_id,
+                IdentityCandidatePublication.position,
+            )
+        ):
+            publications_by_candidate[publication.identity_candidate_id].append(publication)
+
+    return [
+        case_response(
+            review_case,
+            author,
+            evidence_by_case[review_case.id],
+            candidates_by_case[review_case.id],
+            publications_by_candidate,
+        )
+        for review_case, author in case_rows
+    ]
+
+
 def settings_response(settings: ReviewSettings) -> ReviewSettingsResponse:
     return ReviewSettingsResponse(
         max_top_candidate_share=settings.max_top_candidate_share,
@@ -204,6 +248,7 @@ def update_review_settings(
     snapshot = latest_snapshot(session)
     if snapshot is None:
         raise HTTPException(404, detail="No dataset imported")
+    lock_snapshot_cases(session, snapshot.id)
     settings = session.scalar(
         select(ReviewSettings)
         .where(ReviewSettings.dataset_snapshot_id == snapshot.id)
@@ -255,6 +300,7 @@ def refresh_author(
     if author is None:
         raise HTTPException(404, detail="Author not found")
 
+    lock_snapshot_cases(session, snapshot.id)
     with uncached_http_session() as http_session:
         results = refresh_author_sources(session, http_session, author)
     cases = generate_identity_cases(session, snapshot.id)
@@ -280,6 +326,7 @@ def refresh_doi(doi: str, session: Session = Depends(get_session)) -> RefreshRes
     if normalized_doi is None or exists is None:
         raise HTTPException(404, detail="DOI not found in the current dataset")
 
+    lock_snapshot_cases(session, snapshot.id)
     with uncached_http_session() as http_session:
         results = refresh_publication_sources(
             session,
@@ -302,6 +349,7 @@ def refresh_source_type(
     if snapshot is None:
         raise HTTPException(404, detail="No dataset imported")
 
+    lock_snapshot_cases(session, snapshot.id)
     with uncached_http_session() as http_session:
         results = refresh_source(session, http_session, snapshot.id, source)
     cases = generate_identity_cases(session, snapshot.id)
@@ -323,6 +371,7 @@ def parse_statuses(value: str | None) -> set[str] | None:
 def list_cases(
     status: str | None = None,
     priority: CasePriority | None = None,
+    scope: QueueScope = "active",
     query: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -334,9 +383,12 @@ def list_cases(
 
     statuses = parse_statuses(status)
     statement = (
-        select(ValidationCase)
+        select(ValidationCase, Author)
         .join(Author)
-        .where(ValidationCase.dataset_snapshot_id == snapshot.id)
+        .where(
+            ValidationCase.dataset_snapshot_id == snapshot.id,
+            ValidationCase.queue_eligible == (scope == "active"),
+        )
         .order_by(
             case((ValidationCase.status == "deferred", 1), else_=0),
             desc(ValidationCase.priority_score),
@@ -349,23 +401,28 @@ def list_cases(
     if priority:
         statement = statement.where(ValidationCase.priority == priority)
 
-    rows = list(session.scalars(statement))
     if query:
         rows = [
-            row
-            for row in rows
-            if matches_author_name(session.get(Author, row.author_id).name, query)
+            (review_case, author)
+            for review_case, author in session.execute(statement)
+            if matches_author_name(author.name, query)
+        ][offset : offset + limit]
+    else:
+        rows = [
+            (review_case, author)
+            for review_case, author in session.execute(statement.limit(limit).offset(offset))
         ]
-    rows = rows[offset : offset + limit]
-    return [case_response(session, row) for row in rows]
+    return case_responses(session, rows)
 
 
 @router.get("/cases/{case_id}", response_model=ValidationCaseResponse)
 def get_case(case_id: str, session: Session = Depends(get_session)) -> ValidationCaseResponse:
-    review_case = session.get(ValidationCase, case_id)
-    if review_case is None:
+    row = session.execute(
+        select(ValidationCase, Author).join(Author).where(ValidationCase.id == case_id)
+    ).one_or_none()
+    if row is None:
         raise HTTPException(404, detail="Case not found")
-    return case_response(session, review_case)
+    return case_responses(session, [(row[0], row[1])])[0]
 
 
 def activity_response(event: ActivityEvent) -> ActivityEventResponse:
@@ -495,7 +552,10 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
 
     review_cases = list(
         session.scalars(
-            select(ValidationCase).where(ValidationCase.dataset_snapshot_id == snapshot.id)
+            select(ValidationCase).where(
+                ValidationCase.dataset_snapshot_id == snapshot.id,
+                ValidationCase.queue_eligible.is_(True),
+            )
         )
     )
     authors_audited = session.scalar(

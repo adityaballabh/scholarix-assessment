@@ -121,6 +121,9 @@ def read_dataset(archive_path: Path = AUTHORS_ARCHIVE) -> list[AuthorInput]:
                 )
             )
 
+        if not authors:
+            raise ValueError("Archive contains no author records")
+
     return authors
 
 

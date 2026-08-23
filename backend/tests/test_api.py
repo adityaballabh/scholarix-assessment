@@ -19,7 +19,7 @@ from merge_review.models import (
     ValidationCase,
 )
 from merge_review.source_records import FetchStatus
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -43,7 +43,10 @@ DUMMY_PRIORITY_CONFIG = {
 }
 
 
-def build_client() -> TestClient:
+def build_client(
+    query_log: list[str] | None = None,
+    second_case_eligible: bool = True,
+) -> TestClient:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -51,6 +54,19 @@ def build_client() -> TestClient:
     )
     with engine.connect() as connection:
         connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+    if query_log is not None:
+
+        def record_query(
+            _connection,
+            _cursor,
+            statement,
+            _parameters,
+            _context,
+            _executemany,
+        ) -> None:
+            query_log.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record_query)
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine)
     snapshot_id = uuid4()
@@ -129,6 +145,7 @@ def build_client() -> TestClient:
                     author_id=first_author_id,
                     case_type="author_identity",
                     status="pending",
+                    queue_eligible=True,
                     priority="high",
                     priority_score=76.7,
                     priority_components={
@@ -158,6 +175,7 @@ def build_client() -> TestClient:
                     author_id=second_author_id,
                     case_type="author_identity",
                     status="deferred",
+                    queue_eligible=second_case_eligible,
                     priority="medium",
                     priority_score=41.7,
                     priority_components={
@@ -243,12 +261,26 @@ def test_case_list_filters_search_and_pagination() -> None:
     assert [row["id"] for row in paged.json()] == ["case-two"]
 
 
+def test_case_list_uses_sql_pagination_and_batch_detail_queries() -> None:
+    query_log: list[str] = []
+    client = build_client(query_log)
+    query_log.clear()
+
+    response = client.get("/api/cases")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+    assert len(query_log) == 5
+    assert any("validation_cases" in statement and "LIMIT" in statement for statement in query_log)
+
+
 def test_case_detail_and_errors() -> None:
     client = build_client()
 
     response = client.get("/api/cases/case-one")
 
     assert response.status_code == 200
+    assert response.json()["queue_eligible"] is True
     assert response.json()["priority_score"] == 76.7
     assert response.json()["priority_components"]["fragmentation"] == {
         "value": 40.0,
@@ -261,6 +293,21 @@ def test_case_detail_and_errors() -> None:
     ]
     assert client.get("/api/cases/missing").status_code == 404
     assert client.get("/api/cases", params={"status": "invalid"}).status_code == 422
+
+
+def test_archived_cases_are_separate_from_the_active_queue() -> None:
+    client = build_client(second_case_eligible=False)
+
+    active = client.get("/api/cases")
+    archived = client.get("/api/cases", params={"scope": "archived"})
+    overview = client.get("/api/overview")
+
+    assert [row["id"] for row in active.json()] == ["case-one"]
+    assert [row["id"] for row in archived.json()] == ["case-two"]
+    assert archived.json()[0]["queue_eligible"] is False
+    assert overview.json()["authors"] == 1
+    assert overview.json()["publications"] == 10
+    assert client.get("/api/cases", params={"scope": "unknown"}).status_code == 422
 
 
 def test_overview() -> None:
@@ -291,10 +338,13 @@ def test_review_settings_are_versioned_and_recompute_cases() -> None:
     client = build_client()
 
     current = client.get("/api/settings")
-    with patch(
-        "merge_review.api.generate_identity_cases",
-        return_value={"very_high": 1},
-    ) as generate:
+    with (
+        patch(
+            "merge_review.api.generate_identity_cases",
+            return_value={"very_high": 1},
+        ) as generate,
+        patch("merge_review.api.lock_snapshot_cases") as lock_cases,
+    ):
         updated = client.put(
             "/api/settings",
             json={
@@ -340,6 +390,7 @@ def test_review_settings_are_versioned_and_recompute_cases() -> None:
     assert updated.json()["version"] == 2
     assert updated.json()["weights"]["publication_impact"] == 2
     assert generate.call_count == 1
+    assert lock_cases.call_count == 1
     assert stale.status_code == 409
 
 
@@ -352,6 +403,7 @@ def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
 
     with (
         patch("merge_review.api.uncached_http_session", return_value=http_context),
+        patch("merge_review.api.lock_snapshot_cases") as lock_cases,
         patch(
             "merge_review.api.refresh_publication_sources",
             return_value=Counter({"semantic_scholar:success": 1}),
@@ -371,6 +423,7 @@ def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
         "cases": {"very_high": 1},
     }
     assert refresh.call_args.args[3] == [DUMMY_DOI]
+    assert lock_cases.call_count == 1
     assert generate.call_count == 1
 
 
@@ -383,6 +436,7 @@ def test_refresh_author_and_source_scopes() -> None:
 
     with (
         patch("merge_review.api.uncached_http_session", return_value=http_context),
+        patch("merge_review.api.lock_snapshot_cases") as lock_cases,
         patch(
             "merge_review.api.refresh_author_sources",
             return_value=Counter({"openalex_author:success": 1}),
@@ -405,6 +459,7 @@ def test_refresh_author_and_source_scopes() -> None:
     assert source_response.json()["scope"] == "source"
     assert refresh_author.call_count == 1
     assert refresh_source.call_args.args[3] == "orcid"
+    assert lock_cases.call_count == 2
     assert client.post("/api/refresh/sources/unknown").status_code == 422
 
 

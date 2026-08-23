@@ -161,6 +161,11 @@ class ValidationCase(Base):
             "priority IN ('very_high', 'high', 'medium', 'low', 'very_low')",
             name="validation_cases_valid_priority",
         ),
+        Index(
+            "ix_validation_cases_snapshot_queue",
+            "dataset_snapshot_id",
+            "queue_eligible",
+        ),
         UniqueConstraint("dataset_snapshot_id", "case_type", "author_id"),
     )
 
@@ -171,6 +176,7 @@ class ValidationCase(Base):
     author_id: Mapped[UUID] = mapped_column(ForeignKey("authors.id", ondelete="CASCADE"))
     case_type: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    queue_eligible: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[str] = mapped_column(String(16))
     priority_score: Mapped[float] = mapped_column(Float)
     priority_components: Mapped[dict] = mapped_column(json_type)

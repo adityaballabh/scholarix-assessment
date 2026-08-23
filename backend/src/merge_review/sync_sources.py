@@ -107,8 +107,8 @@ def sync_orcid_records(
         )
         if result.fetch_status == FetchStatus.SUCCESS:
             result = replace(result, source_record_id=orcid_id)
-        store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[result.fetch_status] += 1
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        counts[record.fetch_status] += 1
     return counts
 
 
@@ -139,8 +139,8 @@ def sync_crossref_records(
         )
         if result.fetch_status == FetchStatus.SUCCESS:
             result = replace(result, source_record_id=doi)
-        store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[result.fetch_status] += 1
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        counts[record.fetch_status] += 1
     return counts
 
 
@@ -186,8 +186,8 @@ def sync_datacite_records(
         )
         if result.fetch_status == FetchStatus.SUCCESS:
             result = replace(result, source_record_id=doi)
-        store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[result.fetch_status] += 1
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        counts[record.fetch_status] += 1
     return counts
 
 
@@ -252,8 +252,8 @@ def sync_doi_resolutions(
                     response.status_code,
                     from_cache,
                 )
-        store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[result.fetch_status] += 1
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        counts[record.fetch_status] += 1
     return counts
 
 
@@ -307,7 +307,14 @@ def sync_semantic_scholar_records(
                 if batch_result.fetch_status == FetchStatus.SUCCESS
                 else None
             )
-            if isinstance(publication, dict):
+            valid_publication = (
+                isinstance(publication, dict)
+                and isinstance(publication.get("paperId"), str)
+                and bool(publication["paperId"])
+                and isinstance(publication.get("authors"), list)
+                and all(isinstance(author, dict) for author in publication["authors"])
+            )
+            if valid_publication:
                 record_id = publication.get("paperId")
                 result = expand_result(
                     batch_result,
@@ -318,7 +325,7 @@ def sync_semantic_scholar_records(
                     source_record_id=record_id if isinstance(record_id, str) else doi,
                     status=FetchStatus.SUCCESS,
                 )
-            elif batch_result.fetch_status == FetchStatus.SUCCESS:
+            elif batch_result.fetch_status == FetchStatus.SUCCESS and publication is None:
                 result = expand_result(
                     batch_result,
                     "publication",
@@ -327,10 +334,19 @@ def sync_semantic_scholar_records(
                     status=FetchStatus.NOT_FOUND,
                     error="No Semantic Scholar paper matched this DOI",
                 )
+            elif batch_result.fetch_status == FetchStatus.SUCCESS:
+                result = expand_result(
+                    batch_result,
+                    "publication",
+                    doi,
+                    url,
+                    status=FetchStatus.ERROR,
+                    error="Semantic Scholar returned a malformed paper record",
+                )
             else:
                 result = expand_result(batch_result, "publication", doi, url)
-            store_source_result(session, snapshot_id, result, preserve_success=force)
-            counts[result.fetch_status] += 1
+            record = store_source_result(session, snapshot_id, result, preserve_success=force)
+            counts[record.fetch_status] += 1
     return counts
 
 
@@ -428,8 +444,8 @@ def sync_openalex_publication_records(
                     doi,
                     f"https://doi.org/{doi}",
                 )
-            store_source_result(session, snapshot_id, result, preserve_success=force)
-            counts[result.fetch_status] += 1
+            record = store_source_result(session, snapshot_id, result, preserve_success=force)
+            counts[record.fetch_status] += 1
     return counts
 
 
@@ -516,8 +532,8 @@ def sync_openalex_author_publications(
         if author_id in done:
             continue
         result = fetch_openalex_author_publications(http_session, author_id, mailto)
-        store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[result.fetch_status] += 1
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        counts[record.fetch_status] += 1
     return counts
 
 

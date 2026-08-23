@@ -1,3 +1,7 @@
+from pathlib import Path
+from zipfile import ZipFile
+
+import pytest
 from merge_review.import_dataset import AUTHORS_ARCHIVE, normalize_doi, read_dataset
 from merge_review.import_dataset import import_dataset as import_dataset_archive
 from merge_review.models import Base
@@ -17,6 +21,15 @@ def test_read_dataset() -> None:
 def test_normalize_doi() -> None:
     assert normalize_doi("https://doi.org/https://doi.org/10.123/X") == "10.123/x"
     assert normalize_doi(None) is None
+
+
+def test_read_dataset_rejects_empty_archive(tmp_path: Path) -> None:
+    archive_path = tmp_path / "authors.zip"
+    with ZipFile(archive_path, "w"):
+        pass
+
+    with pytest.raises(ValueError, match="Archive contains no author records"):
+        read_dataset(archive_path)
 
 
 def test_import_dataset() -> None:

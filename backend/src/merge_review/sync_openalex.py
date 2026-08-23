@@ -68,8 +68,8 @@ def sync_openalex_authors(
             continue
 
         result = fetch_openalex_author(http_session, author_id, mailto)
-        store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[result.fetch_status] += 1
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        counts[record.fetch_status] += 1
 
     return counts
 

@@ -92,8 +92,8 @@ def normalized_institution(value: str | None) -> str:
     return " ".join(normalized_words(value))
 
 
-def case_id(slug: str) -> str:
-    digest = hashlib.sha1(f"identity|{slug}".encode()).hexdigest()
+def case_id(snapshot_id: UUID, slug: str) -> str:
+    digest = hashlib.sha1(f"identity|{snapshot_id}|{slug}".encode()).hexdigest()
     return "c-" + digest[:10]
 
 
@@ -477,7 +477,9 @@ def case_signature(
             }
             for candidate in data.candidates
         ],
-        "evidence": evidence,
+        "evidence": [
+            {key: value for key, value in row.items() if key != "fetched_at"} for row in evidence
+        ],
         "score": score,
         "components": components,
         "config": config,
@@ -496,7 +498,7 @@ def generate_identity_case(
     candidates = data.candidates
     publications = data.publications
     s2_records = data.source_records
-    case_id_value = case_id(author.slug)
+    case_id_value = case_id(author.dataset_snapshot_id, author.slug)
     review_case = session.get(ValidationCase, case_id_value)
     priority, score, components, config = priority_values(
         data,
@@ -513,6 +515,7 @@ def generate_identity_case(
             dataset_snapshot_id=author.dataset_snapshot_id,
             author_id=author.id,
             case_type=CASE_TYPE,
+            queue_eligible=True,
             priority=priority,
             priority_score=score,
             priority_components=components,
@@ -523,8 +526,9 @@ def generate_identity_case(
         session.add(review_case)
     else:
         clear_case_details(session, case_id_value)
-        if review_case.evidence_sha256 != signature:
+        if not review_case.queue_eligible or review_case.evidence_sha256 != signature:
             review_case.version += 1
+        review_case.queue_eligible = True
         review_case.priority = priority
         review_case.priority_score = score
         review_case.priority_components = components
@@ -576,10 +580,13 @@ def generate_identity_cases(session: Session, snapshot_id: UUID) -> dict[str, in
         if candidates and candidates[0].share <= settings.max_top_candidate_share:
             case_data.append(IdentityCaseData(author, candidates, publications, source_records))
             continue
-        review_case = session.get(ValidationCase, case_id(author.slug))
-        if review_case is not None and review_case.status == "pending":
-            clear_case_details(session, review_case.id)
-            session.delete(review_case)
+        review_case = session.get(
+            ValidationCase,
+            case_id(author.dataset_snapshot_id, author.slug),
+        )
+        if review_case is not None and review_case.queue_eligible:
+            review_case.queue_eligible = False
+            review_case.version += 1
 
     maximums = PriorityMaximums(
         publication_impact=max((len(data.publications) for data in case_data), default=0),

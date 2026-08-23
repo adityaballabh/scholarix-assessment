@@ -15,6 +15,7 @@ from merge_review.generate_cases import (
     requires_identity_review,
 )
 from merge_review.models import (
+    ActivityEvent,
     Author,
     Base,
     CaseEvidence,
@@ -22,6 +23,7 @@ from merge_review.models import (
     IdentityCandidate,
     IdentityCandidatePublication,
     PublicationRecord,
+    ReviewDecision,
     ReviewSettings,
     SourceRecord,
     ValidationCase,
@@ -46,6 +48,20 @@ def test_identity_review_threshold() -> None:
 
     assert requires_identity_review([at_threshold]) is True
     assert requires_identity_review([above_threshold]) is False
+
+
+def test_case_ids_are_snapshot_scoped() -> None:
+    first_snapshot_id = uuid4()
+    second_snapshot_id = uuid4()
+
+    assert case_id(first_snapshot_id, "Dummy_Author") == case_id(
+        first_snapshot_id,
+        "Dummy_Author",
+    )
+    assert case_id(first_snapshot_id, "Dummy_Author") != case_id(
+        second_snapshot_id,
+        "Dummy_Author",
+    )
 
 
 def test_snapshot_max_normalization() -> None:
@@ -214,6 +230,10 @@ def test_generate_identity_cases() -> None:
     with factory.begin() as session:
         first_counts = generate_identity_cases(session, snapshot_id)
     with factory.begin() as session:
+        semantic_scholar_record = session.scalar(
+            select(SourceRecord).where(SourceRecord.source == "semantic_scholar")
+        )
+        semantic_scholar_record.fetched_at = semantic_scholar_record.fetched_at.replace(hour=1)
         second_counts = generate_identity_cases(session, snapshot_id)
 
     with factory.begin() as session:
@@ -225,8 +245,53 @@ def test_generate_identity_cases() -> None:
         }
         generate_identity_cases(session, snapshot_id)
 
+    with factory.begin() as session:
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+        settings = session.get(ReviewSettings, snapshot_id)
+        decision_id = uuid4()
+        session.add(
+            ReviewDecision(
+                id=decision_id,
+                case_id=review_case.id,
+                action="note",
+                note="Keep this review context",
+                reviewer_id="dummy",
+                expected_case_version=review_case.version,
+                created_at=DUMMY_FETCHED_AT,
+            )
+        )
+        session.flush()
+        session.add(
+            ActivityEvent(
+                decision_id=decision_id,
+                case_id=review_case.id,
+                action_type="note",
+                actor="dummy",
+                target_name=DUMMY_AUTHOR_NAME,
+                note="Keep this review context",
+                before_status="pending",
+                after_status="pending",
+                created_at=DUMMY_FETCHED_AT,
+            )
+        )
+        review_case.version += 1
+        settings.max_top_candidate_share = 50
+        archived_counts = generate_identity_cases(session, snapshot_id)
+
     with factory() as session:
-        review_case = session.get(ValidationCase, case_id("Dummy_Author"))
+        archived_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+        assert archived_case.queue_eligible is False
+        assert session.scalar(select(func.count(CaseEvidence.id))) == 4
+        assert session.scalar(select(func.count(ReviewDecision.id))) == 1
+        assert session.scalar(select(func.count(ActivityEvent.id))) == 1
+
+    with factory.begin() as session:
+        settings = session.get(ReviewSettings, snapshot_id)
+        settings.max_top_candidate_share = 75
+        reactivated_counts = generate_identity_cases(session, snapshot_id)
+
+    with factory() as session:
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
         candidates = session.scalars(
             select(IdentityCandidate)
             .where(IdentityCandidate.case_id == review_case.id)
@@ -238,6 +303,8 @@ def test_generate_identity_cases() -> None:
             .order_by(CaseEvidence.position)
         ).all()
         publication_count = session.scalar(select(func.count(IdentityCandidatePublication.id)))
+        decision_count = session.scalar(select(func.count(ReviewDecision.id)))
+        activity_count = session.scalar(select(func.count(ActivityEvent.id)))
 
     assert first_counts == {
         "very_low": 0,
@@ -249,7 +316,8 @@ def test_generate_identity_cases() -> None:
     assert second_counts == first_counts
     assert review_case.priority == "very_high"
     assert review_case.priority_score == 100.0
-    assert review_case.version == 2
+    assert review_case.queue_eligible is True
+    assert review_case.version == 5
     assert review_case.priority_components == {
         "publication_impact": {"value": 3.0, "snapshot_max": 3, "score": 100.0},
         "fragmentation": {"value": 33.3, "snapshot_max": 33.3, "score": 100.0},
@@ -259,6 +327,22 @@ def test_generate_identity_cases() -> None:
     assert [candidate.matched_publication_count for candidate in candidates] == [2, 1]
     assert [candidate.share for candidate in candidates] == [66.7, 33.3]
     assert publication_count == 3
+    assert decision_count == 1
+    assert activity_count == 1
+    assert archived_counts == {
+        "very_low": 0,
+        "low": 0,
+        "medium": 0,
+        "high": 0,
+        "very_high": 0,
+    }
+    assert reactivated_counts == {
+        "very_low": 0,
+        "low": 0,
+        "medium": 0,
+        "high": 0,
+        "very_high": 1,
+    }
     assert [row.value_state for row in evidence] == [
         "conflict",
         "supports",

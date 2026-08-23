@@ -149,6 +149,6 @@ def test_sync_openalex_authors_persists_and_updates_results() -> None:
     with session_factory() as session:
         preserved = session.scalar(select(SourceRecord))
 
-    assert failed_refresh_counts == {FetchStatus.RATE_LIMITED: 1}
+    assert failed_refresh_counts == {FetchStatus.SUCCESS: 1}
     assert preserved.fetch_status == FetchStatus.SUCCESS
     assert preserved.payload["display_name"] == "Updated Dummy Author"

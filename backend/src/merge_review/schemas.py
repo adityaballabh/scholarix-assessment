@@ -16,6 +16,7 @@ SourceFetchStatus = Literal[
 EvidenceValueState = Literal["supports", "conflict", "missing", "unverifiable"]
 ReviewStatus = Literal["pending", "deferred", "uncertain", "one_author", "needs_split"]
 CasePriority = Literal["very_high", "high", "medium", "low", "very_low"]
+QueueScope = Literal["active", "archived"]
 RefreshSource = Literal[
     "openalex",
     "crossref",
@@ -145,6 +146,7 @@ class RefreshResponse(BaseModel):
 class ValidationCaseResponse(BaseModel):
     id: str
     status: ReviewStatus
+    queue_eligible: bool
     priority: CasePriority
     priority_score: float
     priority_components: PriorityComponents

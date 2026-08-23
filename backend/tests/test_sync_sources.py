@@ -95,6 +95,7 @@ def test_semantic_scholar_batch_persists_found_and_missing_records() -> None:
                 {
                     "paperId": DUMMY_SEMANTIC_SCHOLAR_PAPER_ID,
                     "externalIds": {"DOI": DUMMY_FOUND_DOI},
+                    "authors": [],
                 },
                 None,
             ],
@@ -119,6 +120,28 @@ def test_semantic_scholar_batch_persists_found_and_missing_records() -> None:
     assert records[DUMMY_FOUND_DOI].source_record_id == DUMMY_SEMANTIC_SCHOLAR_PAPER_ID
     assert records[DUMMY_MISSING_DOI].fetch_status == FetchStatus.NOT_FOUND
     assert sleep.call_count == 2
+
+
+def test_semantic_scholar_batch_rejects_malformed_paper() -> None:
+    factory = session_factory()
+    snapshot_id = add_snapshot(factory)
+    http_session = Mock()
+    http_session.request.return_value = make_response(200, [{}])
+
+    with factory.begin() as session:
+        counts = sync_semantic_scholar_records(
+            session,
+            http_session,
+            snapshot_id,
+            [DUMMY_FOUND_DOI],
+        )
+
+    with factory() as session:
+        record = session.scalar(select(SourceRecord))
+
+    assert counts == {FetchStatus.ERROR: 1}
+    assert record.fetch_status == FetchStatus.ERROR
+    assert record.error == "Semantic Scholar returned a malformed paper record"
 
 
 def test_openalex_batch_persists_found_and_missing_records() -> None:
