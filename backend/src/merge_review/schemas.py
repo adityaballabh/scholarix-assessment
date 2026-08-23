@@ -14,6 +14,7 @@ SourceFetchStatus = Literal[
     "error",
 ]
 EvidenceValueState = Literal["supports", "conflict", "missing", "unverifiable"]
+SourceHealthState = Literal["available", "partially_available", "unavailable"]
 ReviewStatus = Literal["pending", "deferred", "uncertain", "one_author", "needs_split"]
 CasePriority = Literal["very_high", "high", "medium", "low", "very_low"]
 QueueScope = Literal["active", "archived"]
@@ -21,7 +22,6 @@ RefreshSource = Literal[
     "openalex",
     "crossref",
     "datacite",
-    "doi",
     "semantic_scholar",
     "orcid",
 ]
@@ -121,14 +121,14 @@ class PriorityBandMinimums(BaseModel):
         return self
 
 
-class ReviewSettingsUpdate(BaseModel):
+class AuditConfigUpdate(BaseModel):
     max_top_candidate_share: float = Field(ge=0, le=100)
     weights: PriorityWeights
     band_minimums: PriorityBandMinimums
     expected_version: int = Field(ge=1)
 
 
-class ReviewSettingsResponse(BaseModel):
+class AuditConfigResponse(BaseModel):
     max_top_candidate_share: float
     weights: PriorityWeights
     band_minimums: PriorityBandMinimums
@@ -141,6 +141,28 @@ class RefreshResponse(BaseModel):
     target: str
     results: dict[str, int]
     cases: dict[str, int]
+
+
+class AuditSourceProgress(BaseModel):
+    completed: int
+    total: int
+    by_status: dict[str, int]
+
+
+class AuditRunResponse(BaseModel):
+    id: str
+    status: Literal["queued", "running", "complete", "failed", "abandoned"]
+    current_source: str | None
+    source_progress: dict[str, AuditSourceProgress]
+    started_at: datetime | None
+    finished_at: datetime | None
+    last_completed_at: datetime | None
+    error: str | None
+
+
+class AuditResponse(BaseModel):
+    config_version: int
+    cases: dict[CasePriority, int]
 
 
 class ValidationCaseResponse(BaseModel):
@@ -186,7 +208,7 @@ class ActivityEventResponse(BaseModel):
 class SourceStatus(BaseModel):
     source: str
     fetched_at: datetime | None
-    state: SourceFetchStatus
+    state: SourceHealthState
     note: str
 
 

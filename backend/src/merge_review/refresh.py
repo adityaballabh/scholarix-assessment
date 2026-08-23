@@ -13,7 +13,6 @@ from merge_review.sync_sources import (
     snapshot_dois,
     sync_crossref_records,
     sync_datacite_records,
-    sync_doi_resolutions,
     sync_openalex_author_publications,
     sync_openalex_publication_records,
     sync_orcid_records,
@@ -24,7 +23,6 @@ PUBLICATION_SOURCES = (
     "openalex",
     "crossref",
     "datacite",
-    "doi",
     "semantic_scholar",
 )
 
@@ -71,12 +69,6 @@ def refresh_publication_sources(
             counts,
             "datacite",
             sync_datacite_records(session, http_session, snapshot_id, set(dois), force=True),
-        )
-    if "doi" in sources:
-        merge_counts(
-            counts,
-            "doi",
-            sync_doi_resolutions(session, http_session, snapshot_id, set(dois), force=True),
         )
     if "semantic_scholar" in sources:
         merge_counts(

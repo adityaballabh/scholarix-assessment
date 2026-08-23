@@ -11,6 +11,7 @@ from merge_review.database import SessionFactory, create_schema
 from merge_review.models import Author, DatasetSnapshot
 from merge_review.source_records import (
     FetchStatus,
+    ProgressCallback,
     SourceResult,
     completed_counts,
     completed_keys,
@@ -51,6 +52,7 @@ def sync_openalex_authors(
     mailto: str | None = None,
     author_ids: list[str] | None = None,
     force: bool = False,
+    progress: ProgressCallback | None = None,
 ) -> Counter[str]:
     if author_ids is None:
         author_ids = list(
@@ -63,6 +65,8 @@ def sync_openalex_authors(
     successful_ids = set() if force else completed_keys(session, snapshot_id, "openalex", "author")
     counts = Counter() if force else completed_counts(session, snapshot_id, "openalex", "author")
 
+    total = len(author_ids)
+    completed = 0
     for author_id in author_ids:
         if author_id in successful_ids:
             continue
@@ -70,6 +74,9 @@ def sync_openalex_authors(
         result = fetch_openalex_author(http_session, author_id, mailto)
         record = store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[record.fetch_status] += 1
+        completed += 1
+        if progress:
+            progress("openalex_authors", completed, total, counts)
 
     return counts
 

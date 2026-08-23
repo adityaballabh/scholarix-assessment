@@ -6,6 +6,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
+  ApiError,
   getCase,
   listActivity,
   listCases,
@@ -29,6 +30,8 @@ interface CaseData {
   reviewCase: ValidationCase;
   queue: ValidationCase[];
   notes: ActivityEvent[];
+  queueSearch: string;
+  relatedError: boolean;
 }
 
 export default function CasePage() {
@@ -38,6 +41,7 @@ export default function CasePage() {
   const showToast = useToast();
   const [data, setData] = useState<CaseData | null>(null);
   const [missing, setMissing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [deciding, setDeciding] = useState(false);
   const search = searchParams.toString();
 
@@ -45,21 +49,46 @@ export default function CasePage() {
     let active = true;
     setData(null);
     setMissing(false);
+    setLoadError(false);
 
-    Promise.all([
-      getCase(caseId!),
-      listCases(readCaseFilters(new URLSearchParams(search))),
-      listActivity(),
-    ])
-      .then(([reviewCase, queue, activity]) => {
+    getCase(caseId!)
+      .then(async (reviewCase) => {
+        const queueParams = new URLSearchParams(search);
+        if (!queueParams.has("scope") && !reviewCase.queue_eligible) {
+          queueParams.set("scope", "archived");
+        }
+        const [queueResult, activityResult] = await Promise.allSettled([
+          listCases(readCaseFilters(queueParams)),
+          listActivity(),
+        ]);
+        return { reviewCase, queueResult, activityResult, queueParams };
+      })
+      .then(({ reviewCase, queueResult, activityResult, queueParams }) => {
         if (!active) return;
+        const queue =
+          queueResult.status === "fulfilled" ? queueResult.value : [reviewCase];
+        const activity =
+          activityResult.status === "fulfilled" ? activityResult.value : [];
         const notes = activity.filter(
           (event) => event.case_id === reviewCase.id && event.note,
         );
-        setData({ reviewCase, queue, notes });
+        setData({
+          reviewCase,
+          queue,
+          notes,
+          queueSearch: queueParams.toString(),
+          relatedError:
+            queueResult.status === "rejected" ||
+            activityResult.status === "rejected",
+        });
       })
-      .catch(() => {
-        if (active) setMissing(true);
+      .catch((error: unknown) => {
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 404) {
+          setMissing(true);
+        } else {
+          setLoadError(true);
+        }
       });
 
     return () => {
@@ -79,9 +108,17 @@ export default function CasePage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <p className={styles.pageState} role="alert">
+        The case could not be loaded.
+      </p>
+    );
+  }
+
   if (!data) return <p className={styles.pageState}>Loading case…</p>;
 
-  const { reviewCase, queue, notes } = data;
+  const { reviewCase, queue, notes, queueSearch, relatedError } = data;
 
   const position = queue.findIndex((entry) => entry.id === reviewCase.id);
   const previous = position > 0 ? queue[position - 1] : null;
@@ -91,23 +128,45 @@ export default function CasePage() {
   function decide(action: DecisionAction, note: string) {
     setDeciding(true);
 
-    postDecision({ case_id: reviewCase.id, action, note })
+    return postDecision({
+      case_id: reviewCase.id,
+      action,
+      note,
+      expected_version: reviewCase.version,
+    })
       .then((event) => {
-        showToast(`${actionLabels[event.action_type]} · ${event.target_name}`);
+        showToast(`${actionLabels[event.action_type]}: ${event.target_name}`);
         navigate(
           next
-            ? { pathname: `/reviews/${next.id}`, search }
-            : { pathname: "/reviews", search },
+            ? { pathname: `/reviews/${next.id}`, search: queueSearch }
+            : { pathname: "/reviews", search: queueSearch },
         );
+      })
+      .catch((error: unknown) => {
+        showToast(
+          error instanceof ApiError && error.status === 409
+            ? "case changed, reload and try again"
+            : "save failed, try again",
+        );
+        throw error;
       })
       .finally(() => setDeciding(false));
   }
 
   return (
     <section className={styles.page}>
-      <Link to={{ pathname: "/reviews", search }} className={styles.backLink}>
+      <Link
+        to={{ pathname: "/reviews", search: queueSearch }}
+        className={styles.backLink}
+      >
         ← back to queue
       </Link>
+
+      {relatedError && (
+        <p className={styles.relatedError} role="alert">
+          Queue navigation or notes could not be loaded.
+        </p>
+      )}
 
       <div className={styles.header}>
         <div className={styles.identity}>
@@ -119,7 +178,7 @@ export default function CasePage() {
           <div className={styles.step}>
             <StepLink
               to={previous}
-              search={search}
+              search={queueSearch}
               direction="previous"
               label="‹ prev"
             />
@@ -130,7 +189,7 @@ export default function CasePage() {
             )}
             <StepLink
               to={next}
-              search={search}
+              search={queueSearch}
               direction="next"
               label="next ›"
             />
@@ -159,7 +218,7 @@ export default function CasePage() {
         detail={reviewCase.detail}
         affectedCount={reviewCase.affected_count}
         caseId={reviewCase.id}
-        search={search}
+        search={queueSearch}
       />
     </section>
   );

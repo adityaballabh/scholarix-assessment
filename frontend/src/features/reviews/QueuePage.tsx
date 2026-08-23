@@ -7,10 +7,11 @@ import SortHeader from "../../components/SortHeader";
 import type { SortDirection } from "../../components/SortHeader";
 import type { ValidationCase } from "../../api/types";
 import {
-  DEFAULT_STATUS,
+  defaultStatusForScope,
   getStatusFilter,
   priorityOptions,
   readOption,
+  readQueueScope,
   statusOptions,
   statusOrder,
 } from "./filters";
@@ -34,8 +35,11 @@ export default function QueuePage() {
   const query = searchParams.get("query") ?? "";
   const rawPriority = searchParams.get("priority");
   const rawStatus = searchParams.get("status");
+  const rawScope = searchParams.get("scope");
+  const scope = readQueueScope(rawScope);
+  const defaultStatus = defaultStatusForScope(scope);
   const priority = readOption(rawPriority, priorityOptions, "");
-  const status = readOption(rawStatus, statusOptions, DEFAULT_STATUS);
+  const status = readOption(rawStatus, statusOptions, defaultStatus);
   const rowSearch = searchParams.toString();
   const rawSort = searchParams.get("sort");
   const sort: SortColumn | "" =
@@ -50,7 +54,7 @@ export default function QueuePage() {
   useEffect(() => {
     let active = true;
 
-    listCases()
+    listCases({ scope })
       .then((allCases) => {
         if (active) setAnyCasesExist(allCases.length > 0);
       })
@@ -59,7 +63,7 @@ export default function QueuePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     if (!loading) {
@@ -75,6 +79,7 @@ export default function QueuePage() {
     const invalid = [
       rawStatus !== null && rawStatus !== status ? "status" : null,
       rawPriority !== null && rawPriority !== priority ? "priority" : null,
+      rawScope !== null && rawScope !== scope ? "scope" : null,
     ].filter(Boolean) as string[];
 
     if (invalid.length === 0) return;
@@ -87,7 +92,7 @@ export default function QueuePage() {
       },
       { replace: true },
     );
-  }, [rawStatus, rawPriority]);
+  }, [rawStatus, rawPriority, rawScope, scope, status, priority]);
 
   useEffect(() => {
     setDraftQuery(query);
@@ -108,6 +113,7 @@ export default function QueuePage() {
     listCases({
       query: query || undefined,
       priority: priority || undefined,
+      scope,
       status: getStatusFilter(status),
     })
       .then((reviewCases) => {
@@ -124,7 +130,7 @@ export default function QueuePage() {
     return () => {
       active = false;
     };
-  }, [priority, query, status]);
+  }, [priority, query, scope, status]);
 
   function orderCases(rows: ValidationCase[]): ValidationCase[] {
     if (!sort) return rows;
@@ -164,7 +170,7 @@ export default function QueuePage() {
       (previous) => {
         const nextParams = new URLSearchParams(previous);
 
-        if (value && !(name === "status" && value === DEFAULT_STATUS)) {
+        if (value && !(name === "status" && value === defaultStatus)) {
           nextParams.set(name, value);
         } else {
           nextParams.delete(name);
@@ -176,7 +182,7 @@ export default function QueuePage() {
     );
   }
 
-  const filtered = Boolean(query || priority || status !== DEFAULT_STATUS);
+  const filtered = Boolean(query || priority || status !== defaultStatus);
 
   return (
     <section className={styles.page}>
@@ -203,11 +209,22 @@ export default function QueuePage() {
           options={priorityOptions}
           onChange={(value) => updateFilter("priority", value)}
         />
+        <Link
+          className={styles.scopeLink}
+          to={scope === "active" ? "/reviews?scope=archived" : "/reviews"}
+        >
+          {scope === "active" ? "view archived" : "back to active"}
+        </Link>
         {filtered && (
           <button
             type="button"
             className={styles.resetFilters}
-            onClick={() => setSearchParams({}, { replace: true })}
+            onClick={() =>
+              setSearchParams(
+                scope === "archived" ? { scope: "archived" } : {},
+                { replace: true },
+              )
+            }
           >
             reset
           </button>
@@ -228,7 +245,9 @@ export default function QueuePage() {
         <p className={styles.pageState}>
           {anyCasesExist
             ? "No reviews match the current filters"
-            : "No reviews left"}
+            : scope === "archived"
+              ? "No archived reviews"
+              : "No reviews left"}
         </p>
       ) : (
         <>
@@ -283,6 +302,9 @@ function ReviewTable({
             <th role="columnheader" scope="col">
               author
             </th>
+            <th role="columnheader" scope="col">
+              priority
+            </th>
             <th role="columnheader" scope="col" className={styles.shareHeader}>
               <SortHeader
                 label="top share"
@@ -306,9 +328,6 @@ function ReviewTable({
                 clearable
                 onSort={(next) => onSort("publications", next)}
               />
-            </th>
-            <th role="columnheader" scope="col">
-              priority
             </th>
             <th role="columnheader" scope="col">
               <SortHeader
@@ -358,6 +377,9 @@ function ReviewRow({
           {reviewCase.target.author_name}
         </Link>
       </th>
+      <td role="cell" className={styles.priority}>
+        {reviewCase.priority.replace(/_/g, " ")}
+      </td>
       <td role="cell" className={styles.numericValue}>
         {reviewCase.detail.top_share === null
           ? "—"
@@ -368,9 +390,6 @@ function ReviewRow({
       </td>
       <td role="cell" className={styles.numericValue}>
         {reviewCase.affected_count}
-      </td>
-      <td role="cell" className={styles.priority}>
-        {reviewCase.priority}
       </td>
       <td role="cell" className={styles.status}>
         {reviewCase.status.replace(/_/g, " ")}

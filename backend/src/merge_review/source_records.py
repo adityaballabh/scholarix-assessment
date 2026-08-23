@@ -1,5 +1,5 @@
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -20,6 +20,7 @@ from merge_review.models import SourceRecord
 PROJECT_DIR = Path(__file__).resolve().parents[3]
 CACHE_PATH = PROJECT_DIR / "cache" / "http_cache"
 REQUEST_TIMEOUT_SECONDS = 30
+ProgressCallback = Callable[[str, int, int, Counter[str]], None]
 
 
 class FetchStatus(StrEnum):
@@ -62,7 +63,6 @@ def create_http_session() -> CachedSession:
         "https://pub.orcid.org": 10,
         "https://api.datacite.org": 2,
         "https://api.semanticscholar.org": 1,
-        "https://doi.org": 10,
     }
     for host, rate in limits.items():
         session.mount(host, LimiterAdapter(per_second=rate))

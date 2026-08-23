@@ -57,7 +57,7 @@ export default function DecisionBar({
   status: ReviewStatus;
   notes: ActivityEvent[];
   busy: boolean;
-  onDecide: (action: DecisionAction, note: string) => void;
+  onDecide: (action: DecisionAction, note: string) => Promise<void>;
 }) {
   const [pending, setPending] = useState<Judgement | null>(null);
   const [viewingNotes, setViewingNotes] = useState(false);
@@ -85,15 +85,17 @@ export default function DecisionBar({
   const blocked = pending?.noteRequired === true && note.trim() === "";
 
   function close() {
+    if (busy) return;
     setPending(null);
     setViewingNotes(false);
     triggerRef.current?.focus();
   }
 
   function confirm() {
-    if (!pending) return;
-    onDecide(pending.action, note);
-    close();
+    if (!pending || busy) return;
+    void onDecide(pending.action, note)
+      .then(close)
+      .catch(() => {});
   }
 
   return (
@@ -181,7 +183,12 @@ export default function DecisionBar({
               <span className={styles.submitHint}>
                 {blocked ? "" : "enter to submit"}
               </span>
-              <button type="button" className={styles.action} onClick={close}>
+              <button
+                type="button"
+                className={styles.action}
+                disabled={busy}
+                onClick={close}
+              >
                 cancel
               </button>
               <span
@@ -191,7 +198,7 @@ export default function DecisionBar({
                 <button
                   type="button"
                   className={`${styles.action} ${styles.primary}`}
-                  disabled={blocked}
+                  disabled={blocked || busy}
                   onClick={confirm}
                 >
                   {pending.label}

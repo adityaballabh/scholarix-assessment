@@ -23,6 +23,17 @@
   font: var(--text-micro);
 }
 
+.scopeLink {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font: var(--text-micro);
+  text-underline-offset: 3px;
+}
+
+.scopeLink:hover {
+  color: var(--ink);
+}
+
 .search {
   width: 240px;
   padding: 0 8px;
@@ -171,5 +182,9 @@
 
   .search {
     width: 100%;
+  }
+
+  .scopeLink {
+    margin-left: 0;
   }
 }

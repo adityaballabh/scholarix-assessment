@@ -60,6 +60,29 @@ class ReviewSettings(Base):
     )
 
 
+class AuditRun(Base):
+    __tablename__ = "audit_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'running', 'complete', 'failed', 'abandoned')",
+            name="audit_runs_valid_status",
+        ),
+        Index("ix_audit_runs_snapshot_status", "dataset_snapshot_id", "status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    dataset_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataset_snapshots.id", ondelete="CASCADE")
+    )
+    status: Mapped[str] = mapped_column(String(16))
+    current_source: Mapped[str | None] = mapped_column(String(64))
+    source_progress: Mapped[dict] = mapped_column(json_type, default=dict)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Author(Base):
     __tablename__ = "authors"
     __table_args__ = (

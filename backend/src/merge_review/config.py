@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://merge_review:merge_review@localhost:5432/merge_review"
     frontend_origin: str = "http://localhost:5174"
     reviewer_id: str = "aditya"
+    audit_use_cache: bool = False
     mailto: str | None = Field(
         default=None,
         validation_alias=AliasChoices("MERGE_REVIEW_MAILTO", "MAILTO"),

@@ -67,11 +67,36 @@
 }
 
 .session {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 10px;
   color: var(--ink-faint);
+  font: var(--text-micro);
+}
+
+.auditButton {
+  margin-left: auto;
+  padding: 0;
+  color: var(--ink-faint);
+  background: transparent;
+  border: 0;
+  font: var(--text-micro);
+  cursor: pointer;
+}
+
+.auditButton:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.auditButton:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.auditState {
+  margin: 0;
+  padding: 24px;
+  color: var(--ink-muted);
   font: var(--text-micro);
 }
 

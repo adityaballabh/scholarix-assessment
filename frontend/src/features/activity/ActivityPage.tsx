@@ -59,6 +59,9 @@ export default function ActivityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<ActivityEvent[] | null>(null);
   const [auditedAt, setAuditedAt] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [overviewError, setOverviewError] = useState(false);
+  const [overviewLoading, setOverviewLoading] = useState(true);
 
   const from = readSide(searchParams.get("from"));
   const to = readSide(searchParams.get("to"));
@@ -77,11 +80,23 @@ export default function ActivityPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([listActivity(), getOverview()]).then(([found, overview]) => {
-      if (!active) return;
-      setEvents(found);
-      setAuditedAt(overview.audited_at);
-    });
+    listActivity()
+      .then((found) => {
+        if (active) setEvents(found);
+      })
+      .catch(() => {
+        if (active) setError(true);
+      });
+    getOverview()
+      .then((overview) => {
+        if (active) setAuditedAt(overview.audited_at);
+      })
+      .catch(() => {
+        if (active) setOverviewError(true);
+      })
+      .finally(() => {
+        if (active) setOverviewLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -112,6 +127,8 @@ export default function ActivityPage() {
     : since === "run"
       ? (auditedAt && new Date(auditedAt).getTime()) || null
       : Date.now() - sinceWindows[since];
+  const runFilterUnavailable = since === "run" && overviewError;
+  const runFilterLoading = since === "run" && overviewLoading;
 
   const visible = (events ?? []).filter(
     (event) =>
@@ -162,6 +179,14 @@ export default function ActivityPage() {
         return next;
       },
       { replace: true },
+    );
+  }
+
+  if (error) {
+    return (
+      <p className={styles.pageState} role="alert">
+        Activity could not be loaded.
+      </p>
     );
   }
 
@@ -227,7 +252,13 @@ export default function ActivityPage() {
         )}
       </div>
 
-      {ordered.length === 0 ? (
+      {runFilterLoading ? (
+        <p className={styles.pageState}>Loading the last audit time…</p>
+      ) : runFilterUnavailable ? (
+        <p className={styles.pageState} role="alert">
+          The last audit time could not be loaded.
+        </p>
+      ) : ordered.length === 0 ? (
         <p className={styles.pageState}>
           {events.length === 0
             ? "No decisions recorded yet"

@@ -3,10 +3,12 @@ from datetime import UTC, datetime
 from typing import get_args
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import case, desc, func, select
 from sqlalchemy.orm import Session
 
+from merge_review.audit import run_full_audit
+from merge_review.audit_service import run_audit
 from merge_review.config import get_settings
 from merge_review.database import get_session
 from merge_review.generate_cases import (
@@ -18,6 +20,7 @@ from merge_review.generate_cases import (
 from merge_review.import_dataset import normalize_doi
 from merge_review.models import (
     ActivityEvent,
+    AuditRun,
     Author,
     CaseEvidence,
     DatasetSnapshot,
@@ -37,6 +40,11 @@ from merge_review.refresh import (
 )
 from merge_review.schemas import (
     ActivityEventResponse,
+    AuditConfigResponse,
+    AuditConfigUpdate,
+    AuditResponse,
+    AuditRunResponse,
+    AuditSourceProgress,
     AuthorIdentityDetail,
     CasePriority,
     ClusterPublication,
@@ -48,8 +56,6 @@ from merge_review.schemas import (
     RefreshResponse,
     RefreshSource,
     ReviewOverview,
-    ReviewSettingsResponse,
-    ReviewSettingsUpdate,
     ReviewStatus,
     ReviewTarget,
     SemanticScholarCandidate,
@@ -66,10 +72,8 @@ SOURCE_ORDER = {
     "orcid": 1,
     "crossref": 2,
     "datacite": 3,
-    "doi": 4,
-    "semantic_scholar": 5,
+    "semantic_scholar": 4,
 }
-SOURCE_FAILURE_ORDER = ["rate_limited", "timeout", "error", "pending"]
 ACTION_STATUS = {
     "reopen": "pending",
     "confirm_one_author": "one_author",
@@ -77,11 +81,54 @@ ACTION_STATUS = {
     "mark_uncertain": "uncertain",
     "defer": "deferred",
 }
+ACTIVE_AUDIT_STATUSES = {"queued", "running"}
 
 
 def latest_snapshot(session: Session) -> DatasetSnapshot | None:
     return session.scalar(
         select(DatasetSnapshot).order_by(DatasetSnapshot.imported_at.desc()).limit(1)
+    )
+
+
+def current_audit(session: Session) -> AuditRun | None:
+    return session.scalar(
+        select(AuditRun).order_by(AuditRun.created_at.desc(), AuditRun.id.desc()).limit(1)
+    )
+
+
+def last_completed_at(session: Session) -> datetime | None:
+    return session.scalar(
+        select(func.max(AuditRun.finished_at)).where(AuditRun.status == "complete")
+    )
+
+
+def ensure_audit_idle(session: Session) -> None:
+    audit = session.scalar(
+        select(AuditRun)
+        .where(AuditRun.status.in_(ACTIVE_AUDIT_STATUSES))
+        .order_by(AuditRun.created_at.desc())
+        .limit(1)
+    )
+    if audit is not None:
+        raise HTTPException(423, detail="Audit in progress")
+
+
+def audit_response(
+    audit: AuditRun,
+    completed_at: datetime | None,
+) -> AuditRunResponse:
+    return AuditRunResponse(
+        id=str(audit.id),
+        status=audit.status,
+        current_source=audit.current_source,
+        source_progress={
+            source: AuditSourceProgress.model_validate(progress)
+            for source, progress in (audit.source_progress or {}).items()
+        },
+        started_at=utc_datetime(audit.started_at),
+        finished_at=utc_datetime(audit.finished_at),
+        last_completed_at=utc_datetime(completed_at),
+        error=audit.error,
     )
 
 
@@ -221,8 +268,8 @@ def case_responses(
     ]
 
 
-def settings_response(settings: ReviewSettings) -> ReviewSettingsResponse:
-    return ReviewSettingsResponse(
+def audit_config_response(settings: ReviewSettings) -> AuditConfigResponse:
+    return AuditConfigResponse(
         max_top_candidate_share=settings.max_top_candidate_share,
         weights=settings.priority_weights,
         band_minimums=settings.priority_band_minimums,
@@ -231,24 +278,90 @@ def settings_response(settings: ReviewSettings) -> ReviewSettingsResponse:
     )
 
 
-@router.get("/settings", response_model=ReviewSettingsResponse)
-def get_review_settings(session: Session = Depends(get_session)) -> ReviewSettingsResponse:
-    snapshot = latest_snapshot(session)
-    if snapshot is None:
-        raise HTTPException(404, detail="No dataset imported")
-    settings = session.get(ReviewSettings, snapshot.id) or default_review_settings(snapshot.id)
-    return settings_response(settings)
+@router.get("/fetches/current", response_model=AuditRunResponse | None)
+def get_audit(session: Session = Depends(get_session)) -> AuditRunResponse | None:
+    audit = current_audit(session)
+    return audit_response(audit, last_completed_at(session)) if audit else None
 
 
-@router.put("/settings", response_model=ReviewSettingsResponse)
-def update_review_settings(
-    request: ReviewSettingsUpdate,
+@router.post("/fetches", response_model=AuditRunResponse, status_code=202)
+def start_audit(
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
-) -> ReviewSettingsResponse:
+) -> AuditRunResponse:
+    snapshot = session.scalar(
+        select(DatasetSnapshot)
+        .order_by(DatasetSnapshot.imported_at.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    ensure_audit_idle(session)
+    audit = AuditRun(
+        dataset_snapshot_id=snapshot.id,
+        status="queued",
+        source_progress={},
+    )
+    session.add(audit)
+    session.flush()
+    session.refresh(audit)
+    response = audit_response(audit, last_completed_at(session))
+    session.commit()
+    background_tasks.add_task(run_full_audit, audit.id, snapshot.id)
+    return response
+
+
+@router.post("/fetches/{fetch_id}/abandon", response_model=AuditRunResponse)
+def abandon_audit(
+    fetch_id: UUID,
+    session: Session = Depends(get_session),
+) -> AuditRunResponse:
+    snapshot_id = session.scalar(
+        select(AuditRun.dataset_snapshot_id).where(AuditRun.id == fetch_id)
+    )
+    if snapshot_id is None:
+        raise HTTPException(404, detail="Audit not found")
+    session.scalar(
+        select(DatasetSnapshot).where(DatasetSnapshot.id == snapshot_id).with_for_update()
+    )
+    ensure_audit_idle(session)
+    audit = session.scalar(select(AuditRun).where(AuditRun.id == fetch_id).with_for_update())
+    if audit is None:
+        raise HTTPException(404, detail="Audit not found")
+    latest = current_audit(session)
+    if latest is None or latest.id != audit.id:
+        raise HTTPException(409, detail="Audit is no longer current")
+    if audit.status != "failed":
+        raise HTTPException(409, detail="Only a failed audit can be abandoned")
+    audit.status = "abandoned"
+    session.commit()
+    session.refresh(audit)
+    return audit_response(audit, last_completed_at(session))
+
+
+@router.get("/audit-config", response_model=AuditConfigResponse)
+def get_audit_config(session: Session = Depends(get_session)) -> AuditConfigResponse:
     snapshot = latest_snapshot(session)
     if snapshot is None:
         raise HTTPException(404, detail="No dataset imported")
-    lock_snapshot_cases(session, snapshot.id)
+    ensure_audit_idle(session)
+    settings = session.get(ReviewSettings, snapshot.id) or default_review_settings(snapshot.id)
+    return audit_config_response(settings)
+
+
+@router.put("/audit-config", response_model=AuditConfigResponse)
+def update_audit_config(
+    request: AuditConfigUpdate,
+    session: Session = Depends(get_session),
+) -> AuditConfigResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    session.scalar(
+        select(DatasetSnapshot).where(DatasetSnapshot.id == snapshot.id).with_for_update()
+    )
+    ensure_audit_idle(session)
     settings = session.scalar(
         select(ReviewSettings)
         .where(ReviewSettings.dataset_snapshot_id == snapshot.id)
@@ -263,10 +376,25 @@ def update_review_settings(
     settings.priority_weights = request.weights.model_dump()
     settings.priority_band_minimums = request.band_minimums.model_dump()
     settings.version += 1
-    generate_identity_cases(session, snapshot.id)
     session.commit()
     session.refresh(settings)
-    return settings_response(settings)
+    return audit_config_response(settings)
+
+
+@router.post("/audits", response_model=AuditResponse)
+def create_audit(session: Session = Depends(get_session)) -> AuditResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    session.scalar(
+        select(DatasetSnapshot).where(DatasetSnapshot.id == snapshot.id).with_for_update()
+    )
+    ensure_audit_idle(session)
+    cases = run_audit(session, snapshot.id)
+    settings = review_settings(session, snapshot.id)
+    response = AuditResponse(config_version=settings.version, cases=cases)
+    session.commit()
+    return response
 
 
 def refresh_response(
@@ -301,6 +429,7 @@ def refresh_author(
         raise HTTPException(404, detail="Author not found")
 
     lock_snapshot_cases(session, snapshot.id)
+    ensure_audit_idle(session)
     with uncached_http_session() as http_session:
         results = refresh_author_sources(session, http_session, author)
     cases = generate_identity_cases(session, snapshot.id)
@@ -327,6 +456,7 @@ def refresh_doi(doi: str, session: Session = Depends(get_session)) -> RefreshRes
         raise HTTPException(404, detail="DOI not found in the current dataset")
 
     lock_snapshot_cases(session, snapshot.id)
+    ensure_audit_idle(session)
     with uncached_http_session() as http_session:
         results = refresh_publication_sources(
             session,
@@ -350,6 +480,7 @@ def refresh_source_type(
         raise HTTPException(404, detail="No dataset imported")
 
     lock_snapshot_cases(session, snapshot.id)
+    ensure_audit_idle(session)
     with uncached_http_session() as http_session:
         results = refresh_source(session, http_session, snapshot.id, source)
     cases = generate_identity_cases(session, snapshot.id)
@@ -380,6 +511,7 @@ def list_cases(
     snapshot = latest_snapshot(session)
     if snapshot is None:
         return []
+    ensure_audit_idle(session)
 
     statuses = parse_statuses(status)
     statement = (
@@ -417,6 +549,7 @@ def list_cases(
 
 @router.get("/cases/{case_id}", response_model=ValidationCaseResponse)
 def get_case(case_id: str, session: Session = Depends(get_session)) -> ValidationCaseResponse:
+    ensure_audit_idle(session)
     row = session.execute(
         select(ValidationCase, Author).join(Author).where(ValidationCase.id == case_id)
     ).one_or_none()
@@ -445,6 +578,15 @@ def post_decision(
     request: DecisionRequest,
     session: Session = Depends(get_session),
 ) -> ActivityEventResponse:
+    snapshot_id = session.scalar(
+        select(ValidationCase.dataset_snapshot_id).where(ValidationCase.id == case_id)
+    )
+    if snapshot_id is None:
+        raise HTTPException(404, detail="Case not found")
+    session.scalar(
+        select(DatasetSnapshot).where(DatasetSnapshot.id == snapshot_id).with_for_update(read=True)
+    )
+    ensure_audit_idle(session)
     review_case = session.scalar(
         select(ValidationCase).where(ValidationCase.id == case_id).with_for_update()
     )
@@ -502,6 +644,7 @@ def post_decision(
 
 @router.get("/activity", response_model=list[ActivityEventResponse])
 def list_activity(session: Session = Depends(get_session)) -> list[ActivityEventResponse]:
+    ensure_audit_idle(session)
     events = session.scalars(
         select(ActivityEvent).order_by(ActivityEvent.created_at.desc(), ActivityEvent.id.desc())
     )
@@ -509,21 +652,18 @@ def list_activity(session: Session = Depends(get_session)) -> list[ActivityEvent
 
 
 def source_state(counts: Counter[str]) -> str:
-    for status in SOURCE_FAILURE_ORDER:
-        if counts[status]:
-            return status
-    if counts["success"]:
-        return "success"
-    if counts["not_found"]:
-        return "not_found"
-    if counts["empty"]:
-        return "empty"
-    return "never_attempted"
+    successes = counts["success"]
+    total = sum(counts.values())
+    if not successes:
+        return "unavailable"
+    if successes == total:
+        return "available"
+    return "partially_available"
 
 
 def source_note(counts: Counter[str]) -> str:
     labels = {
-        "success": "success",
+        "success": "found",
         "not_found": "not found",
         "empty": "empty",
         "rate_limited": "rate limited",
@@ -531,8 +671,8 @@ def source_note(counts: Counter[str]) -> str:
         "error": "failed",
         "pending": "pending",
     }
-    return "; ".join(
-        f"{counts[status]} {label}" for status, label in labels.items() if counts[status]
+    return ". ".join(
+        f"{counts[status]:,} {label}" for status, label in labels.items() if counts[status]
     )
 
 
@@ -549,6 +689,7 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
             by_priority={},
             sources=[],
         )
+    ensure_audit_idle(session)
 
     review_cases = list(
         session.scalars(
@@ -573,7 +714,10 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
             func.count(),
             func.max(SourceRecord.fetched_at),
         )
-        .where(SourceRecord.dataset_snapshot_id == snapshot.id)
+        .where(
+            SourceRecord.dataset_snapshot_id == snapshot.id,
+            SourceRecord.source != "doi",
+        )
         .group_by(SourceRecord.source, SourceRecord.fetch_status)
     ).all()
     counts_by_source: dict[str, Counter[str]] = defaultdict(Counter)

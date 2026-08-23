@@ -6,7 +6,6 @@ from merge_review.models import Base, DatasetSnapshot, SourceRecord
 from merge_review.source_records import FetchStatus
 from merge_review.sync_sources import (
     absent_keys,
-    sync_doi_resolutions,
     sync_openalex_publication_records,
     sync_semantic_scholar_records,
 )
@@ -18,7 +17,6 @@ DUMMY_FOUND_DOI = "10.123/found"
 DUMMY_MISSING_DOI = "10.123/missing"
 DUMMY_SEMANTIC_SCHOLAR_PAPER_ID = "paperID"
 DUMMY_OPENALEX_WORK_ID = "W123"
-DUMMY_REDIRECT_URL = "https://example.com"
 DUMMY_FETCHED_AT = datetime(2026, 8, 21, tzinfo=UTC)
 
 
@@ -171,26 +169,3 @@ def test_openalex_batch_persists_found_and_missing_records() -> None:
         )
 
     assert counts == {FetchStatus.SUCCESS: 1, FetchStatus.NOT_FOUND: 1}
-
-
-def test_doi_resolution_records_redirects() -> None:
-    factory = session_factory()
-    snapshot_id = add_snapshot(factory)
-    http_session = Mock()
-    response = make_response(302)
-    response.headers = {"Location": DUMMY_REDIRECT_URL}
-    http_session.get.return_value = response
-
-    with factory.begin() as session:
-        counts = sync_doi_resolutions(
-            session,
-            http_session,
-            snapshot_id,
-            {DUMMY_FOUND_DOI},
-        )
-
-    with factory() as session:
-        record = session.scalar(select(SourceRecord))
-
-    assert counts == {FetchStatus.SUCCESS: 1}
-    assert record.payload == {"redirect_url": DUMMY_REDIRECT_URL}

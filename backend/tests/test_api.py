@@ -5,9 +5,10 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from merge_review.api import router
+from merge_review.api import router, source_note, source_state
 from merge_review.database import get_session
 from merge_review.models import (
+    AuditRun,
     Author,
     Base,
     CaseEvidence,
@@ -43,9 +44,20 @@ DUMMY_PRIORITY_CONFIG = {
 }
 
 
+def test_source_note_uses_readable_counts() -> None:
+    assert source_note(Counter({"success": 4557, "not_found": 67})) == ("4,557 found. 67 not found")
+
+
+def test_source_state_has_three_aggregate_levels() -> None:
+    assert source_state(Counter({"success": 3})) == "available"
+    assert source_state(Counter({"success": 2, "not_found": 1})) == ("partially_available")
+    assert source_state(Counter({"rate_limited": 3})) == "unavailable"
+
+
 def build_client(
     query_log: list[str] | None = None,
     second_case_eligible: bool = True,
+    completed_audit_at: datetime | None = None,
 ) -> TestClient:
     engine = create_engine(
         "sqlite://",
@@ -78,6 +90,16 @@ def build_client(
     with factory.begin() as session:
         session.add(DatasetSnapshot(id=snapshot_id, dataset_sha256=DUMMY_SNAPSHOT_HASH))
         session.flush()
+        if completed_audit_at:
+            session.add(
+                AuditRun(
+                    dataset_snapshot_id=snapshot_id,
+                    status="complete",
+                    source_progress={},
+                    started_at=completed_audit_at,
+                    finished_at=completed_audit_at,
+                )
+            )
         session.add_all(
             [
                 Author(
@@ -270,7 +292,7 @@ def test_case_list_uses_sql_pagination_and_batch_detail_queries() -> None:
 
     assert response.status_code == 200
     assert len(response.json()) == 2
-    assert len(query_log) == 5
+    assert len(query_log) == 6
     assert any("validation_cases" in statement and "LIMIT" in statement for statement in query_log)
 
 
@@ -327,26 +349,23 @@ def test_overview() -> None:
             {
                 "source": "semantic_scholar",
                 "fetched_at": "2026-08-21T00:00:00Z",
-                "state": "success",
-                "note": "1 success",
+                "state": "available",
+                "note": "1 found",
             }
         ],
     }
 
 
-def test_review_settings_are_versioned_and_recompute_cases() -> None:
+def test_audit_config_is_versioned_and_audit_recomputes_cases() -> None:
     client = build_client()
 
-    current = client.get("/api/settings")
-    with (
-        patch(
-            "merge_review.api.generate_identity_cases",
-            return_value={"very_high": 1},
-        ) as generate,
-        patch("merge_review.api.lock_snapshot_cases") as lock_cases,
-    ):
+    current = client.get("/api/audit-config")
+    with patch(
+        "merge_review.api.run_audit",
+        return_value={"very_high": 1},
+    ) as run_audit:
         updated = client.put(
-            "/api/settings",
+            "/api/audit-config",
             json={
                 "max_top_candidate_share": 100,
                 "weights": {
@@ -364,8 +383,9 @@ def test_review_settings_are_versioned_and_recompute_cases() -> None:
                 "expected_version": 1,
             },
         )
+        audit = client.post("/api/audits")
     stale = client.put(
-        "/api/settings",
+        "/api/audit-config",
         json={
             "max_top_candidate_share": 75,
             "weights": {
@@ -389,9 +409,39 @@ def test_review_settings_are_versioned_and_recompute_cases() -> None:
     assert updated.status_code == 200
     assert updated.json()["version"] == 2
     assert updated.json()["weights"]["publication_impact"] == 2
-    assert generate.call_count == 1
-    assert lock_cases.call_count == 1
+    assert audit.status_code == 200
+    assert audit.json() == {
+        "config_version": 2,
+        "cases": {"very_high": 1},
+    }
+    assert run_audit.call_count == 1
     assert stale.status_code == 409
+
+
+def test_audit_run_blocks_application_requests() -> None:
+    client = build_client()
+
+    with patch("merge_review.api.run_full_audit") as run_audit:
+        started = client.post("/api/fetches")
+
+    current = client.get("/api/fetches/current")
+    blocked = client.get("/api/cases")
+
+    assert started.status_code == 202
+    assert started.json()["status"] == "queued"
+    assert current.json()["id"] == started.json()["id"]
+    assert blocked.status_code == 423
+    assert run_audit.call_count == 1
+
+
+def test_audit_status_includes_last_successful_run() -> None:
+    client = build_client(completed_audit_at=DUMMY_FETCHED_AT)
+
+    response = client.get("/api/fetches/current")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "complete"
+    assert response.json()["last_completed_at"] == "2026-08-21T00:00:00Z"
 
 
 def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:

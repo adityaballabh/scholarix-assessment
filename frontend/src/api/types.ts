@@ -13,6 +13,10 @@ export type EvidenceValueState =
   | "conflict"
   | "missing"
   | "unverifiable";
+export type SourceHealthState =
+  | "available"
+  | "partially_available"
+  | "unavailable";
 
 export type ReviewStatus =
   | "pending"
@@ -21,7 +25,8 @@ export type ReviewStatus =
   | "one_author"
   | "needs_split";
 
-export type CasePriority = "high" | "medium" | "low";
+export type CasePriority = "very_high" | "high" | "medium" | "low" | "very_low";
+export type QueueScope = "active" | "archived";
 export type EvidenceEntityType = "author" | "publication";
 
 export interface SourceRecordReference {
@@ -68,11 +73,48 @@ export interface ReviewTarget {
 export interface ValidationCase {
   id: string;
   status: ReviewStatus;
+  queue_eligible: boolean;
   priority: CasePriority;
+  priority_score: number;
+  priority_components: PriorityComponents;
+  priority_config: PriorityConfig;
   target: ReviewTarget;
   affected_count: number;
+  version: number;
   evidence: EvidenceRecord[];
   detail: AuthorIdentityDetail;
+}
+
+export interface PriorityComponent {
+  value: number;
+  snapshot_max: number;
+  score: number;
+}
+
+export interface PriorityComponents {
+  publication_impact: PriorityComponent;
+  fragmentation: PriorityComponent;
+  cluster_ambiguity: PriorityComponent;
+}
+
+export interface PriorityWeights {
+  publication_impact: number;
+  fragmentation: number;
+  cluster_ambiguity: number;
+}
+
+export interface PriorityBandMinimums {
+  very_low: number;
+  low: number;
+  medium: number;
+  high: number;
+  very_high: number;
+}
+
+export interface PriorityConfig {
+  weights: PriorityWeights;
+  band_minimums: PriorityBandMinimums;
+  max_top_candidate_share: number;
 }
 
 export type DecisionAction =
@@ -87,6 +129,7 @@ export interface DecisionRequest {
   case_id: string;
   action: DecisionAction;
   note?: string;
+  expected_version: number;
 }
 
 export interface ActivityEvent {
@@ -97,14 +140,14 @@ export interface ActivityEvent {
   created_at: string;
   target_name: string;
   note: string | null;
-  before: string | null;
-  after: string | null;
+  before: ReviewStatus | null;
+  after: ReviewStatus | null;
 }
 
 export interface SourceStatus {
   source: string;
   fetched_at: string | null;
-  state: SourceFetchStatus;
+  state: SourceHealthState;
   note: string;
 }
 
@@ -121,5 +164,30 @@ export interface ReviewOverview {
 export interface CaseQueryFilters {
   status?: ReviewStatus | ReviewStatus[];
   priority?: CasePriority;
+  scope?: QueueScope;
   query?: string;
+}
+
+export type AuditStatus =
+  | "queued"
+  | "running"
+  | "complete"
+  | "failed"
+  | "abandoned";
+
+export interface AuditSourceProgress {
+  completed: number;
+  total: number;
+  by_status: Record<string, number>;
+}
+
+export interface AuditRun {
+  id: string;
+  status: AuditStatus;
+  current_source: string | null;
+  source_progress: Record<string, AuditSourceProgress>;
+  started_at: string | null;
+  finished_at: string | null;
+  last_completed_at: string | null;
+  error: string | null;
 }

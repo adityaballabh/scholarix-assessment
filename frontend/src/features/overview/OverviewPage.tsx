@@ -4,7 +4,7 @@ import { getOverview, listActivity, listCases } from "../../api/client";
 import type {
   ActivityEvent,
   ReviewOverview,
-  SourceFetchStatus,
+  SourceHealthState,
   ValidationCase,
 } from "../../api/types";
 import SectionRule from "../../components/SectionRule";
@@ -18,6 +18,7 @@ const sourceNames: Record<string, string> = {
   orcid: "ORCID",
   google_scholar: "Google Scholar",
   crossref: "Crossref",
+  datacite: "DataCite",
   pubmed: "PubMed",
 };
 
@@ -25,15 +26,10 @@ function sourceName(source: string) {
   return sourceNames[source] ?? source.replace(/_/g, " ");
 }
 
-const sourceStateLabels: Record<SourceFetchStatus, string> = {
-  success: "available",
-  pending: "pending",
-  never_attempted: "not fetched",
-  empty: "empty response",
-  not_found: "not found",
-  rate_limited: "rate limited",
-  timeout: "timed out",
-  error: "failed",
+const sourceStateLabels: Record<SourceHealthState, string> = {
+  available: "available",
+  partially_available: "partially available",
+  unavailable: "unavailable",
 };
 
 function fetchedAge(iso: string | null) {
@@ -98,7 +94,7 @@ export default function OverviewPage() {
 
   return (
     <div className={styles.sections}>
-      <SectionRule label="Review Status" />
+      <SectionRule label="Audit Results" />
       <div className={styles.summaryStrip}>
         <Stat
           value={overview.authors_audited.toLocaleString()}
@@ -125,6 +121,9 @@ export default function OverviewPage() {
               </th>
               <th role="columnheader" scope="col">
                 author
+              </th>
+              <th role="columnheader" scope="col">
+                priority
               </th>
               <th role="columnheader" scope="col">
                 top share
@@ -182,7 +181,7 @@ export default function OverviewPage() {
                 </th>
                 <td
                   role="cell"
-                  className={`${styles.sourceState} ${source.state === "success" ? "" : styles.unavailableSource}`}
+                  className={`${styles.sourceState} ${source.state === "partially_available" ? styles.partialSource : ""} ${source.state === "unavailable" ? styles.unavailableSource : ""}`}
                 >
                   {sourceStateLabels[source.state]}
                 </td>
@@ -304,6 +303,9 @@ function CaseRow({
           {reviewCase.target.author_name}
         </Link>
       </th>
+      <td role="cell" className={styles.priority}>
+        {reviewCase.priority.replace(/_/g, " ")}
+      </td>
       <td role="cell" className={styles.topShare}>
         {reviewCase.detail.top_share === null
           ? "—"
