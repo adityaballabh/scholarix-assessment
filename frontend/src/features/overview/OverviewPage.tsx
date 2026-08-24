@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getOverview, listActivity, listCases } from "../../api/client";
 import type {
@@ -9,7 +9,11 @@ import type {
 } from "../../api/types";
 import Hint from "../../components/Hint";
 import SectionRule from "../../components/SectionRule";
-import { formatEventTime, formatFetchedAt } from "../../lib/datetime";
+import {
+  formatCompactRelativeTime,
+  formatEventTime,
+  formatFetchedAt,
+} from "../../lib/datetime";
 import { actionLabels } from "../../lib/decisions";
 import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
 import styles from "./OverviewPage.module.css";
@@ -31,13 +35,6 @@ const sourceStateLabels: Record<SourceHealthState, string> = {
   partially_available: "partially available",
   unavailable: "unavailable",
 };
-
-function daysSinceRun(iso: string | null) {
-  if (!iso) return "—";
-
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  return `${Math.max(days, 0)}d`;
-}
 
 const ACTIVITY_PREVIEW = 4;
 
@@ -88,17 +85,28 @@ export default function OverviewPage() {
       <SectionRule label="Audit Results" />
       <div className={styles.summaryStrip}>
         <Stat
-          value={overview.authors_audited.toLocaleString()}
+          value={overview.total_authors.toLocaleString()}
           label="profiles audited"
         />
-        <Stat value={overview.authors.toLocaleString()} label="flagged" />
         <Stat
-          value={overview.publications.toLocaleString()}
-          label={`of ${overview.publications_audited.toLocaleString()} publications affected`}
+          value={overview.flagged_authors.toLocaleString()}
+          label="flagged"
         />
         <Stat
-          value={daysSinceRun(overview.audited_at)}
-          label="since last run"
+          value={overview.affected_publications.toLocaleString()}
+          label={`of ${overview.total_publications.toLocaleString()} publications affected`}
+        />
+        <Stat
+          value={formatCompactRelativeTime(overview.audited_at)}
+          label={
+            <>
+              since last audit
+              <Hint
+                text="Fetching all data, changing queue settings, or fetching evidence for a specific case reruns the audit"
+                align="end"
+              />
+            </>
+          }
         />
       </div>
 
@@ -281,7 +289,7 @@ export default function OverviewPage() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label }: { value: string; label: ReactNode }) {
   return (
     <div className={styles.stat}>
       <span className={styles.statValue}>{value}</span>

@@ -13,7 +13,6 @@ from merge_review.config import get_settings
 from merge_review.database import get_session
 from merge_review.generate_cases import (
     default_review_settings,
-    generate_identity_cases,
     normalized_words,
     review_settings,
 )
@@ -29,6 +28,7 @@ from merge_review.models import (
     PublicationRecord,
     ReviewDecision,
     ReviewSettings,
+    SourceRecord,
     ValidationCase,
 )
 from merge_review.refresh import (
@@ -177,6 +177,7 @@ def case_response(
     evidence: list[CaseEvidence],
     candidates: list[IdentityCandidate],
     publications_by_candidate: dict[UUID, list[IdentityCandidatePublication]],
+    openalex_payload: dict | None,
 ) -> ValidationCaseResponse:
     candidate_responses = [
         SemanticScholarCandidate(
@@ -191,7 +192,7 @@ def case_response(
         )
         for candidate in candidates
     ]
-    topics = author.profile.get("topics") if isinstance(author.profile, dict) else []
+    topics = openalex_payload.get("topics") if isinstance(openalex_payload, dict) else []
 
     return ValidationCaseResponse(
         id=review_case.id,
@@ -223,7 +224,11 @@ def case_response(
         detail=AuthorIdentityDetail(
             candidate_ids=candidate_responses,
             top_share=candidate_responses[0].share if candidate_responses else None,
-            profile_topics=[topic for topic in topics or [] if isinstance(topic, str)],
+            openalex_topics=[
+                topic["display_name"]
+                for topic in topics or []
+                if isinstance(topic, dict) and isinstance(topic.get("display_name"), str)
+            ],
         ),
     )
 
@@ -268,6 +273,20 @@ def case_responses(
         ):
             publications_by_candidate[publication.identity_candidate_id].append(publication)
 
+    snapshot_ids = {author.dataset_snapshot_id for _, author in case_rows}
+    source_ids = {author.source_id for _, author in case_rows}
+    openalex_by_author = {
+        (record.dataset_snapshot_id, record.entity_key): record.payload
+        for record in session.scalars(
+            select(SourceRecord).where(
+                SourceRecord.dataset_snapshot_id.in_(snapshot_ids),
+                SourceRecord.source == "openalex",
+                SourceRecord.entity_type == "author",
+                SourceRecord.entity_key.in_(source_ids),
+            )
+        )
+    }
+
     return [
         case_response(
             review_case,
@@ -275,6 +294,7 @@ def case_responses(
             evidence_by_case[review_case.id],
             candidates_by_case[review_case.id],
             publications_by_candidate,
+            openalex_by_author.get((author.dataset_snapshot_id, author.source_id)),
         )
         for review_case, author in case_rows
     ]
@@ -447,7 +467,7 @@ def refresh_author(
     ensure_audit_idle(session)
     with uncached_http_session() as http_session:
         results = refresh_author_sources(session, http_session, author)
-    cases = generate_identity_cases(session, snapshot.id)
+    cases = run_audit(session, snapshot.id)
     session.commit()
     return refresh_response("author", author_slug, results, cases)
 
@@ -472,7 +492,7 @@ def refresh_author_source_type(
     ensure_audit_idle(session)
     with uncached_http_session() as http_session:
         results = refresh_author_source(session, http_session, author, source)
-    cases = generate_identity_cases(session, snapshot.id)
+    cases = run_audit(session, snapshot.id)
     session.commit()
     return refresh_response("author_source", author_slug, results, cases)
 
@@ -505,7 +525,7 @@ def refresh_doi(doi: str, session: Session = Depends(get_session)) -> RefreshRes
             [normalized_doi],
             set(PUBLICATION_SOURCES),
         )
-    cases = generate_identity_cases(session, snapshot.id)
+    cases = run_audit(session, snapshot.id)
     session.commit()
     return refresh_response("doi", normalized_doi, results, cases)
 
@@ -523,7 +543,7 @@ def refresh_source_type(
     ensure_audit_idle(session)
     with uncached_http_session() as http_session:
         results = refresh_source(session, http_session, snapshot.id, source)
-    cases = generate_identity_cases(session, snapshot.id)
+    cases = run_audit(session, snapshot.id)
     session.commit()
     return refresh_response("source", source, results, cases)
 
@@ -748,10 +768,10 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
     snapshot = latest_snapshot(session)
     if snapshot is None:
         return ReviewOverview(
-            authors=0,
-            publications=0,
-            authors_audited=0,
-            publications_audited=0,
+            flagged_authors=0,
+            affected_publications=0,
+            total_authors=0,
+            total_publications=0,
             audited_at=None,
             sources=[],
         )
@@ -765,21 +785,22 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
             )
         )
     )
-    authors_audited = session.scalar(
+    total_authors = session.scalar(
         select(func.count(Author.id)).where(Author.dataset_snapshot_id == snapshot.id)
     )
-    publications_audited = session.scalar(
+    total_publications = session.scalar(
         select(func.count(PublicationRecord.id))
         .join(Author)
         .where(Author.dataset_snapshot_id == snapshot.id)
     )
     completed_fetch = latest_completed_fetch(session, snapshot.id)
+    settings = session.get(ReviewSettings, snapshot.id)
 
     return ReviewOverview(
-        authors=len(review_cases),
-        publications=sum(review_case.affected_count for review_case in review_cases),
-        authors_audited=authors_audited or 0,
-        publications_audited=publications_audited or 0,
-        audited_at=utc_datetime(completed_fetch.finished_at) if completed_fetch else None,
+        flagged_authors=len(review_cases),
+        affected_publications=sum(review_case.affected_count for review_case in review_cases),
+        total_authors=total_authors or 0,
+        total_publications=total_publications or 0,
+        audited_at=utc_datetime(settings.last_audited_at) if settings else None,
         sources=fetch_source_statuses(completed_fetch),
     )

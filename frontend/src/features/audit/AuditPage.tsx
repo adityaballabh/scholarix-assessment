@@ -38,16 +38,16 @@ export default function AuditPage({
       <div className={styles.panel}>
         <p className={styles.wordmark}>Merge Review</p>
         <h1 className={styles.title}>
-          {audit.status === "failed" ? "Audit failed" : "Fetch in progress"}
+          {audit.status === "failed" ? "Fetch failed" : "Fetch in progress"}
         </h1>
         {audit.status === "failed" ? (
           <>
             <p className={styles.message} role="alert">
-              {audit.error || "The audit could not be completed."}
+              The fetch could not be completed.
             </p>
             <div className={styles.actions}>
               <button type="button" disabled={busy} onClick={onRetry}>
-                retry audit
+                retry fetch
               </button>
               <button type="button" disabled={busy} onClick={onAbandon}>
                 return to app

@@ -219,6 +219,7 @@ export default function ScoreSettingsPage() {
   }
 
   const dirty = differsFromSaved(values, config);
+  const valid = checkErrors(values, config) === null;
 
   return (
     <section className={styles.page}>
@@ -239,9 +240,11 @@ export default function ScoreSettingsPage() {
       >
         <fieldset className={styles.group} disabled={busy}>
           <SectionRule label="Review Eligibility" />
-          <label className={styles.row}>
+          <div className={styles.row}>
             <span className={styles.rowText}>
-              <span className={styles.rowLabel}>top share limit</span>
+              <label className={styles.rowLabel} htmlFor="top-share-limit">
+                top share limit
+              </label>
               <span className={styles.inlineHint}>
                 <span className={styles.rowNote}>
                   profiles at or below this enter the queue
@@ -251,6 +254,7 @@ export default function ScoreSettingsPage() {
             </span>
             <span className={styles.control}>
               <input
+                id="top-share-limit"
                 className={styles.input}
                 type="number"
                 min="0"
@@ -273,7 +277,7 @@ export default function ScoreSettingsPage() {
               />
               <span>%</span>
             </span>
-          </label>
+          </div>
           {actionError?.scope === "eligibility" && (
             <p className={styles.rowError} role="alert">
               {actionError.message}
@@ -332,7 +336,11 @@ export default function ScoreSettingsPage() {
           >
             cancel
           </button>
-          <button type="submit" className={styles.primary} disabled={busy}>
+          <button
+            type="submit"
+            className={styles.primary}
+            disabled={busy || !dirty || !valid}
+          >
             save and run audit
           </button>
         </div>

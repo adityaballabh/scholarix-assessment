@@ -4,9 +4,29 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 import merge_review.audit as audit_module
-from merge_review.models import AuditRun, Author, Base, DatasetSnapshot
+from merge_review.audit_service import run_audit
+from merge_review.models import AuditRun, Author, Base, DatasetSnapshot, ReviewSettings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+
+def test_audit_service_records_completion(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'audit-service.db'}")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    snapshot_id = uuid4()
+
+    with factory.begin() as session:
+        session.add(DatasetSnapshot(id=snapshot_id, dataset_sha256="d" * 64))
+
+    with factory.begin() as session:
+        case_count = run_audit(session, snapshot_id)
+
+    with factory() as session:
+        settings = session.get(ReviewSettings, snapshot_id)
+
+    assert case_count == 0
+    assert settings.last_audited_at is not None
 
 
 def test_failed_audit_rolls_back_source_transaction(tmp_path, monkeypatch) -> None:

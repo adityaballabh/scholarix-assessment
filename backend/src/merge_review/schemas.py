@@ -64,7 +64,7 @@ class SemanticScholarCandidate(BaseModel):
 class AuthorIdentityDetail(BaseModel):
     candidate_ids: list[SemanticScholarCandidate]
     top_share: float | None
-    profile_topics: list[str]
+    openalex_topics: list[str]
 
 
 class ReviewTarget(BaseModel):
@@ -192,9 +192,9 @@ class SourceStatus(BaseModel):
 
 
 class ReviewOverview(BaseModel):
-    authors: int
-    publications: int
-    authors_audited: int
-    publications_audited: int
+    flagged_authors: int
+    affected_publications: int
+    total_authors: int
+    total_publications: int
     audited_at: datetime | None
     sources: list[SourceStatus]

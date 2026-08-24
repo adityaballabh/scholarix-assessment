@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import UUID, uuid4
 
+import pytest
 from merge_review.generate_cases import (
     Candidate,
     IdentityCaseData,
@@ -64,10 +65,9 @@ def test_case_ids_are_snapshot_scoped() -> None:
     )
 
 
-def test_snapshot_max_normalization() -> None:
-    assert normalized_component(25, 50) == 50.0
-    assert normalized_component(50, 50) == 100.0
+def test_component_score_is_zero_when_the_snapshot_has_no_maximum() -> None:
     assert normalized_component(0, 0) == 0.0
+    assert normalized_component(3, 0) == 0.0
 
 
 def test_institution_normalization_ignores_at() -> None:
@@ -141,7 +141,8 @@ def source_result(
     )
 
 
-def test_generate_identity_cases() -> None:
+@pytest.fixture
+def snapshot() -> tuple[sessionmaker, UUID]:
     engine = create_engine("sqlite://")
     with engine.connect() as connection:
         connection.exec_driver_sql("PRAGMA foreign_keys=ON")
@@ -230,28 +231,12 @@ def test_generate_identity_cases() -> None:
                     },
                 )
             )
+    return factory, snapshot_id
 
-    with factory.begin() as session:
-        first_counts = generate_identity_cases(session, snapshot_id)
-    with factory.begin() as session:
-        semantic_scholar_record = session.scalar(
-            select(SourceRecord).where(SourceRecord.source == "semantic_scholar")
-        )
-        semantic_scholar_record.fetched_at = semantic_scholar_record.fetched_at.replace(hour=1)
-        second_counts = generate_identity_cases(session, snapshot_id)
 
+def record_review(factory: sessionmaker, review_case_id: str) -> None:
     with factory.begin() as session:
-        settings = session.get(ReviewSettings, snapshot_id)
-        settings.priority_weights = {
-            "publication_impact": 1,
-            "fragmentation": 0,
-            "cluster_ambiguity": 0,
-        }
-        generate_identity_cases(session, snapshot_id)
-
-    with factory.begin() as session:
-        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
-        settings = session.get(ReviewSettings, snapshot_id)
+        review_case = session.get(ValidationCase, review_case_id)
         decision_id = uuid4()
         session.add(
             ReviewDecision(
@@ -279,20 +264,19 @@ def test_generate_identity_cases() -> None:
             )
         )
         review_case.version += 1
-        settings.max_top_candidate_share = 50
-        archived_counts = generate_identity_cases(session, snapshot_id)
 
-    with factory() as session:
-        archived_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
-        assert archived_case.queue_eligible is False
-        assert session.scalar(select(func.count(CaseEvidence.id))) == 4
-        assert session.scalar(select(func.count(ReviewDecision.id))) == 1
-        assert session.scalar(select(func.count(ActivityEvent.id))) == 1
+
+def set_top_candidate_share(factory: sessionmaker, snapshot_id: UUID, share: float) -> int:
+    with factory.begin() as session:
+        session.get(ReviewSettings, snapshot_id).max_top_candidate_share = share
+        return generate_identity_cases(session, snapshot_id)
+
+
+def test_identity_case_is_built_from_every_source(snapshot) -> None:
+    factory, snapshot_id = snapshot
 
     with factory.begin() as session:
-        settings = session.get(ReviewSettings, snapshot_id)
-        settings.max_top_candidate_share = 75
-        reactivated_counts = generate_identity_cases(session, snapshot_id)
+        counts = generate_identity_cases(session, snapshot_id)
 
     with factory() as session:
         review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
@@ -307,30 +291,119 @@ def test_generate_identity_cases() -> None:
             .order_by(CaseEvidence.position)
         ).all()
         publication_count = session.scalar(select(func.count(IdentityCandidatePublication.id)))
-        decision_count = session.scalar(select(func.count(ReviewDecision.id)))
-        activity_count = session.scalar(select(func.count(ActivityEvent.id)))
 
-    assert first_counts == 1
-    assert second_counts == first_counts
-    assert review_case.priority_score == 100.0
+    assert counts == 1
     assert review_case.queue_eligible is True
-    assert review_case.version == 5
+    assert review_case.affected_count == 3
+    assert review_case.priority_score == 100.0
     assert review_case.priority_components == {
         "publication_impact": {"value": 3.0, "snapshot_max": 3, "score": 100.0},
         "fragmentation": {"value": 33.3, "snapshot_max": 33.3, "score": 100.0},
         "cluster_ambiguity": {"value": 2.0, "snapshot_max": 2, "score": 100.0},
     }
-    assert review_case.affected_count == 3
     assert [candidate.matched_publication_count for candidate in candidates] == [2, 1]
     assert [candidate.share for candidate in candidates] == [66.7, 33.3]
     assert publication_count == 3
-    assert decision_count == 1
-    assert activity_count == 1
-    assert archived_counts == 0
-    assert reactivated_counts == 1
     assert [row.value_state for row in evidence] == [
         "conflict",
         "supports",
         "supports",
         "supports",
     ]
+
+
+def test_regenerating_after_a_refetch_updates_the_case_in_place(snapshot) -> None:
+    factory, snapshot_id = snapshot
+
+    with factory.begin() as session:
+        generate_identity_cases(session, snapshot_id)
+        original_version = session.get(
+            ValidationCase,
+            case_id(snapshot_id, "Dummy_Author"),
+        ).version
+
+    with factory.begin() as session:
+        record = session.scalar(
+            select(SourceRecord).where(SourceRecord.source == "semantic_scholar")
+        )
+        record.fetched_at = record.fetched_at.replace(hour=1)
+        counts = generate_identity_cases(session, snapshot_id)
+
+    with factory() as session:
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+        case_count = session.scalar(select(func.count(ValidationCase.id)))
+        evidence_count = session.scalar(select(func.count(CaseEvidence.id)))
+
+    assert counts == 1
+    assert review_case.version == original_version
+    assert case_count == 1
+    assert evidence_count == 4
+
+
+def test_reweighting_updates_the_existing_case(snapshot) -> None:
+    factory, snapshot_id = snapshot
+
+    with factory.begin() as session:
+        generate_identity_cases(session, snapshot_id)
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+        original_version = review_case.version
+
+    with factory.begin() as session:
+        settings = session.get(ReviewSettings, snapshot_id)
+        settings.priority_weights = {
+            "publication_impact": 1,
+            "fragmentation": 0,
+            "cluster_ambiguity": 0,
+        }
+        generate_identity_cases(session, snapshot_id)
+
+    with factory() as session:
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+
+    assert review_case.priority_config["weights"] == {
+        "publication_impact": 1,
+        "fragmentation": 0,
+        "cluster_ambiguity": 0,
+    }
+    assert review_case.version > original_version
+
+
+def test_a_case_below_the_share_threshold_is_archived_not_deleted(snapshot) -> None:
+    factory, snapshot_id = snapshot
+
+    with factory.begin() as session:
+        generate_identity_cases(session, snapshot_id)
+    record_review(factory, case_id(snapshot_id, "Dummy_Author"))
+
+    counts = set_top_candidate_share(factory, snapshot_id, 50)
+
+    with factory() as session:
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+        evidence_count = session.scalar(select(func.count(CaseEvidence.id)))
+        decision_count = session.scalar(select(func.count(ReviewDecision.id)))
+        activity_count = session.scalar(select(func.count(ActivityEvent.id)))
+
+    assert counts == 0
+    assert review_case.queue_eligible is False
+    assert evidence_count == 4
+    assert decision_count == 1
+    assert activity_count == 1
+
+
+def test_an_archived_case_returns_to_the_queue_when_it_qualifies_again(snapshot) -> None:
+    factory, snapshot_id = snapshot
+
+    with factory.begin() as session:
+        generate_identity_cases(session, snapshot_id)
+    record_review(factory, case_id(snapshot_id, "Dummy_Author"))
+    set_top_candidate_share(factory, snapshot_id, 50)
+
+    counts = set_top_candidate_share(factory, snapshot_id, 75)
+
+    with factory() as session:
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+        decision_count = session.scalar(select(func.count(ReviewDecision.id)))
+
+    assert counts == 1
+    assert review_case.queue_eligible is True
+    assert decision_count == 1

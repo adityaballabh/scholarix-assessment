@@ -61,7 +61,7 @@ export interface ClusterPublication {
 export interface AuthorIdentityDetail {
   candidate_ids: SemanticScholarCandidate[];
   top_share: number | null;
-  profile_topics: string[];
+  openalex_topics: string[];
 }
 
 export interface ReviewTarget {
@@ -167,10 +167,10 @@ export interface SourceStatus {
 }
 
 export interface ReviewOverview {
-  authors: number;
-  publications: number;
-  authors_audited: number;
-  publications_audited: number;
+  flagged_authors: number;
+  affected_publications: number;
+  total_authors: number;
+  total_publications: number;
   audited_at: string | null;
   sources: SourceStatus[];
 }

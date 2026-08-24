@@ -1,10 +1,11 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from merge_review.generate_cases import generate_identity_cases
-from merge_review.models import DatasetSnapshot, ValidationCase
+from merge_review.models import DatasetSnapshot, ReviewSettings, ValidationCase
 
 
 def run_audit(session: Session, snapshot_id: UUID) -> int:
@@ -17,4 +18,9 @@ def run_audit(session: Session, snapshot_id: UUID) -> int:
         .order_by(ValidationCase.id)
         .with_for_update()
     ).all()
-    return generate_identity_cases(session, snapshot_id)
+    case_count = generate_identity_cases(session, snapshot_id)
+    settings = session.get(ReviewSettings, snapshot_id)
+    if settings is None:
+        raise RuntimeError("Audit settings disappeared")
+    settings.last_audited_at = datetime.now(UTC)
+    return case_count

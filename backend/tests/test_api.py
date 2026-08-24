@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from merge_review.api import fetch_source_statuses, router, source_note, source_state
+from merge_review.api import fetch_source_statuses, router
 from merge_review.database import get_session
 from merge_review.models import (
     AuditRun,
@@ -16,6 +16,7 @@ from merge_review.models import (
     IdentityCandidate,
     IdentityCandidatePublication,
     PublicationRecord,
+    ReviewSettings,
     SourceRecord,
     ValidationCase,
 )
@@ -37,30 +38,20 @@ DUMMY_PRIORITY_CONFIG = {
 }
 
 
-def test_source_note_uses_readable_counts() -> None:
-    assert source_note(Counter({"success": 4557, "not_found": 67})) == ("4,557 found. 67 not found")
-
-
-def test_source_state_has_three_aggregate_levels() -> None:
-    assert source_state(Counter({"success": 3})) == "available"
-    assert source_state(Counter({"success": 2, "not_found": 1})) == ("partially_available")
-    assert source_state(Counter({"rate_limited": 3})) == "unavailable"
-
-
 def test_fetch_source_statuses_aggregate_openalex_stages() -> None:
     fetch = AuditRun(
         status="complete",
         source_progress={
             "openalex_authors": {
-                "completed": 2,
-                "total": 2,
-                "by_status": {"success": 2},
+                "completed": 500,
+                "total": 500,
+                "by_status": {"success": 500},
                 "completed_at": "2026-08-21T00:00:00Z",
             },
             "openalex_publications": {
-                "completed": 4,
-                "total": 4,
-                "by_status": {"success": 3, "not_found": 1},
+                "completed": 4124,
+                "total": 4124,
+                "by_status": {"success": 4057, "not_found": 67},
                 "completed_at": "2026-08-21T00:01:00Z",
             },
         },
@@ -74,15 +65,34 @@ def test_fetch_source_statuses_aggregate_openalex_stages() -> None:
             "source": "openalex",
             "fetched_at": datetime(2026, 8, 21, 0, 1, tzinfo=UTC),
             "state": "partially_available",
-            "note": "5 found. 1 not found",
+            "note": "4,557 found. 67 not found",
         }
     ]
+
+
+def test_a_source_that_never_answered_is_unavailable() -> None:
+    fetch = AuditRun(
+        status="complete",
+        source_progress={
+            "orcid": {
+                "completed": 3,
+                "total": 3,
+                "by_status": {"rate_limited": 3},
+                "completed_at": "2026-08-21T00:00:00Z",
+            }
+        },
+        finished_at=DUMMY_FETCHED_AT,
+    )
+
+    assert [status.state for status in fetch_source_statuses(fetch)] == ["unavailable"]
 
 
 def build_client(
     query_log: list[str] | None = None,
     second_case_eligible: bool = True,
     completed_audit_at: datetime | None = None,
+    extra_cases: int = 0,
+    audit_status: str | None = None,
 ) -> TestClient:
     engine = create_engine(
         "sqlite://",
@@ -110,16 +120,30 @@ def build_client(
     first_author_id = uuid4()
     second_author_id = uuid4()
     source_record_id = uuid4()
+    openalex_source_record_id = uuid4()
     candidate_id = uuid4()
 
     with factory.begin() as session:
         session.add(DatasetSnapshot(id=snapshot_id, dataset_sha256=DUMMY_SNAPSHOT_HASH))
         session.flush()
+        session.add(
+            ReviewSettings(
+                dataset_snapshot_id=snapshot_id,
+                max_top_candidate_share=75,
+                priority_weights={
+                    "publication_impact": 1,
+                    "fragmentation": 1,
+                    "cluster_ambiguity": 1,
+                },
+                version=1,
+                last_audited_at=DUMMY_FETCHED_AT,
+            )
+        )
         fetch_completed_at = completed_audit_at or DUMMY_FETCHED_AT
         session.add(
             AuditRun(
                 dataset_snapshot_id=snapshot_id,
-                status="complete",
+                status=audit_status or "complete",
                 source_progress={
                     "semantic_scholar": {
                         "completed": 1,
@@ -128,6 +152,7 @@ def build_client(
                         "completed_at": fetch_completed_at.isoformat(),
                     }
                 },
+                created_at=fetch_completed_at,
                 started_at=fetch_completed_at,
                 finished_at=fetch_completed_at,
             )
@@ -188,6 +213,29 @@ def build_client(
                     "title": "Dummy Publication",
                     "year": 2020,
                     "authors": [{"authorId": "candidateID", "name": "Dummy Author"}],
+                },
+            )
+        )
+        session.add(
+            SourceRecord(
+                id=openalex_source_record_id,
+                dataset_snapshot_id=snapshot_id,
+                source="openalex",
+                entity_type="author",
+                entity_key="A123",
+                source_record_id="A123",
+                url="https://openalex.org/A123",
+                fetch_status=FetchStatus.SUCCESS,
+                http_status=200,
+                fetched_at=DUMMY_FETCHED_AT,
+                from_cache=True,
+                payload={
+                    "topics": [
+                        {
+                            "id": "https://openalex.org/T123",
+                            "display_name": "Fetched Identity Topic",
+                        }
+                    ]
                 },
             )
         )
@@ -253,6 +301,49 @@ def build_client(
                 ),
             ]
         )
+        for index in range(extra_cases):
+            filler_author_id = uuid4()
+            session.add(
+                Author(
+                    id=filler_author_id,
+                    dataset_snapshot_id=snapshot_id,
+                    source_id=f"A{index:04d}",
+                    slug=f"Filler_Author_{index}",
+                    name=f"Filler Author {index}",
+                    profile={},
+                )
+            )
+            session.add(
+                ValidationCase(
+                    id=f"case-filler-{index}",
+                    dataset_snapshot_id=snapshot_id,
+                    author_id=filler_author_id,
+                    case_type="author_identity",
+                    status="pending",
+                    queue_eligible=True,
+                    priority_score=10.0,
+                    priority_components={
+                        "publication_impact": {
+                            "value": 1.0,
+                            "snapshot_max": 10.0,
+                            "score": 10.0,
+                        },
+                        "fragmentation": {
+                            "value": 5.0,
+                            "snapshot_max": 50.0,
+                            "score": 10.0,
+                        },
+                        "cluster_ambiguity": {
+                            "value": 1.0,
+                            "snapshot_max": 4.0,
+                            "score": 25.0,
+                        },
+                    },
+                    priority_config=DUMMY_PRIORITY_CONFIG,
+                    evidence_sha256=f"{index:064d}",
+                    affected_count=1,
+                )
+            )
         session.flush()
         session.add(
             CaseEvidence(
@@ -313,17 +404,25 @@ def test_case_list_filters_search_and_pagination() -> None:
     assert [row["id"] for row in paged.json()] == ["case-two"]
 
 
-def test_case_list_uses_sql_pagination_and_batch_detail_queries() -> None:
+def case_list_query_count(extra_cases: int) -> tuple[int, int]:
     query_log: list[str] = []
-    client = build_client(query_log)
+    client = build_client(query_log, extra_cases=extra_cases)
     query_log.clear()
 
-    response = client.get("/api/cases")
+    response = client.get("/api/cases", params={"limit": 100})
 
     assert response.status_code == 200
-    assert len(response.json()) == 2
-    assert len(query_log) == 6
     assert any("validation_cases" in statement and "LIMIT" in statement for statement in query_log)
+    return len(response.json()), len(query_log)
+
+
+def test_case_list_batches_detail_queries_instead_of_querying_per_case() -> None:
+    small_cases, small_queries = case_list_query_count(0)
+    large_cases, large_queries = case_list_query_count(20)
+
+    assert (small_cases, large_cases) == (2, 22)
+    assert small_queries == large_queries
+    assert large_queries < 15
 
 
 def test_case_detail_and_errors() -> None:
@@ -340,6 +439,9 @@ def test_case_detail_and_errors() -> None:
         "score": 80.0,
     }
     assert response.json()["detail"]["top_share"] == 60.0
+    assert response.json()["detail"]["openalex_topics"] == [
+        "Fetched Identity Topic"
+    ]
     assert response.json()["detail"]["candidate_ids"][0]["publications"] == [
         {"year": 2020, "title": "Dummy Publication"}
     ]
@@ -357,8 +459,8 @@ def test_archived_cases_are_separate_from_the_active_queue() -> None:
     assert [row["id"] for row in active.json()] == ["case-one"]
     assert [row["id"] for row in archived.json()] == ["case-two"]
     assert archived.json()[0]["queue_eligible"] is False
-    assert overview.json()["authors"] == 1
-    assert overview.json()["publications"] == 10
+    assert overview.json()["flagged_authors"] == 1
+    assert overview.json()["affected_publications"] == 10
     assert client.get("/api/cases", params={"scope": "unknown"}).status_code == 422
 
 
@@ -369,10 +471,10 @@ def test_overview() -> None:
 
     assert response.status_code == 200
     assert response.json() == {
-        "authors": 2,
-        "publications": 15,
-        "authors_audited": 2,
-        "publications_audited": 2,
+        "flagged_authors": 2,
+        "affected_publications": 15,
+        "total_authors": 2,
+        "total_publications": 2,
         "audited_at": "2026-08-21T00:00:00Z",
         "sources": [
             {
@@ -459,6 +561,32 @@ def test_audit_status_includes_last_successful_run() -> None:
     assert response.json()["last_completed_at"] == "2026-08-21T00:00:00Z"
 
 
+def test_only_a_failed_audit_can_be_abandoned() -> None:
+    client = build_client()
+
+    fetch_id = client.get("/api/fetches/current").json()["id"]
+
+    complete = client.post(f"/api/fetches/{fetch_id}/abandon")
+
+    assert complete.status_code == 409
+    assert complete.json()["detail"] == "Only a failed audit can be abandoned"
+    assert client.post(f"/api/fetches/{uuid4()}/abandon").status_code == 404
+
+
+def test_abandoning_a_failed_audit_unblocks_a_new_one() -> None:
+    client = build_client(audit_status="failed")
+    fetch_id = client.get("/api/fetches/current").json()["id"]
+
+    abandoned = client.post(f"/api/fetches/{fetch_id}/abandon")
+    with patch("merge_review.api.run_full_audit"):
+        restarted = client.post("/api/fetches")
+
+    assert abandoned.status_code == 200
+    assert abandoned.json()["status"] == "abandoned"
+    assert restarted.status_code == 202
+    assert restarted.json()["id"] != fetch_id
+
+
 def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
     client = build_client()
     http_session = Mock()
@@ -474,9 +602,9 @@ def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
             return_value=Counter({"semantic_scholar:success": 1}),
         ) as refresh,
         patch(
-            "merge_review.api.generate_identity_cases",
+            "merge_review.api.run_audit",
             return_value=1,
-        ) as generate,
+        ) as audit,
     ):
         response = client.post(f"/api/refresh/dois/{DUMMY_DOI}")
 
@@ -489,7 +617,7 @@ def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:
     }
     assert refresh.call_args.args[3] == [DUMMY_DOI]
     assert lock_cases.call_count == 1
-    assert generate.call_count == 1
+    assert audit.call_count == 1
 
 
 def test_refresh_author_and_source_scopes() -> None:
@@ -515,7 +643,7 @@ def test_refresh_author_and_source_scopes() -> None:
             return_value=Counter({"orcid:success": 1}),
         ) as refresh_source,
         patch(
-            "merge_review.api.generate_identity_cases",
+            "merge_review.api.run_audit",
             return_value=1,
         ),
     ):
@@ -580,6 +708,42 @@ def test_decisions_are_versioned_and_append_activity() -> None:
         "reopen",
         "flag_for_split",
     ]
+
+
+def test_every_decision_action_moves_the_case_to_its_status() -> None:
+    client = build_client()
+    statuses = []
+
+    for version, action in enumerate(
+        ["defer", "mark_uncertain", "confirm_one_author", "reopen"],
+        start=1,
+    ):
+        response = client.post(
+            "/api/cases/case-one/decisions",
+            json={"action": action, "expected_version": version},
+        )
+        assert response.status_code == 200
+        statuses.append(response.json()["after"])
+
+    assert statuses == ["deferred", "uncertain", "one_author", "pending"]
+
+
+def test_repeating_a_decision_is_rejected_but_a_note_is_not() -> None:
+    client = build_client()
+
+    repeated = client.post(
+        "/api/cases/case-one/decisions",
+        json={"action": "reopen", "expected_version": 1},
+    )
+    noted = client.post(
+        "/api/cases/case-one/decisions",
+        json={"action": "note", "note": "Still pending", "expected_version": 1},
+    )
+
+    assert repeated.status_code == 409
+    assert repeated.json()["detail"] == "Case is already in that state"
+    assert noted.status_code == 200
+    assert noted.json()["before"] == noted.json()["after"] == "pending"
 
 
 def test_note_requires_content() -> None:

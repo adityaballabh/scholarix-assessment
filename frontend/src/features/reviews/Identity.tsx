@@ -19,7 +19,7 @@ export default function Identity({
   caseId: string;
   search: string;
 }) {
-  const { candidate_ids, profile_topics } = detail;
+  const { candidate_ids, openalex_topics } = detail;
   const preview = candidate_ids.slice(0, CANDIDATE_PREVIEW);
   const truncated = candidate_ids.length > preview.length;
   const matched = candidate_ids.reduce(
@@ -100,11 +100,11 @@ export default function Identity({
         </>
       )}
 
-      {profile_topics.length > 0 && (
+      {openalex_topics.length > 0 && (
         <>
-          <SectionRule label="Profile Topics" hint="from the stored profile" />
+          <SectionRule label="OpenAlex Topics" />
           <ul className={styles.topics}>
-            {profile_topics.map((topic) => (
+            {openalex_topics.map((topic) => (
               <li className={styles.topic} key={topic}>
                 {topic}
               </li>
