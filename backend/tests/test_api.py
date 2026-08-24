@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from merge_review.api import router, source_note, source_state
+from merge_review.api import fetch_source_statuses, router, source_note, source_state
 from merge_review.database import get_session
 from merge_review.models import (
     AuditRun,
@@ -47,6 +47,38 @@ def test_source_state_has_three_aggregate_levels() -> None:
     assert source_state(Counter({"rate_limited": 3})) == "unavailable"
 
 
+def test_fetch_source_statuses_aggregate_openalex_stages() -> None:
+    fetch = AuditRun(
+        status="complete",
+        source_progress={
+            "openalex_authors": {
+                "completed": 2,
+                "total": 2,
+                "by_status": {"success": 2},
+                "completed_at": "2026-08-21T00:00:00Z",
+            },
+            "openalex_publications": {
+                "completed": 4,
+                "total": 4,
+                "by_status": {"success": 3, "not_found": 1},
+                "completed_at": "2026-08-21T00:01:00Z",
+            },
+        },
+        finished_at=DUMMY_FETCHED_AT,
+    )
+
+    statuses = fetch_source_statuses(fetch)
+
+    assert [status.model_dump() for status in statuses] == [
+        {
+            "source": "openalex",
+            "fetched_at": datetime(2026, 8, 21, 0, 1, tzinfo=UTC),
+            "state": "partially_available",
+            "note": "5 found. 1 not found",
+        }
+    ]
+
+
 def build_client(
     query_log: list[str] | None = None,
     second_case_eligible: bool = True,
@@ -83,16 +115,23 @@ def build_client(
     with factory.begin() as session:
         session.add(DatasetSnapshot(id=snapshot_id, dataset_sha256=DUMMY_SNAPSHOT_HASH))
         session.flush()
-        if completed_audit_at:
-            session.add(
-                AuditRun(
-                    dataset_snapshot_id=snapshot_id,
-                    status="complete",
-                    source_progress={},
-                    started_at=completed_audit_at,
-                    finished_at=completed_audit_at,
-                )
+        fetch_completed_at = completed_audit_at or DUMMY_FETCHED_AT
+        session.add(
+            AuditRun(
+                dataset_snapshot_id=snapshot_id,
+                status="complete",
+                source_progress={
+                    "semantic_scholar": {
+                        "completed": 1,
+                        "total": 1,
+                        "by_status": {"success": 1},
+                        "completed_at": fetch_completed_at.isoformat(),
+                    }
+                },
+                started_at=fetch_completed_at,
+                finished_at=fetch_completed_at,
             )
+        )
         session.add_all(
             [
                 Author(
@@ -468,6 +507,10 @@ def test_refresh_author_and_source_scopes() -> None:
             return_value=Counter({"openalex_author:success": 1}),
         ) as refresh_author,
         patch(
+            "merge_review.api.refresh_author_source",
+            return_value=Counter({"semantic_scholar:success": 1}),
+        ) as refresh_author_source,
+        patch(
             "merge_review.api.refresh_source",
             return_value=Counter({"orcid:success": 1}),
         ) as refresh_source,
@@ -477,15 +520,29 @@ def test_refresh_author_and_source_scopes() -> None:
         ),
     ):
         author_response = client.post("/api/refresh/authors/Dummy_Author")
+        author_source_response = client.post(
+            "/api/refresh/authors/Dummy_Author/sources/semantic_scholar"
+        )
         source_response = client.post("/api/refresh/sources/orcid")
 
     assert author_response.status_code == 200
     assert author_response.json()["scope"] == "author"
+    assert author_source_response.status_code == 200
+    assert author_source_response.json()["scope"] == "author_source"
     assert source_response.status_code == 200
     assert source_response.json()["scope"] == "source"
     assert refresh_author.call_count == 1
+    assert refresh_author_source.call_args.args[3] == "semantic_scholar"
     assert refresh_source.call_args.args[3] == "orcid"
-    assert lock_cases.call_count == 2
+    assert lock_cases.call_count == 3
+    assert (
+        client.post("/api/refresh/authors/Dummy_Author/sources/orcid").status_code
+        == 409
+    )
+    assert (
+        client.post("/api/refresh/authors/Dummy_Author/sources/unknown").status_code
+        == 422
+    )
     assert client.post("/api/refresh/sources/unknown").status_code == 422
 
 

@@ -52,12 +52,16 @@ export default function DecisionBar({
   status,
   notes,
   busy,
+  fetchingAll,
   onDecide,
+  onFetchAll,
 }: {
   status: ReviewStatus;
   notes: ActivityEvent[];
   busy: boolean;
+  fetchingAll: boolean;
   onDecide: (action: DecisionAction, note: string) => Promise<void>;
+  onFetchAll: () => void;
 }) {
   const [pending, setPending] = useState<Judgement | null>(null);
   const [viewingNotes, setViewingNotes] = useState(false);
@@ -124,6 +128,14 @@ export default function DecisionBar({
             view notes ({notes.length})
           </button>
         )}
+        <button
+          type="button"
+          className={`${styles.action} ${styles.fetchAll}`}
+          disabled={busy}
+          onClick={onFetchAll}
+        >
+          {fetchingAll ? "fetching" : "fetch all evidence"}
+        </button>
       </div>
 
       <dialog

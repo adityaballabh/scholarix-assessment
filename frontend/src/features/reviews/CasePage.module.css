@@ -44,6 +44,12 @@
   gap: 14px;
 }
 
+.refreshError {
+  margin: -10px 0 10px;
+  color: var(--alert);
+  font: var(--text-micro);
+}
+
 .backLink {
   height: 24px;
   display: inline-flex;

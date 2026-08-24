@@ -11,8 +11,6 @@ from merge_review.sync_openalex import sync_openalex_authors
 from merge_review.sync_sources import (
     merge_counts,
     snapshot_dois,
-    sync_crossref_records,
-    sync_datacite_records,
     sync_openalex_author_publications,
     sync_openalex_publication_records,
     sync_orcid_records,
@@ -21,10 +19,9 @@ from merge_review.sync_sources import (
 
 PUBLICATION_SOURCES = (
     "openalex",
-    "crossref",
-    "datacite",
     "semantic_scholar",
 )
+AUTHOR_SOURCES = (*PUBLICATION_SOURCES, "orcid")
 
 
 def author_dois(session: DatabaseSession, author_id: UUID) -> list[str]:
@@ -58,18 +55,6 @@ def refresh_publication_sources(
                 session, http_session, snapshot_id, dois, mailto, force=True
             ),
         )
-    if "crossref" in sources:
-        merge_counts(
-            counts,
-            "crossref",
-            sync_crossref_records(session, http_session, snapshot_id, dois, mailto, force=True),
-        )
-    if "datacite" in sources:
-        merge_counts(
-            counts,
-            "datacite",
-            sync_datacite_records(session, http_session, snapshot_id, set(dois), force=True),
-        )
     if "semantic_scholar" in sources:
         merge_counts(
             counts,
@@ -79,38 +64,40 @@ def refresh_publication_sources(
     return counts
 
 
-def refresh_author_sources(
+def refresh_author_source(
     session: DatabaseSession,
     http_session: Session,
     author: Author,
+    source: str,
 ) -> Counter[str]:
     counts: Counter[str] = Counter()
     mailto = get_settings().mailto
-    merge_counts(
-        counts,
-        "openalex_author",
-        sync_openalex_authors(
-            session,
-            http_session,
-            author.dataset_snapshot_id,
-            mailto,
-            [author.source_id],
-            force=True,
-        ),
-    )
-    merge_counts(
-        counts,
-        "openalex_author_publications",
-        sync_openalex_author_publications(
-            session,
-            http_session,
-            author.dataset_snapshot_id,
-            mailto,
-            [author.source_id],
-            force=True,
-        ),
-    )
-    if author.orcid_id:
+    if source == "openalex":
+        merge_counts(
+            counts,
+            "openalex_author",
+            sync_openalex_authors(
+                session,
+                http_session,
+                author.dataset_snapshot_id,
+                mailto,
+                [author.source_id],
+                force=True,
+            ),
+        )
+        merge_counts(
+            counts,
+            "openalex_author_publications",
+            sync_openalex_author_publications(
+                session,
+                http_session,
+                author.dataset_snapshot_id,
+                mailto,
+                [author.source_id],
+                force=True,
+            ),
+        )
+    elif source == "orcid" and author.orcid_id:
         merge_counts(
             counts,
             "orcid",
@@ -122,15 +109,27 @@ def refresh_author_sources(
                 force=True,
             ),
         )
-    counts.update(
-        refresh_publication_sources(
-            session,
-            http_session,
-            author.dataset_snapshot_id,
-            author_dois(session, author.id),
-            set(PUBLICATION_SOURCES),
+    if source in PUBLICATION_SOURCES:
+        counts.update(
+            refresh_publication_sources(
+                session,
+                http_session,
+                author.dataset_snapshot_id,
+                author_dois(session, author.id),
+                {source},
+            )
         )
-    )
+    return counts
+
+
+def refresh_author_sources(
+    session: DatabaseSession,
+    http_session: Session,
+    author: Author,
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for source in AUTHOR_SOURCES:
+        counts.update(refresh_author_source(session, http_session, author, source))
     return counts
 
 

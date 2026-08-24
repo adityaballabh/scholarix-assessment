@@ -19,8 +19,6 @@ ReviewStatus = Literal["pending", "deferred", "uncertain", "one_author", "needs_
 QueueScope = Literal["active", "archived"]
 RefreshSource = Literal[
     "openalex",
-    "crossref",
-    "datacite",
     "semantic_scholar",
     "orcid",
 ]
@@ -118,7 +116,7 @@ class AuditConfigResponse(BaseModel):
 
 
 class RefreshResponse(BaseModel):
-    scope: Literal["author", "doi", "source"]
+    scope: Literal["author", "author_source", "doi", "source"]
     target: str
     results: dict[str, int]
     cases: int
@@ -128,6 +126,7 @@ class AuditSourceProgress(BaseModel):
     completed: int
     total: int
     by_status: dict[str, int]
+    completed_at: datetime | None = None
 
 
 class AuditRunResponse(BaseModel):

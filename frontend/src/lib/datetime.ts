@@ -1,20 +1,26 @@
-const months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+function formatLocalDateTime(iso: string): string {
+  const value = new Date(iso);
+  if (Number.isNaN(value.getTime())) return iso;
+  const date = value.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  });
+  const year =
+    value.getFullYear() === new Date().getFullYear()
+      ? null
+      : value.getFullYear();
+  const time = value.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return year === null ? `${date} ${time}` : `${date} ${year}, ${time}`;
+}
 
 export function formatFetchedAt(iso: string | null): string | null {
   if (!iso) return null;
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
-  if (!match) return iso;
-
-  const [, year, month, day, hour, minute] = match;
-  return `${months[Number(month) - 1] ?? month} ${Number(day)} ${year} ${hour}:${minute} UTC`;
+  return formatLocalDateTime(iso);
 }
 
 export function formatEventTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatLocalDateTime(iso);
 }

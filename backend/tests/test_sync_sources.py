@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 from merge_review.models import Base, DatasetSnapshot, SourceRecord
 from merge_review.source_records import FetchStatus
 from merge_review.sync_sources import (
-    absent_keys,
     sync_openalex_publication_records,
     sync_semantic_scholar_records,
 )
@@ -44,41 +43,6 @@ def add_snapshot(factory) -> UUID:
     with factory.begin() as session:
         session.add(DatasetSnapshot(id=snapshot_id, dataset_sha256=DUMMY_SNAPSHOT_HASH))
     return snapshot_id
-
-
-def test_absent_keys_excludes_transient_failures() -> None:
-    factory = session_factory()
-    snapshot_id = add_snapshot(factory)
-    now = datetime.now(UTC)
-
-    with factory.begin() as session:
-        session.add_all(
-            [
-                SourceRecord(
-                    dataset_snapshot_id=snapshot_id,
-                    source="crossref",
-                    entity_type="publication",
-                    entity_key="missing",
-                    fetch_status=FetchStatus.NOT_FOUND,
-                    fetched_at=now,
-                    from_cache=False,
-                ),
-                SourceRecord(
-                    dataset_snapshot_id=snapshot_id,
-                    source="crossref",
-                    entity_type="publication",
-                    entity_key="retry",
-                    fetch_status=FetchStatus.RATE_LIMITED,
-                    fetched_at=now,
-                    from_cache=False,
-                ),
-            ]
-        )
-
-    with factory() as session:
-        keys = absent_keys(session, snapshot_id, "crossref")
-
-    assert keys == {"missing"}
 
 
 def test_semantic_scholar_batch_persists_found_and_missing_records() -> None:

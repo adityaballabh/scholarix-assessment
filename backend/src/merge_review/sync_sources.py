@@ -4,7 +4,6 @@ from collections.abc import Iterable
 from dataclasses import replace
 from itertools import islice
 from typing import Any
-from urllib.parse import quote
 from uuid import UUID
 
 from requests import Session
@@ -14,7 +13,7 @@ from sqlalchemy.orm import Session as DatabaseSession
 from merge_review.config import get_settings
 from merge_review.database import SessionFactory, create_schema
 from merge_review.import_dataset import normalize_doi
-from merge_review.models import Author, DatasetSnapshot, PublicationRecord, SourceRecord
+from merge_review.models import Author, DatasetSnapshot, PublicationRecord
 from merge_review.source_records import (
     FetchStatus,
     ProgressCallback,
@@ -113,98 +112,6 @@ def sync_orcid_records(
         completed += 1
         if progress:
             progress("orcid", completed, total, counts)
-    return counts
-
-
-def sync_crossref_records(
-    session: DatabaseSession,
-    http_session: Session,
-    snapshot_id: UUID,
-    dois: list[str],
-    mailto: str | None,
-    force: bool = False,
-    progress: ProgressCallback | None = None,
-) -> Counter[str]:
-    done = set() if force else completed_keys(session, snapshot_id, "crossref", "publication")
-    counts = (
-        Counter() if force else completed_counts(session, snapshot_id, "crossref", "publication")
-    )
-
-    total = len(dois)
-    completed = 0
-    for doi in dois:
-        if doi in done:
-            continue
-        result = request_json(
-            http_session,
-            source="crossref",
-            entity_type="publication",
-            entity_key=doi,
-            request_url=f"https://api.crossref.org/works/{quote(doi, safe='')}",
-            record_url=f"https://doi.org/{doi}",
-            params={"mailto": mailto} if mailto else None,
-        )
-        if result.fetch_status == FetchStatus.SUCCESS:
-            result = replace(result, source_record_id=doi)
-        record = store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[record.fetch_status] += 1
-        completed += 1
-        if progress:
-            progress("crossref", completed, total, counts)
-    return counts
-
-
-def absent_keys(
-    session: DatabaseSession,
-    snapshot_id: UUID,
-    source: str,
-) -> set[str]:
-    return set(
-        session.scalars(
-            select(SourceRecord.entity_key).where(
-                SourceRecord.dataset_snapshot_id == snapshot_id,
-                SourceRecord.source == source,
-                SourceRecord.entity_type == "publication",
-                SourceRecord.fetch_status.in_([FetchStatus.NOT_FOUND, FetchStatus.EMPTY]),
-            )
-        )
-    )
-
-
-def sync_datacite_records(
-    session: DatabaseSession,
-    http_session: Session,
-    snapshot_id: UUID,
-    dois: set[str],
-    force: bool = False,
-    progress: ProgressCallback | None = None,
-) -> Counter[str]:
-    done = set() if force else completed_keys(session, snapshot_id, "datacite", "publication")
-    counts = (
-        Counter() if force else completed_counts(session, snapshot_id, "datacite", "publication")
-    )
-
-    targets = sorted(dois)
-    total = len(targets)
-    completed = 0
-    for doi in targets:
-        if doi in done:
-            continue
-        result = request_json(
-            http_session,
-            source="datacite",
-            entity_type="publication",
-            entity_key=doi,
-            request_url=f"https://api.datacite.org/dois/{quote(doi, safe='/')}",
-            record_url=f"https://doi.org/{doi}",
-        )
-        if result.fetch_status == FetchStatus.SUCCESS:
-            result = replace(result, source_record_id=doi)
-        record = store_source_result(session, snapshot_id, result, preserve_success=force)
-        counts[record.fetch_status] += 1
-        completed += 1
-        if progress:
-            progress("datacite", completed, total, counts)
     return counts
 
 
@@ -538,17 +445,6 @@ def sync_all_sources(
         counts,
         "orcid",
         sync_orcid_records(session, http_session, snapshot_id),
-    )
-    merge_counts(
-        counts,
-        "crossref",
-        sync_crossref_records(session, http_session, snapshot_id, dois, mailto),
-    )
-    crossref_missing = absent_keys(session, snapshot_id, "crossref")
-    merge_counts(
-        counts,
-        "datacite",
-        sync_datacite_records(session, http_session, snapshot_id, crossref_missing),
     )
     merge_counts(
         counts,

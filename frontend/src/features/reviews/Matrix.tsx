@@ -1,6 +1,7 @@
 import type {
   EvidenceRecord,
   EvidenceValueState,
+  RefreshSource,
   SourceFetchStatus,
 } from "../../api/types";
 import Hint from "../../components/Hint";
@@ -13,9 +14,18 @@ const sourceNames: Record<string, string> = {
   openalex: "OpenAlex",
   orcid: "ORCID",
   google_scholar: "Google Scholar",
-  crossref: "Crossref",
   pubmed: "PubMed",
 };
+
+const refreshableSources: RefreshSource[] = [
+  "semantic_scholar",
+  "openalex",
+  "orcid",
+];
+
+function isRefreshSource(source: string): source is RefreshSource {
+  return refreshableSources.includes(source as RefreshSource);
+}
 
 const fieldNames: Record<string, string> = {
   author_identity: "author identity",
@@ -83,9 +93,13 @@ function recordLabel(record: EvidenceRecord, shares: Record<string, number>) {
 export default function Matrix({
   evidence,
   shares = {},
+  refreshing,
+  onRefreshSource,
 }: {
   evidence: EvidenceRecord[];
   shares?: Record<string, number>;
+  refreshing: RefreshSource | "all" | null;
+  onRefreshSource: (source: RefreshSource) => void;
 }) {
   const sources = [...new Set(evidence.map((record) => record.source))];
   const fields = [...new Set(evidence.map((record) => record.field))];
@@ -149,6 +163,8 @@ export default function Matrix({
               const sample = evidence.find(
                 (record) => record.source === source,
               );
+              const refreshable = isRefreshSource(source);
+              const applicable = sample?.fetch_status !== "not_applicable";
 
               return (
                 <div
@@ -156,8 +172,21 @@ export default function Matrix({
                   role="columnheader"
                   className={`${styles.headCell} ${state ? styles.headCellDead : ""}`}
                 >
-                  <span className={styles.sourceName}>
-                    {sourceName(source)}
+                  <span className={styles.sourceTitle}>
+                    <span className={styles.sourceName}>
+                      {sourceName(source)}
+                    </span>
+                    {refreshable && (
+                      <button
+                        type="button"
+                        className={styles.refreshSource}
+                        disabled={refreshing !== null || !applicable}
+                        aria-label={`fetch ${sourceName(source)} evidence`}
+                        onClick={() => onRefreshSource(source)}
+                      >
+                        {refreshing === source ? "fetching" : "fetch"}
+                      </button>
+                    )}
                   </span>
                   <span className={styles.provenance}>
                     {sample ? recordLabel(sample, shares) : "—"}

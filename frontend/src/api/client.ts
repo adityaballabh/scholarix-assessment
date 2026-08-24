@@ -6,6 +6,8 @@ import type {
   AuditRun,
   CaseQueryFilters,
   DecisionRequest,
+  RefreshResult,
+  RefreshSource,
   ReviewOverview,
   ValidationCase,
 } from "./types";
@@ -109,4 +111,22 @@ export function updateAuditConfig(
 
 export function runAudit(): Promise<AuditResult> {
   return requestJson("/api/audits", { method: "POST" });
+}
+
+export function refreshAuthorEvidence(
+  authorSlug: string,
+): Promise<RefreshResult> {
+  return requestJson(`/api/refresh/authors/${encodeURIComponent(authorSlug)}`, {
+    method: "POST",
+  });
+}
+
+export function refreshAuthorSource(
+  authorSlug: string,
+  source: RefreshSource,
+): Promise<RefreshResult> {
+  return requestJson(
+    `/api/refresh/authors/${encodeURIComponent(authorSlug)}/sources/${source}`,
+    { method: "POST" },
+  );
 }

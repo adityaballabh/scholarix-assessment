@@ -29,11 +29,11 @@ from merge_review.models import (
     PublicationRecord,
     ReviewDecision,
     ReviewSettings,
-    SourceRecord,
     ValidationCase,
 )
 from merge_review.refresh import (
     PUBLICATION_SOURCES,
+    refresh_author_source,
     refresh_author_sources,
     refresh_publication_sources,
     refresh_source,
@@ -66,12 +66,14 @@ from merge_review.source_records import uncached_http_session
 
 router = APIRouter(prefix="/api")
 VALID_STATUSES = set(get_args(ReviewStatus))
-SOURCE_ORDER = {
-    "openalex": 0,
-    "orcid": 1,
-    "crossref": 2,
-    "datacite": 3,
-    "semantic_scholar": 4,
+OVERVIEW_SOURCE_STAGES = {
+    "openalex": (
+        "openalex_authors",
+        "openalex_author_publications",
+        "openalex_publications",
+    ),
+    "orcid": ("orcid",),
+    "semantic_scholar": ("semantic_scholar",),
 }
 ACTION_STATUS = {
     "reopen": "pending",
@@ -98,6 +100,18 @@ def current_audit(session: Session) -> AuditRun | None:
 def last_completed_at(session: Session) -> datetime | None:
     return session.scalar(
         select(func.max(AuditRun.finished_at)).where(AuditRun.status == "complete")
+    )
+
+
+def latest_completed_fetch(session: Session, snapshot_id: UUID) -> AuditRun | None:
+    return session.scalar(
+        select(AuditRun)
+        .where(
+            AuditRun.dataset_snapshot_id == snapshot_id,
+            AuditRun.status == "complete",
+        )
+        .order_by(AuditRun.finished_at.desc(), AuditRun.id.desc())
+        .limit(1)
     )
 
 
@@ -407,6 +421,18 @@ def refresh_response(
     )
 
 
+def author_for_slug(session: Session, snapshot_id: UUID, author_slug: str) -> Author:
+    author = session.scalar(
+        select(Author).where(
+            Author.dataset_snapshot_id == snapshot_id,
+            Author.slug == author_slug,
+        )
+    )
+    if author is None:
+        raise HTTPException(404, detail="Author not found")
+    return author
+
+
 @router.post("/refresh/authors/{author_slug}", response_model=RefreshResponse)
 def refresh_author(
     author_slug: str,
@@ -415,14 +441,7 @@ def refresh_author(
     snapshot = latest_snapshot(session)
     if snapshot is None:
         raise HTTPException(404, detail="No dataset imported")
-    author = session.scalar(
-        select(Author).where(
-            Author.dataset_snapshot_id == snapshot.id,
-            Author.slug == author_slug,
-        )
-    )
-    if author is None:
-        raise HTTPException(404, detail="Author not found")
+    author = author_for_slug(session, snapshot.id, author_slug)
 
     lock_snapshot_cases(session, snapshot.id)
     ensure_audit_idle(session)
@@ -431,6 +450,31 @@ def refresh_author(
     cases = generate_identity_cases(session, snapshot.id)
     session.commit()
     return refresh_response("author", author_slug, results, cases)
+
+
+@router.post(
+    "/refresh/authors/{author_slug}/sources/{source}",
+    response_model=RefreshResponse,
+)
+def refresh_author_source_type(
+    author_slug: str,
+    source: RefreshSource,
+    session: Session = Depends(get_session),
+) -> RefreshResponse:
+    snapshot = latest_snapshot(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    author = author_for_slug(session, snapshot.id, author_slug)
+    if source == "orcid" and not author.orcid_id:
+        raise HTTPException(409, detail="Author has no ORCID identifier")
+
+    lock_snapshot_cases(session, snapshot.id)
+    ensure_audit_idle(session)
+    with uncached_http_session() as http_session:
+        results = refresh_author_source(session, http_session, author, source)
+    cases = generate_identity_cases(session, snapshot.id)
+    session.commit()
+    return refresh_response("author_source", author_slug, results, cases)
 
 
 @router.post("/refresh/dois/{doi:path}", response_model=RefreshResponse)
@@ -669,6 +713,36 @@ def source_note(counts: Counter[str]) -> str:
     )
 
 
+def fetch_source_statuses(fetch: AuditRun | None) -> list[SourceStatus]:
+    if fetch is None:
+        return []
+    progress = {
+        stage: AuditSourceProgress.model_validate(value)
+        for stage, value in (fetch.source_progress or {}).items()
+    }
+    fallback_time = utc_datetime(fetch.finished_at)
+    statuses = []
+    for source, stages in OVERVIEW_SOURCE_STAGES.items():
+        stage_progress = [progress[stage] for stage in stages if stage in progress]
+        if not stage_progress:
+            continue
+        counts: Counter[str] = Counter()
+        completed_times = []
+        for stage in stage_progress:
+            counts.update(stage.by_status)
+            if stage.completed_at is not None:
+                completed_times.append(utc_datetime(stage.completed_at))
+        statuses.append(
+            SourceStatus(
+                source=source,
+                fetched_at=max(completed_times) if completed_times else fallback_time,
+                state=source_state(counts),
+                note=source_note(counts),
+            )
+        )
+    return statuses
+
+
 @router.get("/overview", response_model=ReviewOverview)
 def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
     snapshot = latest_snapshot(session)
@@ -699,49 +773,13 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
         .join(Author)
         .where(Author.dataset_snapshot_id == snapshot.id)
     )
-    source_rows = session.execute(
-        select(
-            SourceRecord.source,
-            SourceRecord.fetch_status,
-            func.count(),
-            func.max(SourceRecord.fetched_at),
-        )
-        .where(
-            SourceRecord.dataset_snapshot_id == snapshot.id,
-            SourceRecord.source != "doi",
-        )
-        .group_by(SourceRecord.source, SourceRecord.fetch_status)
-    ).all()
-    counts_by_source: dict[str, Counter[str]] = defaultdict(Counter)
-    fetched_by_source: dict[str, datetime | None] = {}
-    for source, status, count, fetched_at in source_rows:
-        counts_by_source[source][status] = count
-        previous = fetched_by_source.get(source)
-        if previous is None or fetched_at > previous:
-            fetched_by_source[source] = fetched_at
-
-    sources = [
-        SourceStatus(
-            source=source,
-            fetched_at=utc_datetime(fetched_by_source.get(source)),
-            state=source_state(counts),
-            note=source_note(counts),
-        )
-        for source, counts in sorted(
-            counts_by_source.items(),
-            key=lambda item: (SOURCE_ORDER.get(item[0], len(SOURCE_ORDER)), item[0]),
-        )
-    ]
-    audited_at = max(
-        (fetched_at for fetched_at in fetched_by_source.values() if fetched_at is not None),
-        default=None,
-    )
+    completed_fetch = latest_completed_fetch(session, snapshot.id)
 
     return ReviewOverview(
         authors=len(review_cases),
         publications=sum(review_case.affected_count for review_case in review_cases),
         authors_audited=authors_audited or 0,
         publications_audited=publications_audited or 0,
-        audited_at=utc_datetime(audited_at),
-        sources=sources,
+        audited_at=utc_datetime(completed_fetch.finished_at) if completed_fetch else None,
+        sources=fetch_source_statuses(completed_fetch),
     )

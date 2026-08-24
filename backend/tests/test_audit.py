@@ -111,7 +111,7 @@ def test_audit_completes_and_records_progress(tmp_path, monkeypatch) -> None:
         "sync_openalex_author_publications",
         lambda *_args, **_kwargs: Counter(),
     )
-    monkeypatch.setattr(audit_module, "run_audit", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(audit_module, "run_audit", lambda *_args, **_kwargs: 0)
 
     audit_module.run_full_audit(audit_id, snapshot_id)
 
@@ -120,11 +120,16 @@ def test_audit_completes_and_records_progress(tmp_path, monkeypatch) -> None:
 
     assert audit.status == "complete"
     assert audit.error is None
-    assert audit.source_progress["openalex_authors"] == {
+    assert {
+        key: value
+        for key, value in audit.source_progress["openalex_authors"].items()
+        if key != "completed_at"
+    } == {
         "completed": 1,
         "total": 1,
         "by_status": {"success": 1},
     }
+    assert audit.source_progress["openalex_authors"]["completed_at"] is not None
     assert audit.source_progress["case_generation"]["completed"] == 1
 
 

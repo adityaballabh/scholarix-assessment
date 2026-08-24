@@ -26,6 +26,7 @@ export type ReviewStatus =
   | "needs_split";
 
 export type QueueScope = "active" | "archived";
+export type RefreshSource = "openalex" | "semantic_scholar" | "orcid";
 export type EvidenceEntityType = "author" | "publication";
 
 export interface SourceRecordReference {
@@ -124,6 +125,13 @@ export interface AuditResult {
   cases: number;
 }
 
+export interface RefreshResult {
+  scope: "author" | "author_source" | "doi" | "source";
+  target: string;
+  results: Record<string, number>;
+  cases: number;
+}
+
 export type DecisionAction =
   | "reopen"
   | "confirm_one_author"
@@ -184,6 +192,7 @@ export interface AuditSourceProgress {
   completed: number;
   total: number;
   by_status: Record<string, number>;
+  completed_at?: string | null;
 }
 
 export interface AuditRun {

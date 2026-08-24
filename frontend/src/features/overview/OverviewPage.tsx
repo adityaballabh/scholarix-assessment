@@ -19,8 +19,6 @@ const sourceNames: Record<string, string> = {
   openalex: "OpenAlex",
   orcid: "ORCID",
   google_scholar: "Google Scholar",
-  crossref: "Crossref",
-  datacite: "DataCite",
   pubmed: "PubMed",
 };
 
@@ -33,15 +31,6 @@ const sourceStateLabels: Record<SourceHealthState, string> = {
   partially_available: "partially available",
   unavailable: "unavailable",
 };
-
-function fetchedAge(iso: string | null) {
-  if (!iso) return "never";
-
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  return `${days} days ago`;
-}
 
 function daysSinceRun(iso: string | null) {
   if (!iso) return "—";
@@ -205,12 +194,8 @@ export default function OverviewPage() {
                   {source.note}
                 </td>
                 <td role="cell" className={styles.sourceFetched}>
-                  <time
-                    dateTime={source.fetched_at ?? undefined}
-                    title={formatFetchedAt(source.fetched_at) ?? undefined}
-                    aria-label={fetchedAge(source.fetched_at)}
-                  >
-                    {fetchedAge(source.fetched_at)}
+                  <time dateTime={source.fetched_at ?? undefined}>
+                    {formatFetchedAt(source.fetched_at) ?? "never"}
                   </time>
                 </td>
               </tr>

@@ -59,9 +59,7 @@ def create_http_session() -> CachedSession:
     )
     limits = {
         "https://api.openalex.org": 10,
-        "https://api.crossref.org": 10,
         "https://pub.orcid.org": 10,
-        "https://api.datacite.org": 2,
         "https://api.semanticscholar.org": 1,
     }
     for host, rate in limits.items():

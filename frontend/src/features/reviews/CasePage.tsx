@@ -11,10 +11,13 @@ import {
   listActivity,
   listCases,
   postDecision,
+  refreshAuthorEvidence,
+  refreshAuthorSource,
 } from "../../api/client";
 import type {
   ActivityEvent,
   DecisionAction,
+  RefreshSource,
   ValidationCase,
 } from "../../api/types";
 import { readCaseFilters } from "./filters";
@@ -34,6 +37,45 @@ interface CaseData {
   relatedError: boolean;
 }
 
+type RefreshTarget = RefreshSource | "all";
+
+const refreshSourceNames: Record<RefreshSource, string> = {
+  openalex: "OpenAlex",
+  semantic_scholar: "Semantic Scholar",
+  orcid: "ORCID",
+};
+
+async function loadCaseData(caseId: string, search: string): Promise<CaseData> {
+  const reviewCase = await getCase(caseId);
+  const queueParams = new URLSearchParams(search);
+  if (!queueParams.has("scope") && !reviewCase.queue_eligible) {
+    queueParams.set("scope", "archived");
+  } else if (
+    queueParams.get("scope") === "archived" &&
+    reviewCase.queue_eligible
+  ) {
+    queueParams.delete("scope");
+  }
+  const [queueResult, activityResult] = await Promise.allSettled([
+    listCases(readCaseFilters(queueParams)),
+    listActivity(),
+  ]);
+  const queue =
+    queueResult.status === "fulfilled" ? queueResult.value : [reviewCase];
+  const activity =
+    activityResult.status === "fulfilled" ? activityResult.value : [];
+  return {
+    reviewCase,
+    queue,
+    notes: activity.filter(
+      (event) => event.case_id === reviewCase.id && event.note,
+    ),
+    queueSearch: queueParams.toString(),
+    relatedError:
+      queueResult.status === "rejected" || activityResult.status === "rejected",
+  };
+}
+
 export default function CasePage() {
   const { caseId } = useParams();
   const [searchParams] = useSearchParams();
@@ -43,6 +85,8 @@ export default function CasePage() {
   const [missing, setMissing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [deciding, setDeciding] = useState(false);
+  const [refreshing, setRefreshing] = useState<RefreshTarget | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const search = searchParams.toString();
 
   useEffect(() => {
@@ -51,36 +95,9 @@ export default function CasePage() {
     setMissing(false);
     setLoadError(false);
 
-    getCase(caseId!)
-      .then(async (reviewCase) => {
-        const queueParams = new URLSearchParams(search);
-        if (!queueParams.has("scope") && !reviewCase.queue_eligible) {
-          queueParams.set("scope", "archived");
-        }
-        const [queueResult, activityResult] = await Promise.allSettled([
-          listCases(readCaseFilters(queueParams)),
-          listActivity(),
-        ]);
-        return { reviewCase, queueResult, activityResult, queueParams };
-      })
-      .then(({ reviewCase, queueResult, activityResult, queueParams }) => {
-        if (!active) return;
-        const queue =
-          queueResult.status === "fulfilled" ? queueResult.value : [reviewCase];
-        const activity =
-          activityResult.status === "fulfilled" ? activityResult.value : [];
-        const notes = activity.filter(
-          (event) => event.case_id === reviewCase.id && event.note,
-        );
-        setData({
-          reviewCase,
-          queue,
-          notes,
-          queueSearch: queueParams.toString(),
-          relatedError:
-            queueResult.status === "rejected" ||
-            activityResult.status === "rejected",
-        });
+    loadCaseData(caseId!, search)
+      .then((loaded) => {
+        if (active) setData(loaded);
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -153,6 +170,34 @@ export default function CasePage() {
       .finally(() => setDeciding(false));
   }
 
+  async function refreshEvidence(source?: RefreshSource) {
+    if (refreshing) return;
+    const target: RefreshTarget = source ?? "all";
+    setRefreshing(target);
+    setRefreshError(null);
+    try {
+      if (source) {
+        await refreshAuthorSource(reviewCase.target.author_slug, source);
+      } else {
+        await refreshAuthorEvidence(reviewCase.target.author_slug);
+      }
+      setData(await loadCaseData(reviewCase.id, search));
+      showToast(
+        source
+          ? `${refreshSourceNames[source]} evidence fetched.`
+          : "All evidence fetched.",
+      );
+    } catch {
+      setRefreshError(
+        source
+          ? `${refreshSourceNames[source]} evidence could not be fetched.`
+          : "Evidence could not be fetched.",
+      );
+    } finally {
+      setRefreshing(null);
+    }
+  }
+
   return (
     <section className={styles.page}>
       <Link
@@ -197,15 +242,25 @@ export default function CasePage() {
         </nav>
       </div>
 
+      {refreshError && (
+        <p className={styles.refreshError} role="alert">
+          {refreshError}
+        </p>
+      )}
+
       <DecisionBar
         status={reviewCase.status}
         notes={notes}
-        busy={deciding}
+        busy={deciding || refreshing !== null}
+        fetchingAll={refreshing === "all"}
         onDecide={decide}
+        onFetchAll={() => void refreshEvidence()}
       />
 
       <Matrix
         evidence={reviewCase.evidence}
+        refreshing={refreshing}
+        onRefreshSource={(source) => void refreshEvidence(source)}
         shares={Object.fromEntries(
           reviewCase.detail.candidate_ids.map((candidate) => [
             candidate.id,

@@ -16,10 +16,7 @@ from merge_review.source_records import (
 )
 from merge_review.sync_openalex import sync_openalex_authors
 from merge_review.sync_sources import (
-    absent_keys,
     snapshot_dois,
-    sync_crossref_records,
-    sync_datacite_records,
     sync_openalex_author_publications,
     sync_openalex_publication_records,
     sync_orcid_records,
@@ -60,11 +57,14 @@ class AuditProgressReporter:
             if audit is None:
                 return
             progress = dict(audit.source_progress or {})
-            progress[source] = {
+            source_progress: dict[str, object] = {
                 "completed": completed,
                 "total": total,
                 "by_status": {str(status): count for status, count in counts.items() if count},
             }
+            if completed == total:
+                source_progress["completed_at"] = datetime.now(UTC).isoformat()
+            progress[source] = source_progress
             audit.current_source = source
             audit.source_progress = progress
         self.last_write = now
@@ -159,27 +159,6 @@ def run_full_audit(audit_id: UUID, snapshot_id: UUID) -> None:
                 session,
                 http_session,
                 snapshot_id,
-                force=True,
-                progress=reporter,
-            )
-            reporter.start("crossref", len(dois))
-            sync_crossref_records(
-                session,
-                http_session,
-                snapshot_id,
-                dois,
-                settings.mailto,
-                force=True,
-                progress=reporter,
-            )
-
-            crossref_missing = absent_keys(session, snapshot_id, "crossref")
-            reporter.start("datacite", len(crossref_missing))
-            sync_datacite_records(
-                session,
-                http_session,
-                snapshot_id,
-                crossref_missing,
                 force=True,
                 progress=reporter,
             )

@@ -6,8 +6,6 @@ const sourceLabels: Record<string, string> = {
   openalex_author_publications: "OpenAlex author publications",
   openalex_publications: "OpenAlex publications",
   orcid: "ORCID",
-  crossref: "Crossref",
-  datacite: "DataCite",
   semantic_scholar: "Semantic Scholar",
   case_generation: "Case generation",
 };
