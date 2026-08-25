@@ -7,16 +7,9 @@ import type {
 } from "../../api/types";
 import Hint from "../../components/Hint";
 import { formatFetchedAt } from "../../lib/datetime";
+import { sourceLabel } from "../../lib/sources";
 import { countedNoun } from "./labels";
 import styles from "./Matrix.module.css";
-
-const sourceNames: Record<string, string> = {
-  semantic_scholar: "Semantic Scholar",
-  openalex: "OpenAlex",
-  orcid: "ORCID",
-  google_scholar: "Google Scholar",
-  pubmed: "PubMed",
-};
 
 const refreshableSources: RefreshSource[] = [
   "semantic_scholar",
@@ -71,10 +64,6 @@ const brokenFetches: SourceFetchStatus[] = [
   "error",
   "not_found",
 ];
-
-function sourceName(source: string) {
-  return sourceNames[source] ?? source.replace(/_/g, " ");
-}
 
 function fieldName(field: string) {
   return fieldNames[field] ?? field.replace(/_/g, " ");
@@ -205,14 +194,14 @@ export default function Matrix({
                 >
                   <span className={styles.sourceTitle}>
                     <span className={styles.sourceName}>
-                      {sourceName(source)}
+                      {sourceLabel(source)}
                     </span>
                     {refreshable && (
                       <button
                         type="button"
                         className={styles.refreshSource}
                         disabled={refreshing !== null || !applicable}
-                        aria-label={`fetch ${sourceName(source)} evidence`}
+                        aria-label={`fetch ${sourceLabel(source)} evidence`}
                         onClick={() => onRefreshSource(source)}
                       >
                         {refreshing === source ? "fetching" : "fetch"}
@@ -304,7 +293,7 @@ function Cell({
           </>
         ) : (
           <span className={styles.srOnly}>
-            {sourceName(source)} {fetchNotes[columnState]}, {fieldName(field)}{" "}
+            {sourceLabel(source)} {fetchNotes[columnState]}, {fieldName(field)}{" "}
             unknown
           </span>
         )}
@@ -316,7 +305,7 @@ function Cell({
     return (
       <div role="cell" className={styles.cell}>
         <span className={styles.srOnly}>
-          {sourceName(source)} holds no {fieldName(field)} field
+          {sourceLabel(source)} holds no {fieldName(field)} field
         </span>
       </div>
     );

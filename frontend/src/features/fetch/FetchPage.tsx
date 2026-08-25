@@ -1,15 +1,6 @@
 import type { FetchRun } from "../../api/types";
+import { FETCH_SOURCE_ORDER, sourceLabel } from "../../lib/sources";
 import styles from "./FetchPage.module.css";
-
-const sourceLabels: Record<string, string> = {
-  openalex_authors: "OpenAlex authors",
-  openalex_author_publications: "OpenAlex author publications",
-  openalex_publications: "OpenAlex publications",
-  orcid: "ORCID",
-  semantic_scholar: "Semantic Scholar",
-  case_generation: "Case generation",
-};
-const sourceOrder = Object.keys(sourceLabels);
 
 export default function FetchPage({
   fetch,
@@ -25,7 +16,8 @@ export default function FetchPage({
   onAbandon: () => void;
 }) {
   const progress = Object.entries(fetch.source_progress).sort(
-    ([left], [right]) => sourceOrder.indexOf(left) - sourceOrder.indexOf(right),
+    ([left], [right]) =>
+      FETCH_SOURCE_ORDER.indexOf(left) - FETCH_SOURCE_ORDER.indexOf(right),
   );
   const currentProgress = fetch.current_source
     ? fetch.source_progress[fetch.current_source]
@@ -68,7 +60,7 @@ export default function FetchPage({
             <div className={styles.overall}>
               <span>
                 {fetch.current_source
-                  ? (sourceLabels[fetch.current_source] ?? fetch.current_source)
+                  ? sourceLabel(fetch.current_source)
                   : fetch.status}
               </span>
               <span>
@@ -83,7 +75,7 @@ export default function FetchPage({
             <ol className={styles.sources}>
               {progress.map(([source, state]) => (
                 <li className={styles.source} key={source}>
-                  <span>{sourceLabels[source] ?? source}</span>
+                  <span>{sourceLabel(source)}</span>
                   <span>
                     {state.completed.toLocaleString()} /{" "}
                     {state.total.toLocaleString()}

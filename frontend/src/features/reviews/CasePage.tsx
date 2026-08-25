@@ -24,6 +24,7 @@ import type {
 import { readCaseFilters } from "./filters";
 import { useToast } from "../../components/Toast";
 import { actionLabels } from "../../lib/decisions";
+import { sourceLabel } from "../../lib/sources";
 import CaseMeta from "./CaseMeta";
 import DecisionBar from "./DecisionBar";
 import Identity from "./Identity";
@@ -39,12 +40,6 @@ interface CaseData {
 }
 
 type RefreshTarget = RefreshSource | "all";
-
-const refreshSourceNames: Record<RefreshSource, string> = {
-  openalex: "OpenAlex",
-  semantic_scholar: "Semantic Scholar",
-  orcid: "ORCID",
-};
 
 async function loadCaseData(caseId: string, search: string): Promise<CaseData> {
   const reviewCase = await getCase(caseId);
@@ -185,13 +180,13 @@ export default function CasePage() {
       setData(await loadCaseData(reviewCase.id, search));
       showToast(
         source
-          ? `${refreshSourceNames[source]} evidence fetched.`
+          ? `${sourceLabel(source)} evidence fetched.`
           : "All evidence fetched.",
       );
     } catch {
       setRefreshError(
         source
-          ? `${refreshSourceNames[source]} evidence could not be fetched.`
+          ? `${sourceLabel(source)} evidence could not be fetched.`
           : "Evidence could not be fetched.",
       );
     } finally {

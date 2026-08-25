@@ -1,4 +1,5 @@
 import type { ValidationCase } from "../../api/types";
+import { statusText } from "../../lib/decisions";
 import styles from "./CaseMeta.module.css";
 
 export default function CaseMeta({
@@ -13,7 +14,7 @@ export default function CaseMeta({
         label="score"
         value={Math.round(reviewCase.priority_score).toString()}
       />
-      <Meta label="status" value={reviewCase.status.replace(/_/g, " ")} />
+      <Meta label="status" value={statusText(reviewCase.status)} />
       {!reviewCase.queue_eligible && <Meta label="queue" value="archived" />}
       <Meta
         label="affected"

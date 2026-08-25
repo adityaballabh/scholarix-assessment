@@ -16,19 +16,8 @@ import {
 } from "../../lib/datetime";
 import { actionLabels } from "../../lib/decisions";
 import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
+import { sourceLabel } from "../../lib/sources";
 import styles from "./OverviewPage.module.css";
-
-const sourceNames: Record<string, string> = {
-  semantic_scholar: "Semantic Scholar",
-  openalex: "OpenAlex",
-  orcid: "ORCID",
-  google_scholar: "Google Scholar",
-  pubmed: "PubMed",
-};
-
-function sourceName(source: string) {
-  return sourceNames[source] ?? source.replace(/_/g, " ");
-}
 
 const sourceStateLabels: Record<SourceHealthState, string> = {
   available: "available",
@@ -198,7 +187,7 @@ export default function OverviewPage() {
                   {index + 1}
                 </td>
                 <th role="rowheader" scope="row" className={styles.sourceName}>
-                  {sourceName(source.source)}
+                  {sourceLabel(source.source)}
                 </th>
                 <td
                   role="cell"

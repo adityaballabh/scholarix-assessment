@@ -6,6 +6,7 @@ import type {
 } from "../../api/types";
 import { ApiError } from "../../api/client";
 import { formatFetchedAt } from "../../lib/datetime";
+import { statusText } from "../../lib/decisions";
 import styles from "./DecisionBar.module.css";
 
 interface Judgement {
@@ -176,8 +177,7 @@ export default function DecisionBar({
                     <span>{event.actor}</span>
                     {event.before !== event.after && (
                       <span>
-                        {event.before?.replace(/_/g, " ")} →{" "}
-                        {event.after?.replace(/_/g, " ")}
+                        {statusText(event.before)} → {statusText(event.after)}
                       </span>
                     )}
                     <span>{formatFetchedAt(event.created_at)}</span>
@@ -243,7 +243,7 @@ export default function DecisionBar({
       </dialog>
 
       <span aria-live="polite" className={styles.srOnly}>
-        Case is {status.replace(/_/g, " ")}
+        Case is {statusText(status)}
       </span>
     </div>
   );
