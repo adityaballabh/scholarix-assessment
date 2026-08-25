@@ -28,13 +28,6 @@ def authenticate_fetch(
     token: str | None = Depends(session_cookie),
     session: Session = Depends(get_session),
 ) -> User | None:
-    """Reads are open, and so is the first fetch.
-
-    Until one fetch has completed there is no queue to review and no reason for an account
-    to exist yet, so requiring one here would make the app impossible to start. The exemption
-    closes for good the moment a fetch completes. `last_completed_at` is the same condition
-    the frontend uses to show its "Initial fetch pending" screen.
-    """
     if request.method in READ_METHODS:
         return None
     reject_foreign_origin(request)

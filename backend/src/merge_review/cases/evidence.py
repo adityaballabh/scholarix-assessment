@@ -6,12 +6,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from merge_review.cases.naming import institutions_match, normalized_words
 from merge_review.models import Author, SourceRecord
-from merge_review.naming import institutions_match, normalized_words
 from merge_review.sources.common import FetchStatus
 
 if TYPE_CHECKING:
-    from merge_review.generate_cases import Candidate
+    from merge_review.cases.generate import Candidate
 
 
 def source_record(

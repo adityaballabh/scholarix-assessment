@@ -68,13 +68,6 @@ def authentication_error() -> HTTPException:
 
 
 def reject_foreign_origin(request: Request) -> None:
-    """Refuse a write carrying someone else's Origin.
-
-    Production cookies are SameSite=None so a split deployment works, which means the browser
-    also attaches them to cross-site requests. CORS does not help: it governs whether a
-    response can be read, not whether the request runs, so a plain cross-site form POST to any
-    of the bodyless write routes would otherwise execute as the signed-in reviewer.
-    """
     origin = request.headers.get("origin")
     if origin is not None and origin != get_settings().frontend_origin:
         raise HTTPException(403, detail="Cross-site request rejected")

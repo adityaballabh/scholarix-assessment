@@ -111,3 +111,35 @@ def test_queue_export_is_not_capped_by_the_list_page_size() -> None:
     assert len(default_page.json()) == 50
     assert exported.json()["case_count"] == 62
     assert len(exported.json()["cases"]) == 62
+
+
+def test_export_carries_the_decision_trail_for_each_case() -> None:
+    client = build_client()
+
+    decided = client.post(
+        "/api/cases/case-one/decisions",
+        json={"action": "confirm_one_author", "note": "same person", "expected_version": 1},
+    )
+    document = client.get("/api/export").json()
+    by_id = {case["id"]: case for case in document["cases"]}
+
+    assert decided.status_code == 200
+    # A bare status says a case was resolved without saying by whom, when, or why.
+    assert by_id["case-one"]["status"] == "one_author"
+    assert [event["action_type"] for event in by_id["case-one"]["history"]] == [
+        "confirm_one_author"
+    ]
+    assert by_id["case-one"]["history"][0]["note"] == "same person"
+    assert by_id["case-one"]["history"][0]["after"] == "one_author"
+    assert by_id["case-one"]["history"][0]["actor"]
+    assert by_id["case-two"]["history"] == []
+
+    single = client.get("/api/cases/case-one/export").json()
+    assert single["cases"][0]["history"] == by_id["case-one"]["history"]
+
+
+def test_export_history_is_one_query_regardless_of_case_count() -> None:
+    small = export_query_count(0)
+    large = export_query_count(20)
+
+    assert small[1] == large[1]

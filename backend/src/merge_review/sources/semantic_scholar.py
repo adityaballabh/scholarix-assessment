@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session as DatabaseSession
 
 from merge_review.sources.common import (
     FetchStatus,
-    SourceResult,
     ProgressCallback,
+    SourceResult,
     batches,
     completed_counts,
     completed_keys,
@@ -20,7 +20,6 @@ from merge_review.sources.common import (
 
 BATCH_SIZE = 500
 RATE_LIMIT_ATTEMPTS = 4
-# Linear, so the waits are 0s, 5s, 10s, 15s before giving up on a batch.
 RATE_LIMIT_BACKOFF_SECONDS = 5
 
 
@@ -53,7 +52,7 @@ def store_semantic_scholar_records(
 ) -> Counter[str]:
     counts: Counter[str] = Counter()
     for result in results:
-        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        record = store_source_result(session, snapshot_id, result, refetching=force)
         counts[record.fetch_status] += 1
     return counts
 
@@ -144,9 +143,6 @@ def fetch_semantic_scholar_records(
                 result = expand_result(batch_result, "publication", doi, url)
             results.append(result)
             counts[result.fetch_status] += 1
-
-        # A batch is the unit of work: 500 records land at once, so reporting
-        # per DOI would only ever show the first of each burst.
         if progress:
             progress("semantic_scholar", len(results), total, counts)
     return results

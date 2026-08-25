@@ -16,9 +16,6 @@ from merge_review.security import (
     verify_password,
 )
 
-# These routes are public but not cross-site: logout takes no body, so without this a foreign
-# page could sign the reviewer out. Register and login carry JSON, which a simple form post
-# cannot send, but the guard costs nothing there.
 router = APIRouter(prefix="/auth", dependencies=[Depends(reject_foreign_origin)])
 
 

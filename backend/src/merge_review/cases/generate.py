@@ -8,8 +8,9 @@ from uuid import UUID, uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from merge_review.cases.evidence import evidence_rows
+from merge_review.cases.naming import author_key
 from merge_review.database import SessionFactory, create_schema
-from merge_review.evidence import evidence_rows
 from merge_review.models import (
     Author,
     CaseEvidence,
@@ -21,7 +22,6 @@ from merge_review.models import (
     SourceRecord,
     ValidationCase,
 )
-from merge_review.naming import author_key
 from merge_review.sources.common import FetchStatus
 
 CASE_TYPE = "author_identity"

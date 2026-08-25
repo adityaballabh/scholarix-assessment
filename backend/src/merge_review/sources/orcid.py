@@ -54,7 +54,7 @@ def sync_orcid_records(
         )
         if result.fetch_status == FetchStatus.SUCCESS:
             result = replace(result, source_record_id=orcid_id)
-        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        record = store_source_result(session, snapshot_id, result, refetching=force)
         counts[record.fetch_status] += 1
         completed += 1
         if progress:

@@ -6,10 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from merge_review.api.common import ensure_fetch_idle, latest_snapshot, lock_snapshot_cases
+from merge_review.cases.rebuild import rebuild_queue
 from merge_review.database import get_session
 from merge_review.import_dataset import normalize_doi
 from merge_review.models import Author, PublicationRecord
-from merge_review.rebuild_queue import rebuild_queue
 from merge_review.schemas import RefreshResponse, RefreshSource
 from merge_review.sources.common import uncached_http_session
 from merge_review.sources.refresh import (

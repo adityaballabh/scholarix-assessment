@@ -26,13 +26,13 @@ from merge_review.sources.common import (
 
 
 def fetch_openalex_author(
-    session: Session,
+    http_session: Session,
     author_id: str,
     mailto: str | None = None,
 ) -> SourceResult:
     params = {"mailto": mailto} if mailto else None
     result = request_json(
-        session,
+        http_session,
         source="openalex",
         entity_type="author",
         entity_key=author_id,
@@ -76,7 +76,7 @@ def sync_openalex_authors(
             continue
 
         result = fetch_openalex_author(http_session, author_id, mailto)
-        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        record = store_source_result(session, snapshot_id, result, refetching=force)
         counts[record.fetch_status] += 1
         completed += 1
         if progress:
@@ -182,7 +182,7 @@ def sync_openalex_publication_records(
                     doi,
                     f"https://doi.org/{doi}",
                 )
-            record = store_source_result(session, snapshot_id, result, preserve_success=force)
+            record = store_source_result(session, snapshot_id, result, refetching=force)
             counts[record.fetch_status] += 1
             completed += 1
             if progress:
@@ -276,7 +276,7 @@ def sync_openalex_author_publications(
         if author_id in done:
             continue
         result = fetch_openalex_author_publications(http_session, author_id, mailto)
-        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        record = store_source_result(session, snapshot_id, result, refetching=force)
         counts[record.fetch_status] += 1
         completed += 1
         if progress:

@@ -1,4 +1,4 @@
-from merge_review.naming import institutions_match, normalized_institution
+from merge_review.cases.naming import institutions_match, normalized_institution
 
 
 def test_institution_normalization_ignores_at() -> None:

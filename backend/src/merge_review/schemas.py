@@ -103,8 +103,6 @@ class AuthorIdentityDetail(BaseModel):
 
 
 class ReviewTarget(BaseModel):
-    """The dataset's own claim about the author, which the evidence is checked against."""
-
     author_slug: str
     author_name: str
     author_affiliation: str | None
@@ -239,6 +237,10 @@ class ReviewOverview(BaseModel):
     sources: list[SourceStatus]
 
 
+class ExportedCase(ValidationCaseResponse):
+    history: list[ActivityEventResponse]
+
+
 class ExportSnapshot(BaseModel):
     id: UUID
     dataset_sha256: str
@@ -252,11 +254,9 @@ class ExportFilters(BaseModel):
 
 
 class EvidenceExport(BaseModel):
-    """A case export carries its own scope so a file read later explains itself."""
-
     exported_at: datetime
     dataset_snapshot: ExportSnapshot
     queue_settings: QueueSettingsResponse
     filters: ExportFilters | None
     case_count: int
-    cases: list[ValidationCaseResponse]
+    cases: list[ExportedCase]

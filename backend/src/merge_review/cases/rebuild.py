@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from merge_review.generate_cases import generate_identity_cases
+from merge_review.cases.generate import generate_identity_cases
 from merge_review.models import DatasetSnapshot, ReviewSettings, ValidationCase
 
 

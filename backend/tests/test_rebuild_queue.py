@@ -1,7 +1,7 @@
 from uuid import uuid4
 
+from merge_review.cases.rebuild import rebuild_queue
 from merge_review.models import Base, DatasetSnapshot, ReviewSettings
-from merge_review.rebuild_queue import rebuild_queue
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 

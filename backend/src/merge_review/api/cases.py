@@ -4,11 +4,13 @@ from typing import get_args
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, desc, select
+from sqlalchemy import case as sql_case
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from merge_review.api.activity import activity_response
 from merge_review.api.common import ensure_fetch_idle, latest_snapshot, utc_datetime
+from merge_review.cases.naming import normalized_words
 from merge_review.database import get_session
 from merge_review.models import (
     ActivityEvent,
@@ -22,7 +24,6 @@ from merge_review.models import (
     User,
     ValidationCase,
 )
-from merge_review.naming import normalized_words
 from merge_review.schemas import (
     ActivityEventResponse,
     AuthorIdentityDetail,
@@ -217,13 +218,6 @@ def filtered_case_rows(
     limit: int | None,
     offset: int,
 ) -> list[tuple[ValidationCase, Author]]:
-    """The queue's definition of which cases the current filters select.
-
-    Shared with export so the file and the screen cannot drift apart. Selection only:
-    callers own their own fetch-idle check and response shape. A `limit` of None takes the
-    whole filtered set, which is what export wants: a page boundary is a screen concern, and
-    silently truncating a file is worse than a large one.
-    """
     snapshot = latest_snapshot(session)
     if snapshot is None:
         return []
@@ -237,7 +231,7 @@ def filtered_case_rows(
             ValidationCase.queue_eligible == (scope == "active"),
         )
         .order_by(
-            case((ValidationCase.status == "deferred", 1), else_=0),
+            sql_case((ValidationCase.status == "deferred", 1), else_=0),
             desc(ValidationCase.priority_score),
             desc(ValidationCase.affected_count),
             ValidationCase.id,

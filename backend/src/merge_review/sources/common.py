@@ -112,7 +112,7 @@ def uncached_http_session() -> Iterator[CachedSession]:
 
 
 def request_json(
-    session: Session,
+    http_session: Session,
     source: str,
     entity_type: str,
     entity_key: str,
@@ -122,7 +122,7 @@ def request_json(
     **kwargs: Any,
 ) -> SourceResult:
     try:
-        response = session.request(
+        response = http_session.request(
             method,
             request_url,
             timeout=REQUEST_TIMEOUT_SECONDS,
@@ -227,7 +227,7 @@ def store_source_result(
     session: DatabaseSession,
     snapshot_id: UUID,
     result: SourceResult,
-    preserve_success: bool = False,
+    refetching: bool = False,
 ) -> SourceRecord:
     records = source_record_map(session, snapshot_id)
     key = result.source, result.entity_type, result.entity_key
@@ -242,8 +242,10 @@ def store_source_result(
         session.add(record)
         records[key] = record
 
+    # A normal sync skips keys that already completed, so this only fires on a refetch:
+    # a rate-limited retry must not replace evidence already in hand.
     if (
-        preserve_success
+        refetching
         and record.fetch_status == FetchStatus.SUCCESS
         and result.fetch_status != FetchStatus.SUCCESS
     ):

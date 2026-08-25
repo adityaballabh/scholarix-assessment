@@ -3,8 +3,8 @@ from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
-from merge_review.evidence import orcid_evidence
-from merge_review.generate_cases import (
+from merge_review.cases.evidence import orcid_evidence
+from merge_review.cases.generate import (
     Candidate,
     IdentityCaseData,
     PriorityMaximums,

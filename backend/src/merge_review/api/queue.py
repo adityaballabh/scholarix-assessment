@@ -3,10 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from merge_review.api.common import ensure_fetch_idle, latest_snapshot, utc_datetime
+from merge_review.cases.generate import default_review_settings, review_settings
+from merge_review.cases.rebuild import rebuild_queue
 from merge_review.database import get_session
-from merge_review.generate_cases import default_review_settings, review_settings
 from merge_review.models import DatasetSnapshot, ReviewSettings
-from merge_review.rebuild_queue import rebuild_queue
 from merge_review.schemas import QueueRebuildResponse, QueueSettingsResponse, QueueSettingsUpdate
 
 router = APIRouter()

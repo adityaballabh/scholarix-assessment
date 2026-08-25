@@ -12,7 +12,5 @@ protected_router.include_router(exports.router)
 protected_router.include_router(activity.router)
 protected_router.include_router(overview.router)
 router.include_router(auth.router)
-# Fetch routes carry their own guard: it has to exempt the bootstrap fetch, which the
-# blanket by-method rule cannot express. See api/fetches.authenticate_fetch.
 router.include_router(fetches.router)
 router.include_router(protected_router)
