@@ -190,8 +190,6 @@ export default function ActivityPage() {
     );
   }
 
-  if (!events) return <p className={styles.pageState}>Loading activity…</p>;
-
   return (
     <section className={styles.page}>
       <div className={styles.filters}>
@@ -252,9 +250,7 @@ export default function ActivityPage() {
         )}
       </div>
 
-      {runFilterLoading ? (
-        <p className={styles.pageState}>Loading the last queue update time…</p>
-      ) : runFilterUnavailable ? (
+      {!events || runFilterLoading ? null : runFilterUnavailable ? (
         <p className={styles.pageState} role="alert">
           The last queue update time could not be loaded.
         </p>
@@ -319,7 +315,7 @@ export default function ActivityPage() {
                 <span role="cell" className={styles.position}>
                   {index + 1}
                 </span>
-                <span role="cell" className={styles.author}>
+                <span role="cell" className={styles.author} title="">
                   {event.target_name}
                 </span>
                 <span role="cell" className={styles.case}>
@@ -394,6 +390,7 @@ function Note({ text, revealed }: { text: string; revealed: boolean }) {
         disabled={!interactive}
         aria-expanded={open}
         className={`${styles.note} ${open ? styles.noteOpen : ""}`}
+        title=""
         onClick={() => setOpen((current) => !current)}
       >
         {text}

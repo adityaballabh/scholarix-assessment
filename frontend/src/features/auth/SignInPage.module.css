@@ -1,0 +1,11 @@
+.page {
+  width: min(440px, 100%);
+  padding-top: 24px;
+}
+
+
+.signedIn {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: var(--text-interface);
+}

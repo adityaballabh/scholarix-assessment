@@ -1,5 +1,6 @@
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -11,8 +12,7 @@ from merge_review.models import Author, FetchRun
 from merge_review.rebuild_queue import rebuild_queue
 from merge_review.sources.common import (
     FetchStatus,
-    create_http_session,
-    uncached_http_session,
+    http_session_context,
 )
 from merge_review.sources.openalex import (
     sync_openalex_author_publications,
@@ -20,14 +20,20 @@ from merge_review.sources.openalex import (
     sync_openalex_publication_records,
 )
 from merge_review.sources.orcid import sync_orcid_records
-from merge_review.sources.semantic_scholar import sync_semantic_scholar_records
+from merge_review.sources.semantic_scholar import (
+    fetch_semantic_scholar_records,
+    store_semantic_scholar_records,
+)
 from merge_review.sources.sync import snapshot_dois
 
 
 class FetchProgressReporter:
+    """Safe to call from more than one thread: writes take the row lock, and the
+    throttle is per source so a busy stage cannot suppress a quiet one."""
+
     def __init__(self, fetch_id: UUID) -> None:
         self.fetch_id = fetch_id
-        self.last_write = 0.0
+        self.last_write: dict[str, float] = {}
 
     def start(self, source: str, total: int) -> None:
         self.update(source, 0, total, Counter(), force=True)
@@ -50,10 +56,12 @@ class FetchProgressReporter:
         force: bool,
     ) -> None:
         now = time.monotonic()
-        if not force and now - self.last_write < 0.5:
+        if not force and now - self.last_write.get(source, 0.0) < 0.5:
             return
         with SessionFactory.begin() as session:
-            fetch = session.get(FetchRun, self.fetch_id)
+            fetch = session.scalar(
+                select(FetchRun).where(FetchRun.id == self.fetch_id).with_for_update()
+            )
             if fetch is None:
                 return
             progress = dict(fetch.source_progress or {})
@@ -67,7 +75,7 @@ class FetchProgressReporter:
             progress[source] = source_progress
             fetch.current_source = source
             fetch.source_progress = progress
-        self.last_write = now
+        self.last_write[source] = now
 
 
 def update_fetch(
@@ -107,9 +115,7 @@ def run_fetch(fetch_id: UUID, snapshot_id: UUID) -> None:
     settings = get_settings()
     try:
         update_fetch(fetch_id, "running")
-        http_context = (
-            create_http_session() if settings.fetch_use_cache else uncached_http_session()
-        )
+        http_context = http_session_context(settings.fetch_use_cache)
         with SessionFactory.begin() as session, http_context as http_session:
             author_count = (
                 session.scalar(
@@ -128,50 +134,70 @@ def run_fetch(fetch_id: UUID, snapshot_id: UUID) -> None:
             )
             dois = snapshot_dois(session, snapshot_id)
 
-            reporter.start("openalex_authors", author_count)
-            sync_openalex_authors(
-                session,
-                http_session,
-                snapshot_id,
-                settings.mailto,
-                force=True,
-                progress=reporter,
-            )
-            reporter.start("openalex_author_publications", author_count)
-            sync_openalex_author_publications(
-                session,
-                http_session,
-                snapshot_id,
-                settings.mailto,
-                force=True,
-                progress=reporter,
-            )
-            reporter.start("openalex_publications", len(dois))
-            sync_openalex_publication_records(
-                session,
-                http_session,
-                snapshot_id,
-                dois,
-                settings.mailto,
-                force=True,
-                progress=reporter,
-            )
-            reporter.start("orcid", orcid_count)
-            sync_orcid_records(
-                session,
-                http_session,
-                snapshot_id,
-                force=True,
-                progress=reporter,
-            )
+            # Semantic Scholar needs only the DOI list and is the longest stage by
+            # far, so its network work runs alongside the others. It touches no
+            # session; its rows are persisted below, inside this transaction.
+            def fetch_semantic_scholar() -> list:
+                with http_session_context(settings.fetch_use_cache) as worker_http:
+                    return fetch_semantic_scholar_records(worker_http, dois, reporter)
+
             reporter.start("semantic_scholar", len(dois))
-            sync_semantic_scholar_records(
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                semantic_scholar = pool.submit(fetch_semantic_scholar)
+
+                reporter.start("openalex_authors", author_count)
+                sync_openalex_authors(
+                    session,
+                    http_session,
+                    snapshot_id,
+                    settings.mailto,
+                    force=True,
+                    progress=reporter,
+                )
+                reporter.start("openalex_author_publications", author_count)
+                sync_openalex_author_publications(
+                    session,
+                    http_session,
+                    snapshot_id,
+                    settings.mailto,
+                    force=True,
+                    progress=reporter,
+                )
+                reporter.start("openalex_publications", len(dois))
+                sync_openalex_publication_records(
+                    session,
+                    http_session,
+                    snapshot_id,
+                    dois,
+                    settings.mailto,
+                    force=True,
+                    progress=reporter,
+                )
+                reporter.start("orcid", orcid_count)
+                sync_orcid_records(
+                    session,
+                    http_session,
+                    snapshot_id,
+                    force=True,
+                    progress=reporter,
+                )
+                # Raises here if the worker failed, so the whole fetch rolls back.
+                semantic_scholar_results = semantic_scholar.result()
+
+            # Report what was stored, not what the network returned: a rate-limited
+            # response leaves an earlier successful record in place, so the fetch
+            # counts overstate the damage.
+            stored = store_semantic_scholar_records(
                 session,
-                http_session,
                 snapshot_id,
-                dois,
+                semantic_scholar_results,
                 force=True,
-                progress=reporter,
+            )
+            reporter(
+                "semantic_scholar",
+                len(semantic_scholar_results),
+                len(semantic_scholar_results),
+                stored,
             )
 
             reporter.start("case_generation", author_count)

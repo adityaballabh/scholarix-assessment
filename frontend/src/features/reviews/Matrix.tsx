@@ -188,11 +188,11 @@ export default function Matrix({
                       </button>
                     )}
                   </span>
-                  <span className={styles.provenance}>
+                  <span className={styles.provenance} title="">
                     {sample ? recordLabel(sample, shares) : "—"}
                   </span>
                   {sample?.fetch_status !== "not_applicable" && (
-                    <span className={styles.provenance}>
+                    <span className={styles.provenance} title="">
                       {fetchedLabel(sample?.fetched_at ?? null)}
                     </span>
                   )}

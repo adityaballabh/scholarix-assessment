@@ -160,6 +160,12 @@
   font: var(--text-micro);
 }
 
+.submitError {
+  margin-right: auto;
+  color: var(--alert);
+  font: var(--text-micro);
+}
+
 .srOnly {
   position: absolute;
   width: 1px;

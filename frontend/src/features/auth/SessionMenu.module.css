@@ -1,0 +1,60 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  padding: 0;
+  color: var(--ink-muted);
+  background: transparent;
+  border: var(--hairline) solid transparent;
+  border-radius: 0;
+  font: var(--text-micro);
+  cursor: pointer;
+}
+
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Anchored to the right so the panel grows inward from the header edge. */
+.menu {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: -9px;
+  z-index: 11;
+  min-width: max-content;
+  padding: 3px 0;
+  background: var(--surface);
+  border: var(--hairline) solid var(--rule-strong);
+}
+
+.item {
+  display: block;
+  width: 100%;
+  padding: 5px 12px;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: var(--hairline) solid transparent;
+  border-radius: 0;
+  font: var(--text-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover {
+  color: var(--ink);
+}
+
+.item:focus-visible {
+  outline: none;
+  color: var(--accent);
+  border-color: var(--accent);
+}

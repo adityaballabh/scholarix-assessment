@@ -4,6 +4,7 @@ import type {
   DecisionAction,
   ReviewStatus,
 } from "../../api/types";
+import { ApiError } from "../../api/client";
 import { formatFetchedAt } from "../../lib/datetime";
 import styles from "./DecisionBar.module.css";
 
@@ -65,6 +66,7 @@ export default function DecisionBar({
 }) {
   const [pending, setPending] = useState<Judgement | null>(null);
   const [viewingNotes, setViewingNotes] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const available = judgements.filter(
     (judgement) => judgement.status !== status,
   );
@@ -92,14 +94,22 @@ export default function DecisionBar({
     if (busy) return;
     setPending(null);
     setViewingNotes(false);
+    setFailure(null);
     triggerRef.current?.focus();
   }
 
   function confirm() {
     if (!pending || busy) return;
+    setFailure(null);
     void onDecide(pending.action, note)
       .then(close)
-      .catch(() => {});
+      .catch((cause) => {
+        setFailure(
+          cause instanceof ApiError && cause.status === 401
+            ? "Sign in to record this decision."
+            : "The decision was not recorded. Reload the case and try again.",
+        );
+      });
   }
 
   return (
@@ -192,8 +202,8 @@ export default function DecisionBar({
               }}
             />
             <div className={styles.dialogActions}>
-              <span className={styles.submitHint}>
-                {blocked ? "" : "enter to submit"}
+              <span className={failure ? styles.submitError : styles.submitHint}>
+                {failure ?? (blocked ? "" : "enter to submit")}
               </span>
               <button
                 type="button"

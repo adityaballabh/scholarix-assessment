@@ -20,6 +20,7 @@ import styles from "./QueuePage.module.css";
 type SortColumn = "score" | "share" | "candidates" | "publications" | "status";
 
 const STALE_DELAY_MS = 500;
+const SEARCH_DEBOUNCE_MS = 200;
 
 export default function QueuePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -99,7 +100,7 @@ export default function QueuePage() {
   useEffect(() => {
     if (draftQuery === query) return;
 
-    const timer = setTimeout(() => updateFilter("query", draftQuery), 200);
+    const timer = setTimeout(() => updateFilter("query", draftQuery), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [draftQuery]);
 
@@ -249,9 +250,7 @@ export default function QueuePage() {
         <p className={styles.pageState} role="alert">
           The review queue could not be loaded.
         </p>
-      ) : cases === null ? (
-        <p className={styles.pageState}>Loading reviews…</p>
-      ) : cases.length === 0 ? (
+      ) : cases === null ? null : cases.length === 0 ? (
         <p className={styles.pageState}>
           {anyCasesExist
             ? "No reviews match the current filters"
@@ -393,7 +392,7 @@ function ReviewRow({
       <td role="cell" className={styles.position}>
         {position}
       </td>
-      <th role="rowheader" scope="row" className={styles.author}>
+      <th role="rowheader" scope="row" className={styles.author} title="">
         <Link
           to={{ pathname: `/reviews/${reviewCase.id}`, search }}
           className={styles.reviewLink}

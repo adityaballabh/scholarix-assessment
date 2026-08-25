@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session as DatabaseSession
 
 from merge_review.sources.common import (
     FetchStatus,
+    SourceResult,
     ProgressCallback,
     batches,
     completed_counts,
@@ -16,6 +17,11 @@ from merge_review.sources.common import (
     request_json,
     store_source_result,
 )
+
+BATCH_SIZE = 500
+RATE_LIMIT_ATTEMPTS = 4
+# Linear, so the waits are 0s, 5s, 10s, 15s before giving up on a batch.
+RATE_LIMIT_BACKOFF_SECONDS = 5
 
 
 def sync_semantic_scholar_records(
@@ -30,17 +36,44 @@ def sync_semantic_scholar_records(
         set() if force else completed_keys(session, snapshot_id, "semantic_scholar", "publication")
     )
     pending = [doi for doi in dois if doi not in done]
-    counts = (
+    prior = (
         Counter()
         if force
         else completed_counts(session, snapshot_id, "semantic_scholar", "publication")
     )
+    results = fetch_semantic_scholar_records(http_session, pending, progress)
+    return prior + store_semantic_scholar_records(session, snapshot_id, results, force=force)
 
-    total = len(pending)
-    completed = 0
-    for batch in batches(pending, 500):
-        for attempt in range(4):
-            time.sleep(5 * attempt)
+
+def store_semantic_scholar_records(
+    session: DatabaseSession,
+    snapshot_id: UUID,
+    results: list[SourceResult],
+    force: bool = False,
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for result in results:
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
+        counts[record.fetch_status] += 1
+    return counts
+
+
+def fetch_semantic_scholar_records(
+    http_session: Session,
+    dois: list[str],
+    progress: ProgressCallback | None = None,
+) -> list[SourceResult]:
+    """Network only, so this can run off the main thread while other sources sync.
+
+    Persisting is left to store_semantic_scholar_records, which keeps every write
+    on one session inside the caller's transaction.
+    """
+    results: list[SourceResult] = []
+    counts: Counter[str] = Counter()
+    total = len(dois)
+    for batch in batches(dois, BATCH_SIZE):
+        for attempt in range(RATE_LIMIT_ATTEMPTS):
+            time.sleep(RATE_LIMIT_BACKOFF_SECONDS * attempt)
             batch_result = request_json(
                 http_session,
                 source="semantic_scholar",
@@ -109,9 +142,11 @@ def sync_semantic_scholar_records(
                 )
             else:
                 result = expand_result(batch_result, "publication", doi, url)
-            record = store_source_result(session, snapshot_id, result, preserve_success=force)
-            counts[record.fetch_status] += 1
-            completed += 1
-            if progress:
-                progress("semantic_scholar", completed, total, counts)
-    return counts
+            results.append(result)
+            counts[result.fetch_status] += 1
+
+        # A batch is the unit of work: 500 records land at once, so reporting
+        # per DOI would only ever show the first of each burst.
+        if progress:
+            progress("semantic_scholar", len(results), total, counts)
+    return results

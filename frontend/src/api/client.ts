@@ -8,7 +8,10 @@ import type {
   DecisionRequest,
   RefreshResult,
   RefreshSource,
+  Credentials,
+  Registration,
   ReviewOverview,
+  User,
   ValidationCase,
 } from "./types";
 
@@ -25,11 +28,31 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Reads are public and writes are not, so a 401 means the reviewer needs to sign
+ * in before this exact call can proceed. The handler resolves true once they have.
+ */
+let onUnauthorized: (() => Promise<boolean>) | null = null;
+
+export function setUnauthorizedHandler(
+  handler: (() => Promise<boolean>) | null,
+): void {
+  onUnauthorized = handler;
+}
+
+async function send(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_BASE_URL}${path}`, { ...init, credentials: "include" });
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: "include",
-  });
+  let response = await send(path, init);
+  if (
+    response.status === 401 &&
+    onUnauthorized &&
+    !path.startsWith("/api/auth")
+  ) {
+    if (await onUnauthorized()) response = await send(path, init);
+  }
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -132,4 +155,28 @@ export function refreshAuthorSource(
     `/api/refresh/authors/${encodeURIComponent(authorSlug)}/sources/${source}`,
     { method: "POST" },
   );
+}
+
+export function getCurrentUser(): Promise<User> {
+  return requestJson("/api/auth/me");
+}
+
+export function signIn(credentials: Credentials): Promise<User> {
+  return requestJson("/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(credentials),
+  });
+}
+
+export function createAccount(registration: Registration): Promise<User> {
+  return requestJson("/api/auth/register", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(registration),
+  });
+}
+
+export async function signOut(): Promise<void> {
+  await send("/api/auth/logout", { method: "POST" });
 }

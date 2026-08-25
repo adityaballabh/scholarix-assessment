@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getOverview, listActivity, listCases } from "../../api/client";
 import type {
@@ -76,28 +76,34 @@ export default function OverviewPage() {
     );
   }
 
-  if (!data) return <p className={styles.pageState}>Loading review data…</p>;
-
-  const { overview, cases, activity } = data;
+  // The page keeps its structure while the three requests are outstanding, so
+  // section rules and table heads hold their place and only values swap in.
+  const loading = data === null;
+  const pending = "\u2014";
+  const cases = data?.cases ?? [];
+  const activity = data?.activity ?? [];
+  const sources = data?.overview.sources ?? [];
 
   return (
     <div className={styles.sections}>
       <SectionRule label="Review Queue" />
       <div className={styles.summaryStrip}>
         <Stat
-          value={overview.total_authors.toLocaleString()}
+          value={loading ? pending : data.overview.total_authors.toLocaleString()}
           label="profiles assessed"
         />
         <Stat
-          value={overview.flagged_authors.toLocaleString()}
+          value={loading ? pending : data.overview.flagged_authors.toLocaleString()}
           label="flagged"
         />
         <Stat
-          value={overview.affected_publications.toLocaleString()}
-          label={`of ${overview.total_publications.toLocaleString()} publications affected`}
+          value={
+            loading ? pending : data.overview.affected_publications.toLocaleString()
+          }
+          label={`of ${loading ? pending : data.overview.total_publications.toLocaleString()} publications affected`}
         />
         <Stat
-          value={<CompactAge iso={overview.queue_updated_at} />}
+          value={<CompactAge iso={data?.overview.queue_updated_at ?? null} />}
           label={
             <>
               since last queue update
@@ -180,7 +186,7 @@ export default function OverviewPage() {
             </tr>
           </thead>
           <tbody role="rowgroup">
-            {overview.sources.map((source, index) => (
+            {sources.map((source, index) => (
               <tr role="row" className={styles.sourceRow} key={source.source}>
                 <td role="cell" className={styles.position}>
                   {index + 1}
@@ -194,12 +200,8 @@ export default function OverviewPage() {
                 >
                   {sourceStateLabels[source.state]}
                 </td>
-                <td
-                  role="cell"
-                  className={styles.sourceNote}
-                  title={source.note}
-                >
-                  {source.note}
+                <td role="cell" className={styles.sourceNoteCell}>
+                  <SourceNote note={source.note} />
                 </td>
                 <td role="cell" className={styles.sourceFetched}>
                   <time dateTime={source.fetched_at ?? undefined}>
@@ -220,7 +222,7 @@ export default function OverviewPage() {
           </Link>
         }
       />
-      {activity.length === 0 ? (
+      {loading ? null : activity.length === 0 ? (
         <p className={styles.emptyState}>
           No{" "}
           <Link to="/activity" className={styles.emptyStateLink}>
@@ -286,6 +288,34 @@ export default function OverviewPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function SourceNote({ note }: { note: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [clipped, setClipped] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const measure = () => setClipped(element.scrollWidth > element.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [note]);
+
+  return (
+    <span
+      className={styles.sourceNoteWrap}
+      data-hint={clipped ? note : undefined}
+    >
+      {/* Safari shows its own tooltip over any ellipsis-truncated text, with no
+          title attribute involved. An empty title is what suppresses it. */}
+      <span ref={ref} className={styles.sourceNote} title="">
+        {note}
+      </span>
+    </span>
   );
 }
 

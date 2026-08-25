@@ -96,7 +96,9 @@ export default function ClustersPage() {
                   {candidate.share.toFixed(1)}%
                 </span>
                 <span className={styles.span}>{span ?? "—"}</span>
-                <span className={styles.title}>{leadTitle(candidate)}</span>
+                <span className={styles.title} title="">
+                  {leadTitle(candidate)}
+                </span>
               </button>
 
               {expanded && (

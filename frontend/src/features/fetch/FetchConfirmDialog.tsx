@@ -45,13 +45,13 @@ export default function FetchConfirmDialog({
         <p className={styles.message}>
           {initialFetch ? (
             <>
-              Fetching data takes around 10 minutes. Are you sure you want to
+              Fetching data takes around 7 minutes. Are you sure you want to
               continue?
             </>
           ) : (
             <>
               Last fetched {formatRelativeTime(lastCompletedAt)}. Fetching data
-              takes around 10 minutes.
+              takes around 7 minutes.
             </>
           )}
         </p>

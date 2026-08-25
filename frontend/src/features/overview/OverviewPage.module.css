@@ -40,7 +40,6 @@
 .activityList {
   display: flex;
   flex-direction: column;
-  overflow-x: auto;
 }
 
 .table {
@@ -208,7 +207,35 @@
   font: var(--text-micro);
 }
 
+.sourceNoteCell {
+  min-width: 0;
+}
+
+.sourceNoteWrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+/* Same reveal the Activity note column uses, in place of a native title. */
+.sourceNoteWrap[data-hint]:hover::after {
+  content: attr(data-hint);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  width: max-content;
+  max-width: 320px;
+  padding: 6px 9px;
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: var(--hairline) solid var(--rule-strong);
+  font: var(--text-micro);
+  white-space: normal;
+}
+
 .sourceNote {
+  display: block;
   overflow: hidden;
   color: var(--ink-secondary);
   font: var(--text-micro);
@@ -285,6 +312,13 @@
 @media (max-width: 680px) {
   .sections {
     --rail-inset: 0;
+  }
+
+  /* Scoped to narrow widths: overflow-x forces overflow-y to auto, and that
+     clipping context swallows the cell hints on desktop. */
+  .sourceList,
+  .activityList {
+    overflow-x: auto;
   }
 
   .summaryStrip {

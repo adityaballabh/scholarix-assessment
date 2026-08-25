@@ -65,7 +65,7 @@
 .actions button:disabled {
   color: var(--ink-faint);
   border-color: var(--rule);
-  cursor: wait;
+  cursor: default;
 }
 
 .actions .primary:not(:disabled) {

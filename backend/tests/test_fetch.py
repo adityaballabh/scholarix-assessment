@@ -48,8 +48,8 @@ def test_failed_fetch_rolls_back_source_transaction(tmp_path, monkeypatch) -> No
     monkeypatch.setattr(fetch_module, "SessionFactory", factory)
     monkeypatch.setattr(
         fetch_module,
-        "uncached_http_session",
-        lambda: nullcontext(Mock()),
+        "http_session_context",
+        lambda _use_cache: nullcontext(Mock()),
     )
     monkeypatch.setattr(fetch_module, "sync_openalex_authors", fail_after_change)
 
@@ -102,8 +102,8 @@ def test_fetch_completes_and_records_progress(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(fetch_module, "SessionFactory", factory)
     monkeypatch.setattr(
         fetch_module,
-        "uncached_http_session",
-        lambda: nullcontext(Mock()),
+        "http_session_context",
+        lambda _use_cache: nullcontext(Mock()),
     )
     monkeypatch.setattr(fetch_module, "sync_openalex_authors", complete_stage)
     monkeypatch.setattr(

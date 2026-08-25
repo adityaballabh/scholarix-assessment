@@ -1,6 +1,6 @@
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -94,6 +94,11 @@ def create_http_session() -> CachedSession:
     for host, rate in limits.items():
         session.mount(host, LimiterAdapter(per_second=rate))
     return session
+
+
+def http_session_context(use_cache: bool) -> AbstractContextManager[CachedSession]:
+    """One seam for choosing a session, so callers (and tests) stub a single name."""
+    return create_http_session() if use_cache else uncached_http_session()
 
 
 @contextmanager

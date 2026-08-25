@@ -8,6 +8,9 @@ import {
   useLocation,
 } from "react-router-dom";
 import ActivityPage from "./features/activity/ActivityPage";
+import { useSession } from "./features/auth/AuthProvider";
+import { SessionMenu } from "./features/auth/SessionMenu";
+import SignInPage from "./features/auth/SignInPage";
 import FetchConfirmDialog from "./features/fetch/FetchConfirmDialog";
 import FetchPage from "./features/fetch/FetchPage";
 import FetchSetupPage from "./features/fetch/FetchSetupPage";
@@ -30,9 +33,12 @@ const navigationItems = [
 
 const FILTERED_SECTIONS = ["reviews", "activity"];
 const FORCE_INITIAL_FETCH = import.meta.env.VITE_FORCE_INITIAL_FETCH === "true";
+const FETCH_POLL_MS = 2000;
 
 export default function App() {
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  const { user, ready, signOut } = useSession();
   const [fetch, setFetch] = useState<FetchRun | null>();
   const [fetchError, setFetchError] = useState(false);
   const [fetchActionPending, setFetchActionPending] = useState(false);
@@ -52,12 +58,17 @@ export default function App() {
   }, [location]);
 
   useEffect(() => {
+    // .main is the scroll container, so router scroll restoration does not reach it.
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
+
+  useEffect(() => {
     let active = true;
     let timer: number | undefined;
 
     function loadFetch() {
       if (fetchActionRef.current) {
-        timer = window.setTimeout(loadFetch, 2000);
+        timer = window.setTimeout(loadFetch, FETCH_POLL_MS);
         return;
       }
       const request = ++fetchRequest.current;
@@ -77,7 +88,7 @@ export default function App() {
           if (active && request === fetchRequest.current) setFetchError(true);
         })
         .finally(() => {
-          if (active) timer = window.setTimeout(loadFetch, 2000);
+          if (active) timer = window.setTimeout(loadFetch, FETCH_POLL_MS);
         });
     }
 
@@ -210,10 +221,18 @@ export default function App() {
           >
             fetch data
           </button>
-          <span className={styles.session}>aditya</span>
+          <span className={styles.session}>
+            {!ready ? null : user ? (
+              <SessionMenu user={user} onSignOut={() => void signOut()} />
+            ) : (
+              <Link to="/login" className={styles.sessionAction}>
+                sign in
+              </Link>
+            )}
+          </span>
         </header>
 
-        <main className={styles.main}>
+        <main className={styles.main} ref={mainRef}>
           <Routes>
             <Route path="/" element={<OverviewPage />} />
             <Route path="/reviews" element={<QueuePage />} />
@@ -221,6 +240,7 @@ export default function App() {
             <Route path="/reviews/:caseId" element={<CasePage />} />
             <Route path="/reviews/:caseId/ids" element={<ClustersPage />} />
             <Route path="/activity" element={<ActivityPage />} />
+            <Route path="/login" element={<SignInPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

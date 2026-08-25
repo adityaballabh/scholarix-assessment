@@ -205,3 +205,18 @@ export interface FetchRun {
   last_completed_at: string | null;
   error: string | null;
 }
+
+export interface User {
+  id: string;
+  username: string;
+  display_name: string;
+}
+
+export interface Credentials {
+  username: string;
+  password: string;
+}
+
+export interface Registration extends Credentials {
+  display_name: string;
+}
