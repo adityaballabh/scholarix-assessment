@@ -1,13 +1,14 @@
-from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
+from conftest import make_response
 from merge_review.models import Author, Base, DatasetSnapshot, SourceRecord
-from merge_review.source_records import FetchStatus
-from merge_review.sync_openalex import (
+from merge_review.sources.common import FetchStatus
+from merge_review.sources.openalex import (
     fetch_openalex_author,
     sync_openalex_authors,
+    sync_openalex_publication_records,
 )
 from requests.exceptions import Timeout
 from sqlalchemy import create_engine, select
@@ -15,20 +16,6 @@ from sqlalchemy.orm import sessionmaker
 
 DUMMY_AUTHOR_ID = "dummy"
 DUMMY_AUTHOR_NAME = "Dummy Author"
-DUMMY_FETCHED_AT = datetime(2026, 8, 21, tzinfo=UTC)
-
-
-def make_response(status_code: int, payload: object | None = None) -> Mock:
-    response = Mock()
-    response.status_code = status_code
-    response.ok = 200 <= status_code < 400
-    response.created_at = DUMMY_FETCHED_AT
-    response.from_cache = False
-    if payload is None:
-        response.json.side_effect = ValueError
-    else:
-        response.json.return_value = payload
-    return response
 
 
 @pytest.mark.parametrize(
@@ -152,3 +139,41 @@ def test_sync_openalex_authors_persists_and_updates_results() -> None:
     assert failed_refresh_counts == {FetchStatus.SUCCESS: 1}
     assert preserved.fetch_status == FetchStatus.SUCCESS
     assert preserved.payload["display_name"] == "Updated Dummy Author"
+
+
+def test_publication_batch_persists_found_and_missing_records() -> None:
+    engine = create_engine("sqlite://")
+    with engine.connect() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine)
+    snapshot_id = uuid4()
+    found_doi = "10.123/found"
+    missing_doi = "10.123/missing"
+    with factory.begin() as session:
+        session.add(DatasetSnapshot(id=snapshot_id, dataset_sha256="b" * 64))
+
+    http_session = Mock()
+    http_session.request.return_value = make_response(
+        200,
+        {
+            "results": [
+                {
+                    "id": "https://openalex.org/W123",
+                    "doi": f"https://doi.org/{found_doi}",
+                }
+            ],
+            "meta": {"next_cursor": None},
+        },
+    )
+
+    with factory.begin() as session:
+        counts = sync_openalex_publication_records(
+            session,
+            http_session,
+            snapshot_id,
+            [found_doi, missing_doi],
+            None,
+        )
+
+    assert counts == {FetchStatus.SUCCESS: 1, FetchStatus.NOT_FOUND: 1}

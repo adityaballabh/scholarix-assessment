@@ -7,15 +7,14 @@ from sqlalchemy.orm import Session as DatabaseSession
 
 from merge_review.config import get_settings
 from merge_review.models import Author, PublicationRecord
-from merge_review.sync_openalex import sync_openalex_authors
-from merge_review.sync_sources import (
-    merge_counts,
-    snapshot_dois,
+from merge_review.sources.openalex import (
     sync_openalex_author_publications,
+    sync_openalex_authors,
     sync_openalex_publication_records,
-    sync_orcid_records,
-    sync_semantic_scholar_records,
 )
+from merge_review.sources.orcid import sync_orcid_records
+from merge_review.sources.semantic_scholar import sync_semantic_scholar_records
+from merge_review.sources.sync import merge_counts, snapshot_dois
 
 PUBLICATION_SOURCES = (
     "openalex",
@@ -122,7 +121,7 @@ def refresh_author_source(
     return counts
 
 
-def refresh_author_sources(
+def refresh_all_author_sources(
     session: DatabaseSession,
     http_session: Session,
     author: Author,

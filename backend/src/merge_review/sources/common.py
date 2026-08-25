@@ -1,9 +1,10 @@
 from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from itertools import islice
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session as DatabaseSession
 
 from merge_review.models import SourceRecord
 
-PROJECT_DIR = Path(__file__).resolve().parents[3]
+PROJECT_DIR = Path(__file__).resolve().parents[4]
 CACHE_PATH = PROJECT_DIR / "cache" / "http_cache"
 REQUEST_TIMEOUT_SECONDS = 30
 ProgressCallback = Callable[[str, int, int, Counter[str]], None]
@@ -47,6 +48,34 @@ class SourceResult:
     from_cache: bool
     error: str | None
     payload: Any | None
+
+
+def batches(values: Iterable[str], size: int) -> Iterable[list[str]]:
+    iterator = iter(values)
+    while batch := list(islice(iterator, size)):
+        yield batch
+
+
+def expand_result(
+    result: SourceResult,
+    entity_type: str,
+    entity_key: str,
+    url: str,
+    payload: dict[str, Any] | None = None,
+    source_record_id: str | None = None,
+    status: FetchStatus | None = None,
+    error: str | None = None,
+) -> SourceResult:
+    return replace(
+        result,
+        entity_type=entity_type,
+        entity_key=entity_key,
+        url=url,
+        source_record_id=source_record_id,
+        fetch_status=status or result.fetch_status,
+        error=error,
+        payload=payload,
+    )
 
 
 def create_http_session() -> CachedSession:

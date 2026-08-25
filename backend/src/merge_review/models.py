@@ -52,7 +52,7 @@ class ReviewSettings(Base):
     max_top_candidate_share: Mapped[float] = mapped_column(Float)
     priority_weights: Mapped[dict] = mapped_column(json_type)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    last_audited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    queue_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -60,14 +60,14 @@ class ReviewSettings(Base):
     )
 
 
-class AuditRun(Base):
-    __tablename__ = "audit_runs"
+class FetchRun(Base):
+    __tablename__ = "fetch_runs"
     __table_args__ = (
         CheckConstraint(
             "status IN ('queued', 'running', 'complete', 'failed', 'abandoned')",
-            name="audit_runs_valid_status",
+            name="fetch_runs_valid_status",
         ),
-        Index("ix_audit_runs_snapshot_status", "dataset_snapshot_id", "status"),
+        Index("ix_fetch_runs_snapshot_status", "dataset_snapshot_id", "status"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)

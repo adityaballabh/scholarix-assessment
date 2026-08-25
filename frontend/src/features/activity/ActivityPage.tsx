@@ -29,7 +29,7 @@ type SinceFilter = "" | "1h" | "24h" | "7d" | "30d" | "run";
 
 const sinceOptions: SelectOption<SinceFilter>[] = [
   { value: "", label: "any time" },
-  { value: "run", label: "since the last audit" },
+  { value: "run", label: "since the last queue update" },
   { value: "1h", label: "last hour" },
   { value: "24h", label: "last 24 hours" },
   { value: "7d", label: "last 7 days" },
@@ -58,7 +58,7 @@ function readSide(raw: string | null): SideFilter {
 export default function ActivityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<ActivityEvent[] | null>(null);
-  const [auditedAt, setAuditedAt] = useState<string | null>(null);
+  const [queueUpdatedAt, setQueueUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [overviewError, setOverviewError] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(true);
@@ -89,7 +89,7 @@ export default function ActivityPage() {
       });
     getOverview()
       .then((overview) => {
-        if (active) setAuditedAt(overview.audited_at);
+        if (active) setQueueUpdatedAt(overview.queue_updated_at);
       })
       .catch(() => {
         if (active) setOverviewError(true);
@@ -125,7 +125,7 @@ export default function ActivityPage() {
   const cutoff = !since
     ? null
     : since === "run"
-      ? (auditedAt && new Date(auditedAt).getTime()) || null
+      ? (queueUpdatedAt && new Date(queueUpdatedAt).getTime()) || null
       : Date.now() - sinceWindows[since];
   const runFilterUnavailable = since === "run" && overviewError;
   const runFilterLoading = since === "run" && overviewLoading;
@@ -253,10 +253,10 @@ export default function ActivityPage() {
       </div>
 
       {runFilterLoading ? (
-        <p className={styles.pageState}>Loading the last audit time…</p>
+        <p className={styles.pageState}>Loading the last queue update time…</p>
       ) : runFilterUnavailable ? (
         <p className={styles.pageState} role="alert">
-          The last audit time could not be loaded.
+          The last queue update time could not be loaded.
         </p>
       ) : ordered.length === 0 ? (
         <p className={styles.pageState}>

@@ -5,28 +5,28 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
-from merge_review.audit_service import run_audit
 from merge_review.config import get_settings
 from merge_review.database import SessionFactory
-from merge_review.models import AuditRun, Author
-from merge_review.source_records import (
+from merge_review.models import Author, FetchRun
+from merge_review.rebuild_queue import rebuild_queue
+from merge_review.sources.common import (
     FetchStatus,
     create_http_session,
     uncached_http_session,
 )
-from merge_review.sync_openalex import sync_openalex_authors
-from merge_review.sync_sources import (
-    snapshot_dois,
+from merge_review.sources.openalex import (
     sync_openalex_author_publications,
+    sync_openalex_authors,
     sync_openalex_publication_records,
-    sync_orcid_records,
-    sync_semantic_scholar_records,
 )
+from merge_review.sources.orcid import sync_orcid_records
+from merge_review.sources.semantic_scholar import sync_semantic_scholar_records
+from merge_review.sources.sync import snapshot_dois
 
 
-class AuditProgressReporter:
-    def __init__(self, audit_id: UUID) -> None:
-        self.audit_id = audit_id
+class FetchProgressReporter:
+    def __init__(self, fetch_id: UUID) -> None:
+        self.fetch_id = fetch_id
         self.last_write = 0.0
 
     def start(self, source: str, total: int) -> None:
@@ -53,10 +53,10 @@ class AuditProgressReporter:
         if not force and now - self.last_write < 0.5:
             return
         with SessionFactory.begin() as session:
-            audit = session.get(AuditRun, self.audit_id)
-            if audit is None:
+            fetch = session.get(FetchRun, self.fetch_id)
+            if fetch is None:
                 return
-            progress = dict(audit.source_progress or {})
+            progress = dict(fetch.source_progress or {})
             source_progress: dict[str, object] = {
                 "completed": completed,
                 "total": total,
@@ -65,48 +65,50 @@ class AuditProgressReporter:
             if completed == total:
                 source_progress["completed_at"] = datetime.now(UTC).isoformat()
             progress[source] = source_progress
-            audit.current_source = source
-            audit.source_progress = progress
+            fetch.current_source = source
+            fetch.source_progress = progress
         self.last_write = now
 
 
-def update_audit(
-    audit_id: UUID,
+def update_fetch(
+    fetch_id: UUID,
     status: str,
     *,
     error: str | None = None,
 ) -> None:
     with SessionFactory.begin() as session:
-        audit = session.get(AuditRun, audit_id)
-        if audit is None:
+        fetch = session.get(FetchRun, fetch_id)
+        if fetch is None:
             return
-        audit.status = status
-        audit.error = error
+        fetch.status = status
+        fetch.error = error
         if status == "running":
-            audit.started_at = datetime.now(UTC)
+            fetch.started_at = datetime.now(UTC)
         if status in {"complete", "failed"}:
-            audit.finished_at = datetime.now(UTC)
-            audit.current_source = None
+            fetch.finished_at = datetime.now(UTC)
+            fetch.current_source = None
 
 
-def fail_interrupted_audits() -> None:
+def fail_interrupted_fetches() -> None:
     with SessionFactory.begin() as session:
-        audits = session.scalars(select(AuditRun).where(AuditRun.status.in_(["queued", "running"])))
+        fetches = session.scalars(
+            select(FetchRun).where(FetchRun.status.in_(["queued", "running"]))
+        )
         finished_at = datetime.now(UTC)
-        for audit in audits:
-            audit.status = "failed"
-            audit.finished_at = finished_at
-            audit.current_source = None
-            audit.error = "Audit interrupted by server restart"
+        for fetch in fetches:
+            fetch.status = "failed"
+            fetch.finished_at = finished_at
+            fetch.current_source = None
+            fetch.error = "Fetch interrupted by server restart"
 
 
-def run_full_audit(audit_id: UUID, snapshot_id: UUID) -> None:
-    reporter = AuditProgressReporter(audit_id)
+def run_fetch(fetch_id: UUID, snapshot_id: UUID) -> None:
+    reporter = FetchProgressReporter(fetch_id)
     settings = get_settings()
     try:
-        update_audit(audit_id, "running")
+        update_fetch(fetch_id, "running")
         http_context = (
-            create_http_session() if settings.audit_use_cache else uncached_http_session()
+            create_http_session() if settings.fetch_use_cache else uncached_http_session()
         )
         with SessionFactory.begin() as session, http_context as http_session:
             author_count = (
@@ -173,18 +175,18 @@ def run_full_audit(audit_id: UUID, snapshot_id: UUID) -> None:
             )
 
             reporter.start("case_generation", author_count)
-            run_audit(session, snapshot_id)
+            rebuild_queue(session, snapshot_id)
             reporter(
                 "case_generation",
                 author_count,
                 author_count,
                 Counter({FetchStatus.SUCCESS: author_count}),
             )
-            audit = session.get(AuditRun, audit_id)
-            if audit is None:
-                raise RuntimeError("Audit run disappeared")
-            audit.status = "complete"
-            audit.finished_at = datetime.now(UTC)
-            audit.current_source = None
+            fetch = session.get(FetchRun, fetch_id)
+            if fetch is None:
+                raise RuntimeError("Fetch run disappeared")
+            fetch.status = "complete"
+            fetch.finished_at = datetime.now(UTC)
+            fetch.current_source = None
     except Exception as error:
-        update_audit(audit_id, "failed", error=str(error)[:500])
+        update_fetch(fetch_id, "failed", error=str(error)[:500])

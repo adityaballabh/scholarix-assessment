@@ -20,6 +20,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.statUnit {
+  margin-left: 3px;
+  color: var(--ink-muted);
+  font-size: 0.75em;
+}
+
 .statLabel {
   color: var(--ink-muted);
   font: var(--text-label);

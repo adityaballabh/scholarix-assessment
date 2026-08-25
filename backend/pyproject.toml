@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "merge-review-backend"
 version = "0.1.0"
-description = "Dataset audit and review API for Merge Review"
+description = "Evidence fetch and review queue API for Merge Review"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.141.1,<1",

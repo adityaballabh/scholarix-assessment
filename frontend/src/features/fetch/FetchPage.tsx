@@ -1,5 +1,5 @@
-import type { AuditRun } from "../../api/types";
-import styles from "./AuditPage.module.css";
+import type { FetchRun } from "../../api/types";
+import styles from "./FetchPage.module.css";
 
 const sourceLabels: Record<string, string> = {
   openalex_authors: "OpenAlex authors",
@@ -11,24 +11,24 @@ const sourceLabels: Record<string, string> = {
 };
 const sourceOrder = Object.keys(sourceLabels);
 
-export default function AuditPage({
-  audit,
+export default function FetchPage({
+  fetch,
   busy,
   actionError,
   onRetry,
   onAbandon,
 }: {
-  audit: AuditRun;
+  fetch: FetchRun;
   busy: boolean;
   actionError: string | null;
   onRetry: () => void;
   onAbandon: () => void;
 }) {
-  const progress = Object.entries(audit.source_progress).sort(
+  const progress = Object.entries(fetch.source_progress).sort(
     ([left], [right]) => sourceOrder.indexOf(left) - sourceOrder.indexOf(right),
   );
-  const currentProgress = audit.current_source
-    ? audit.source_progress[audit.current_source]
+  const currentProgress = fetch.current_source
+    ? fetch.source_progress[fetch.current_source]
     : undefined;
   const completed = currentProgress?.completed ?? 0;
   const total = currentProgress?.total ?? 0;
@@ -38,9 +38,9 @@ export default function AuditPage({
       <div className={styles.panel}>
         <p className={styles.wordmark}>Merge Review</p>
         <h1 className={styles.title}>
-          {audit.status === "failed" ? "Fetch failed" : "Fetch in progress"}
+          {fetch.status === "failed" ? "Fetch failed" : "Fetch in progress"}
         </h1>
-        {audit.status === "failed" ? (
+        {fetch.status === "failed" ? (
           <>
             <p className={styles.message} role="alert">
               The fetch could not be completed.
@@ -67,9 +67,9 @@ export default function AuditPage({
             </p>
             <div className={styles.overall}>
               <span>
-                {audit.current_source
-                  ? (sourceLabels[audit.current_source] ?? audit.current_source)
-                  : audit.status}
+                {fetch.current_source
+                  ? (sourceLabels[fetch.current_source] ?? fetch.current_source)
+                  : fetch.status}
               </span>
               <span>
                 {completed.toLocaleString()} / {total.toLocaleString()}

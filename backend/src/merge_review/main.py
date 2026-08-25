@@ -5,15 +5,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from merge_review.api import router
-from merge_review.audit import fail_interrupted_audits
 from merge_review.config import get_settings
 from merge_review.database import create_schema
+from merge_review.fetch import fail_interrupted_fetches
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     create_schema()
-    fail_interrupted_audits()
+    fail_interrupted_fetches()
     yield
 
 

@@ -102,13 +102,13 @@ class PriorityWeights(BaseModel):
         return self
 
 
-class AuditConfigUpdate(BaseModel):
+class QueueSettingsUpdate(BaseModel):
     max_top_candidate_share: float = Field(ge=0, le=100)
     weights: PriorityWeights
     expected_version: int = Field(ge=1)
 
 
-class AuditConfigResponse(BaseModel):
+class QueueSettingsResponse(BaseModel):
     max_top_candidate_share: float
     weights: PriorityWeights
     version: int
@@ -122,25 +122,25 @@ class RefreshResponse(BaseModel):
     cases: int
 
 
-class AuditSourceProgress(BaseModel):
+class FetchSourceProgress(BaseModel):
     completed: int
     total: int
     by_status: dict[str, int]
     completed_at: datetime | None = None
 
 
-class AuditRunResponse(BaseModel):
+class FetchRunResponse(BaseModel):
     id: str
     status: Literal["queued", "running", "complete", "failed", "abandoned"]
     current_source: str | None
-    source_progress: dict[str, AuditSourceProgress]
+    source_progress: dict[str, FetchSourceProgress]
     started_at: datetime | None
     finished_at: datetime | None
     last_completed_at: datetime | None
     error: str | None
 
 
-class AuditResponse(BaseModel):
+class QueueRebuildResponse(BaseModel):
     config_version: int
     cases: int
 
@@ -196,5 +196,5 @@ class ReviewOverview(BaseModel):
     affected_publications: int
     total_authors: int
     total_publications: int
-    audited_at: datetime | None
+    queue_updated_at: datetime | None
     sources: list[SourceStatus]

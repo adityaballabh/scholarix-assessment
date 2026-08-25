@@ -107,20 +107,20 @@ export interface PriorityConfig {
   max_top_candidate_share: number;
 }
 
-export interface AuditConfig {
+export interface QueueSettings {
   max_top_candidate_share: number;
   weights: PriorityWeights;
   version: number;
   updated_at: string | null;
 }
 
-export interface AuditConfigUpdate {
+export interface QueueSettingsUpdate {
   max_top_candidate_share: number;
   weights: PriorityWeights;
   expected_version: number;
 }
 
-export interface AuditResult {
+export interface QueueRebuildResult {
   config_version: number;
   cases: number;
 }
@@ -171,7 +171,7 @@ export interface ReviewOverview {
   affected_publications: number;
   total_authors: number;
   total_publications: number;
-  audited_at: string | null;
+  queue_updated_at: string | null;
   sources: SourceStatus[];
 }
 
@@ -181,25 +181,25 @@ export interface CaseQueryFilters {
   query?: string;
 }
 
-export type AuditStatus =
+export type FetchRunStatus =
   | "queued"
   | "running"
   | "complete"
   | "failed"
   | "abandoned";
 
-export interface AuditSourceProgress {
+export interface FetchSourceProgress {
   completed: number;
   total: number;
   by_status: Record<string, number>;
   completed_at?: string | null;
 }
 
-export interface AuditRun {
+export interface FetchRun {
   id: string;
-  status: AuditStatus;
+  status: FetchRunStatus;
   current_source: string | null;
-  source_progress: Record<string, AuditSourceProgress>;
+  source_progress: Record<string, FetchSourceProgress>;
   started_at: string | null;
   finished_at: string | null;
   last_completed_at: string | null;

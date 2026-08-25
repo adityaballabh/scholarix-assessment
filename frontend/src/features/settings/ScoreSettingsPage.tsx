@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ApiError,
-  getAuditConfig,
-  runAudit,
-  updateAuditConfig,
+  getQueueSettings,
+  rebuildQueue,
+  updateQueueSettings,
 } from "../../api/client";
 import type {
-  AuditConfig,
-  AuditConfigUpdate,
+  QueueSettings,
+  QueueSettingsUpdate,
   PriorityWeights,
 } from "../../api/types";
 import Hint from "../../components/Hint";
@@ -39,7 +39,7 @@ const WEIGHT_FIELDS: { key: WeightKey; label: string }[] = [
   { key: "cluster_ambiguity", label: "candidates" },
 ];
 
-function formValues(config: AuditConfig): FormValues {
+function formValues(config: QueueSettings): FormValues {
   return {
     maxTopCandidateShare: config.max_top_candidate_share.toString(),
     weights: {
@@ -58,8 +58,8 @@ function parseValue(value: string): number | null {
 
 function buildUpdate(
   values: FormValues,
-  config: AuditConfig,
-): AuditConfigUpdate | FieldError {
+  config: QueueSettings,
+): QueueSettingsUpdate | FieldError {
   const maxTopCandidateShare = parseValue(values.maxTopCandidateShare);
   if (
     maxTopCandidateShare === null ||
@@ -99,13 +99,13 @@ function buildUpdate(
 
 function checkErrors(
   values: FormValues,
-  config: AuditConfig,
+  config: QueueSettings,
 ): FieldError | null {
   const result = buildUpdate(values, config);
   return "scope" in result ? result : null;
 }
 
-function differsFromSaved(values: FormValues, config: AuditConfig): boolean {
+function differsFromSaved(values: FormValues, config: QueueSettings): boolean {
   return (
     parseValue(values.maxTopCandidateShare) !==
       config.max_top_candidate_share ||
@@ -134,16 +134,16 @@ export default function ScoreSettingsPage() {
   const returnTo = state?.returnTo?.startsWith("/reviews")
     ? state.returnTo
     : "/reviews";
-  const [config, setConfig] = useState<AuditConfig | null>(null);
+  const [config, setConfig] = useState<QueueSettings | null>(null);
   const [values, setValues] = useState<FormValues | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [actionError, setActionError] = useState<FieldError | null>(null);
   const [busy, setBusy] = useState(false);
-  const [savedForAudit, setSavedForAudit] = useState(true);
+  const [savedForRebuild, setSavedForRebuild] = useState(true);
 
   useEffect(() => {
     let active = true;
-    getAuditConfig()
+    getQueueSettings()
       .then((loaded) => {
         if (!active) return;
         setConfig(loaded);
@@ -161,11 +161,11 @@ export default function ScoreSettingsPage() {
     if (!values || !config) return;
     const next = { ...values, weights: { ...values.weights, [key]: value } };
     setValues(next);
-    setSavedForAudit(false);
+    setSavedForRebuild(false);
     setActionError(value.trim() === "" ? null : checkErrors(next, config));
   }
 
-  async function saveAndRunAudit() {
+  async function saveAndRebuildQueue() {
     if (!config || !values || busy) return;
     const update = buildUpdate(values, config);
     if ("scope" in update) {
@@ -175,17 +175,17 @@ export default function ScoreSettingsPage() {
 
     setBusy(true);
     setActionError(null);
-    let settingsSaved = savedForAudit;
+    let settingsSaved = savedForRebuild;
     try {
-      if (!savedForAudit) {
-        const saved = await updateAuditConfig(update);
+      if (!savedForRebuild) {
+        const saved = await updateQueueSettings(update);
         setConfig(saved);
         setValues(formValues(saved));
-        setSavedForAudit(true);
+        setSavedForRebuild(true);
         settingsSaved = true;
       }
-      await runAudit();
-      showToast("Queue settings saved and audit complete.");
+      await rebuildQueue();
+      showToast("Queue settings saved and queue rebuilt.");
       navigate(returnTo, { replace: true });
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -196,7 +196,7 @@ export default function ScoreSettingsPage() {
       } else if (settingsSaved) {
         setActionError({
           scope: "form",
-          message: "Settings are saved, but the audit could not be run",
+          message: "Settings are saved, but the queue could not be rebuilt",
         });
       } else {
         setActionError({
@@ -235,7 +235,7 @@ export default function ScoreSettingsPage() {
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          void saveAndRunAudit();
+          void saveAndRebuildQueue();
         }}
       >
         <fieldset className={styles.group} disabled={busy}>
@@ -267,7 +267,7 @@ export default function ScoreSettingsPage() {
                     maxTopCandidateShare: event.target.value,
                   };
                   setValues(next);
-                  setSavedForAudit(false);
+                  setSavedForRebuild(false);
                   setActionError(
                     event.target.value.trim() === ""
                       ? null
@@ -321,7 +321,7 @@ export default function ScoreSettingsPage() {
               disabled={busy}
               onClick={() => {
                 setValues(formValues(config));
-                setSavedForAudit(true);
+                setSavedForRebuild(true);
                 setActionError(null);
               }}
             >
@@ -341,7 +341,7 @@ export default function ScoreSettingsPage() {
             className={styles.primary}
             disabled={busy || !dirty || !valid}
           >
-            save and run audit
+            save and rebuild queue
           </button>
         </div>
       </form>

@@ -5,13 +5,13 @@ from uuid import uuid4
 
 import pytest
 from merge_review.models import Author, Base, DatasetSnapshot, PublicationRecord
-from merge_review.refresh import (
+from merge_review.sources.common import FetchStatus
+from merge_review.sources.refresh import (
     author_dois,
+    refresh_all_author_sources,
     refresh_author_source,
-    refresh_author_sources,
     refresh_source,
 )
-from merge_review.source_records import FetchStatus
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -72,7 +72,7 @@ def run_refresh(call) -> tuple[Counter[str], set[str], dict]:
         mocks = {
             name: stack.enter_context(
                 patch(
-                    f"merge_review.refresh.{name}",
+                    f"merge_review.sources.refresh.{name}",
                     return_value=Counter({FetchStatus.SUCCESS: 1}),
                 )
             )
@@ -143,7 +143,7 @@ def test_fetching_every_source_skips_orcid_when_the_author_has_none(author_sessi
 def test_refreshing_a_whole_author_covers_every_source(author_session) -> None:
     session, author = author_session
 
-    _, called, _ = run_refresh(lambda: refresh_author_sources(session, Mock(), author))
+    _, called, _ = run_refresh(lambda: refresh_all_author_sources(session, Mock(), author))
 
     assert called == set(SYNC_FUNCTIONS)
 

@@ -10,7 +10,7 @@ import type {
 import Hint from "../../components/Hint";
 import SectionRule from "../../components/SectionRule";
 import {
-  formatCompactRelativeTime,
+  compactRelativeParts,
   formatEventTime,
   formatFetchedAt,
 } from "../../lib/datetime";
@@ -82,11 +82,11 @@ export default function OverviewPage() {
 
   return (
     <div className={styles.sections}>
-      <SectionRule label="Audit Results" />
+      <SectionRule label="Review Queue" />
       <div className={styles.summaryStrip}>
         <Stat
           value={overview.total_authors.toLocaleString()}
-          label="profiles audited"
+          label="profiles assessed"
         />
         <Stat
           value={overview.flagged_authors.toLocaleString()}
@@ -97,12 +97,12 @@ export default function OverviewPage() {
           label={`of ${overview.total_publications.toLocaleString()} publications affected`}
         />
         <Stat
-          value={formatCompactRelativeTime(overview.audited_at)}
+          value={<CompactAge iso={overview.queue_updated_at} />}
           label={
             <>
-              since last audit
+              since last queue update
               <Hint
-                text="Fetching all data, changing queue settings, or fetching evidence for a specific case reruns the audit"
+                text="Fetching all data, changing queue settings, or fetching evidence for a specific case rebuilds the queue"
                 align="end"
               />
             </>
@@ -289,7 +289,17 @@ export default function OverviewPage() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: ReactNode }) {
+function CompactAge({ iso }: { iso: string | null }) {
+  const { value, unit } = compactRelativeParts(iso);
+  return (
+    <>
+      {value}
+      {unit ? <span className={styles.statUnit}>{unit}</span> : null}
+    </>
+  );
+}
+
+function Stat({ value, label }: { value: ReactNode; label: ReactNode }) {
   return (
     <div className={styles.stat}>
       <span className={styles.statValue}>{value}</span>

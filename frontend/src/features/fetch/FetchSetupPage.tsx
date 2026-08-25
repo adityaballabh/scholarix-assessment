@@ -1,6 +1,6 @@
-import styles from "./AuditPage.module.css";
+import styles from "./FetchPage.module.css";
 
-export default function AuditSetupPage({
+export default function FetchSetupPage({
   busy,
   onRun,
 }: {

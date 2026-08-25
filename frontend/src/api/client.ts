@@ -1,9 +1,9 @@
 import type {
   ActivityEvent,
-  AuditConfig,
-  AuditConfigUpdate,
-  AuditResult,
-  AuditRun,
+  QueueSettings,
+  QueueSettingsUpdate,
+  QueueRebuildResult,
+  FetchRun,
   CaseQueryFilters,
   DecisionRequest,
   RefreshResult,
@@ -83,34 +83,34 @@ export function postDecision(
   });
 }
 
-export function getAudit(): Promise<AuditRun | null> {
+export function getFetch(): Promise<FetchRun | null> {
   return requestJson("/api/fetches/current");
 }
 
-export function startAudit(): Promise<AuditRun> {
+export function startFetch(): Promise<FetchRun> {
   return requestJson("/api/fetches", { method: "POST" });
 }
 
-export function abandonAudit(auditId: string): Promise<AuditRun> {
-  return requestJson(`/api/fetches/${auditId}/abandon`, { method: "POST" });
+export function abandonFetch(fetchId: string): Promise<FetchRun> {
+  return requestJson(`/api/fetches/${fetchId}/abandon`, { method: "POST" });
 }
 
-export function getAuditConfig(): Promise<AuditConfig> {
-  return requestJson("/api/audit-config");
+export function getQueueSettings(): Promise<QueueSettings> {
+  return requestJson("/api/queue/settings");
 }
 
-export function updateAuditConfig(
-  config: AuditConfigUpdate,
-): Promise<AuditConfig> {
-  return requestJson("/api/audit-config", {
+export function updateQueueSettings(
+  config: QueueSettingsUpdate,
+): Promise<QueueSettings> {
+  return requestJson("/api/queue/settings", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(config),
   });
 }
 
-export function runAudit(): Promise<AuditResult> {
-  return requestJson("/api/audits", { method: "POST" });
+export function rebuildQueue(): Promise<QueueRebuildResult> {
+  return requestJson("/api/queue/rebuild", { method: "POST" });
 }
 
 export function refreshAuthorEvidence(

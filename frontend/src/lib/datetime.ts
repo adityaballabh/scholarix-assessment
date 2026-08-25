@@ -38,8 +38,11 @@ export function formatRelativeTime(iso: string): string {
   return `${value} ${value === 1 ? unit : `${unit}s`} ago`;
 }
 
-export function formatCompactRelativeTime(iso: string | null): string {
-  if (!iso) return "—";
+export function compactRelativeParts(iso: string | null): {
+  value: string;
+  unit: string | null;
+} {
+  if (!iso) return { value: "—", unit: null };
   const { value, unit } = relativeAge(iso);
   const suffix: Record<RelativeUnit, string> = {
     minute: "min",
@@ -48,7 +51,7 @@ export function formatCompactRelativeTime(iso: string | null): string {
     month: "mo",
     year: "yr",
   };
-  return `${value} ${suffix[unit]}`;
+  return { value: String(value), unit: suffix[unit] };
 }
 
 export function formatFetchedAt(iso: string | null): string | null {

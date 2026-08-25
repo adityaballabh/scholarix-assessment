@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { formatRelativeTime } from "../../lib/datetime";
-import styles from "./AuditConfirmDialog.module.css";
+import styles from "./FetchConfirmDialog.module.css";
 
-export default function AuditConfirmDialog({
+export default function FetchConfirmDialog({
   open,
   busy,
   error,
@@ -19,7 +19,7 @@ export default function AuditConfirmDialog({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
-  const initialAudit = lastCompletedAt === null;
+  const initialFetch = lastCompletedAt === null;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -43,7 +43,7 @@ export default function AuditConfirmDialog({
     >
       <div className={styles.body}>
         <p className={styles.message}>
-          {initialAudit ? (
+          {initialFetch ? (
             <>
               Fetching data takes around 10 minutes. Are you sure you want to
               continue?
@@ -55,7 +55,7 @@ export default function AuditConfirmDialog({
             </>
           )}
         </p>
-        {!initialAudit && (
+        {!initialFetch && (
           <p className={styles.reviewLockout}>
             Review actions will be unavailable until the fetch is complete. Are
             you sure you want to continue?

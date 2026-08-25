@@ -8,17 +8,17 @@ import {
   useLocation,
 } from "react-router-dom";
 import ActivityPage from "./features/activity/ActivityPage";
-import AuditConfirmDialog from "./features/audit/AuditConfirmDialog";
-import AuditPage from "./features/audit/AuditPage";
-import AuditSetupPage from "./features/audit/AuditSetupPage";
+import FetchConfirmDialog from "./features/fetch/FetchConfirmDialog";
+import FetchPage from "./features/fetch/FetchPage";
+import FetchSetupPage from "./features/fetch/FetchSetupPage";
 import OverviewPage from "./features/overview/OverviewPage";
 import CasePage from "./features/reviews/CasePage";
 import ClustersPage from "./features/reviews/ClustersPage";
 import QueuePage from "./features/reviews/QueuePage";
 import ScoreSettingsPage from "./features/settings/ScoreSettingsPage";
 import { ToastProvider } from "./components/Toast";
-import { abandonAudit, getAudit, startAudit } from "./api/client";
-import type { AuditRun } from "./api/types";
+import { abandonFetch, getFetch, startFetch } from "./api/client";
+import type { FetchRun } from "./api/types";
 import { recallSearch, rememberSearch, sectionOf } from "./lib/lastSearch";
 import styles from "./App.module.css";
 
@@ -29,17 +29,17 @@ const navigationItems = [
 ];
 
 const FILTERED_SECTIONS = ["reviews", "activity"];
-const FORCE_INITIAL_AUDIT = import.meta.env.VITE_FORCE_INITIAL_AUDIT === "true";
+const FORCE_INITIAL_FETCH = import.meta.env.VITE_FORCE_INITIAL_FETCH === "true";
 
 export default function App() {
   const location = useLocation();
-  const [audit, setAudit] = useState<AuditRun | null>();
-  const [auditError, setAuditError] = useState(false);
-  const [auditActionPending, setAuditActionPending] = useState(false);
-  const [auditActionError, setAuditActionError] = useState<string | null>(null);
-  const [confirmingAudit, setConfirmingAudit] = useState(false);
-  const auditActionRef = useRef(false);
-  const auditRequest = useRef(0);
+  const [fetch, setFetch] = useState<FetchRun | null>();
+  const [fetchError, setFetchError] = useState(false);
+  const [fetchActionPending, setFetchActionPending] = useState(false);
+  const [fetchActionError, setFetchActionError] = useState<string | null>(null);
+  const [confirmingFetch, setConfirmingFetch] = useState(false);
+  const fetchActionRef = useRef(false);
+  const fetchRequest = useRef(0);
 
   useEffect(() => {
     const section = sectionOf(location.pathname);
@@ -55,117 +55,117 @@ export default function App() {
     let active = true;
     let timer: number | undefined;
 
-    function loadAudit() {
-      if (auditActionRef.current) {
-        timer = window.setTimeout(loadAudit, 2000);
+    function loadFetch() {
+      if (fetchActionRef.current) {
+        timer = window.setTimeout(loadFetch, 2000);
         return;
       }
-      const request = ++auditRequest.current;
-      getAudit()
+      const request = ++fetchRequest.current;
+      getFetch()
         .then((current) => {
-          if (!active || request !== auditRequest.current) return;
-          setAudit(current);
-          setAuditError(false);
+          if (!active || request !== fetchRequest.current) return;
+          setFetch(current);
+          setFetchError(false);
           if (
             current &&
             ["queued", "running", "failed"].includes(current.status)
           ) {
-            setConfirmingAudit(false);
+            setConfirmingFetch(false);
           }
         })
         .catch(() => {
-          if (active && request === auditRequest.current) setAuditError(true);
+          if (active && request === fetchRequest.current) setFetchError(true);
         })
         .finally(() => {
-          if (active) timer = window.setTimeout(loadAudit, 2000);
+          if (active) timer = window.setTimeout(loadFetch, 2000);
         });
     }
 
-    loadAudit();
+    loadFetch();
     return () => {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, []);
 
-  function runAudit() {
-    if (auditActionPending) return;
-    auditActionRef.current = true;
-    auditRequest.current += 1;
-    setAuditActionPending(true);
-    setAuditActionError(null);
-    startAudit()
+  function beginFetch() {
+    if (fetchActionPending) return;
+    fetchActionRef.current = true;
+    fetchRequest.current += 1;
+    setFetchActionPending(true);
+    setFetchActionError(null);
+    startFetch()
       .then((started) => {
-        setAudit(started);
-        setConfirmingAudit(false);
+        setFetch(started);
+        setConfirmingFetch(false);
       })
-      .catch(() => setAuditActionError("The audit could not be started."))
+      .catch(() => setFetchActionError("The fetch could not be started."))
       .finally(() => {
-        auditActionRef.current = false;
-        setAuditActionPending(false);
+        fetchActionRef.current = false;
+        setFetchActionPending(false);
       });
   }
 
-  function leaveFailedAudit() {
-    if (!audit || auditActionPending) return;
-    auditActionRef.current = true;
-    auditRequest.current += 1;
-    setAuditActionPending(true);
-    setAuditActionError(null);
-    abandonAudit(audit.id)
-      .then(setAudit)
-      .catch(() => setAuditActionError("The audit could not be abandoned."))
+  function leaveFailedFetch() {
+    if (!fetch || fetchActionPending) return;
+    fetchActionRef.current = true;
+    fetchRequest.current += 1;
+    setFetchActionPending(true);
+    setFetchActionError(null);
+    abandonFetch(fetch.id)
+      .then(setFetch)
+      .catch(() => setFetchActionError("The fetch could not be abandoned."))
       .finally(() => {
-        auditActionRef.current = false;
-        setAuditActionPending(false);
+        fetchActionRef.current = false;
+        setFetchActionPending(false);
       });
   }
 
-  if (auditError) {
+  if (fetchError) {
     return (
-      <p className={styles.auditState}>Audit status could not be loaded.</p>
+      <p className={styles.fetchState}>Fetch status could not be loaded.</p>
     );
   }
 
-  if (audit === undefined) {
-    return <p className={styles.auditState}>Loading audit status…</p>;
+  if (fetch === undefined) {
+    return <p className={styles.fetchState}>Loading fetch status…</p>;
   }
 
-  if (audit && ["queued", "running", "failed"].includes(audit.status)) {
+  if (fetch && ["queued", "running", "failed"].includes(fetch.status)) {
     return (
-      <AuditPage
-        audit={audit}
-        busy={auditActionPending}
-        actionError={auditActionError}
-        onRetry={runAudit}
-        onAbandon={leaveFailedAudit}
+      <FetchPage
+        fetch={fetch}
+        busy={fetchActionPending}
+        actionError={fetchActionError}
+        onRetry={beginFetch}
+        onAbandon={leaveFailedFetch}
       />
     );
   }
 
   const confirmation = (
-    <AuditConfirmDialog
-      open={confirmingAudit}
-      busy={auditActionPending}
-      error={auditActionError}
+    <FetchConfirmDialog
+      open={confirmingFetch}
+      busy={fetchActionPending}
+      error={fetchActionError}
       lastCompletedAt={
-        FORCE_INITIAL_AUDIT ? null : (audit?.last_completed_at ?? null)
+        FORCE_INITIAL_FETCH ? null : (fetch?.last_completed_at ?? null)
       }
       onCancel={() => {
-        if (!auditActionPending) setConfirmingAudit(false);
+        if (!fetchActionPending) setConfirmingFetch(false);
       }}
-      onConfirm={runAudit}
+      onConfirm={beginFetch}
     />
   );
 
-  if (FORCE_INITIAL_AUDIT || !audit || !audit.last_completed_at) {
+  if (FORCE_INITIAL_FETCH || !fetch || !fetch.last_completed_at) {
     return (
       <>
-        <AuditSetupPage
-          busy={auditActionPending}
+        <FetchSetupPage
+          busy={fetchActionPending}
           onRun={() => {
-            setAuditActionError(null);
-            setConfirmingAudit(true);
+            setFetchActionError(null);
+            setConfirmingFetch(true);
           }}
         />
         {confirmation}
@@ -201,11 +201,11 @@ export default function App() {
           </nav>
           <button
             type="button"
-            className={styles.auditButton}
-            disabled={auditActionPending}
+            className={styles.fetchButton}
+            disabled={fetchActionPending}
             onClick={() => {
-              setAuditActionError(null);
-              setConfirmingAudit(true);
+              setFetchActionError(null);
+              setConfirmingFetch(true);
             }}
           >
             fetch data
