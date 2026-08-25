@@ -37,7 +37,11 @@ export function SignInDialog({
           Writes are restricted to signed-in reviewers
         </p>
         {open ? (
-          <SignInForm autoFocus initialMode="register" onSignedIn={onSignedIn} />
+          <SignInForm
+            autoFocus
+            initialMode="register"
+            onSignedIn={onSignedIn}
+          />
         ) : null}
         {/* Last in the DOM so showModal focuses the form, not the dismiss. */}
         <button

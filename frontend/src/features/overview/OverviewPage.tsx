@@ -89,16 +89,22 @@ export default function OverviewPage() {
       <SectionRule label="Review Queue" />
       <div className={styles.summaryStrip}>
         <Stat
-          value={loading ? pending : data.overview.total_authors.toLocaleString()}
+          value={
+            loading ? pending : data.overview.total_authors.toLocaleString()
+          }
           label="profiles assessed"
         />
         <Stat
-          value={loading ? pending : data.overview.flagged_authors.toLocaleString()}
+          value={
+            loading ? pending : data.overview.flagged_authors.toLocaleString()
+          }
           label="flagged"
         />
         <Stat
           value={
-            loading ? pending : data.overview.affected_publications.toLocaleString()
+            loading
+              ? pending
+              : data.overview.affected_publications.toLocaleString()
           }
           label={`of ${loading ? pending : data.overview.total_publications.toLocaleString()} publications affected`}
         />
