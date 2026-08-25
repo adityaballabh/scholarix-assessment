@@ -124,9 +124,7 @@ def test_refreshing_semantic_scholar_only_refetches_publications(author_session)
 def test_refreshing_orcid_does_not_touch_publication_sources(author_session) -> None:
     session, author = author_session
 
-    counts, called, _ = run_refresh(
-        lambda: refresh_author_source(session, Mock(), author, "orcid")
-    )
+    counts, called, _ = run_refresh(lambda: refresh_author_source(session, Mock(), author, "orcid"))
 
     assert called == {"sync_orcid_records"}
     assert set(counts) == {"orcid:success"}
@@ -136,9 +134,7 @@ def test_fetching_every_source_skips_orcid_when_the_author_has_none(author_sessi
     session, author = author_session
     author.orcid_id = None
 
-    counts, called, _ = run_refresh(
-        lambda: refresh_author_source(session, Mock(), author, "orcid")
-    )
+    counts, called, _ = run_refresh(lambda: refresh_author_source(session, Mock(), author, "orcid"))
 
     assert called == set()
     assert counts == Counter()

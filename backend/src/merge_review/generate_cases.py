@@ -81,9 +81,7 @@ def author_key(value: str | None) -> str | None:
 
 
 def normalized_institution(value: str | None) -> str:
-    return " ".join(
-        word for word in normalized_words(value) if word not in {"at", "and", "the"}
-    )
+    return " ".join(word for word in normalized_words(value) if word not in {"at", "and", "the"})
 
 
 def institutions_match(first: str | None, second: str | None) -> bool:
@@ -380,8 +378,7 @@ def evidence_rows(
         orcid_state = (
             "supports"
             if any(
-                institutions_match(author.affiliation, institution)
-                for institution in institutions
+                institutions_match(author.affiliation, institution) for institution in institutions
             )
             else "conflict"
         )

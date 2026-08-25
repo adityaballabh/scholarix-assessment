@@ -439,9 +439,7 @@ def test_case_detail_and_errors() -> None:
         "score": 80.0,
     }
     assert response.json()["detail"]["top_share"] == 60.0
-    assert response.json()["detail"]["openalex_topics"] == [
-        "Fetched Identity Topic"
-    ]
+    assert response.json()["detail"]["openalex_topics"] == ["Fetched Identity Topic"]
     assert response.json()["detail"]["candidate_ids"][0]["publications"] == [
         {"year": 2020, "title": "Dummy Publication"}
     ]
@@ -663,14 +661,8 @@ def test_refresh_author_and_source_scopes() -> None:
     assert refresh_author_source.call_args.args[3] == "semantic_scholar"
     assert refresh_source.call_args.args[3] == "orcid"
     assert lock_cases.call_count == 3
-    assert (
-        client.post("/api/refresh/authors/Dummy_Author/sources/orcid").status_code
-        == 409
-    )
-    assert (
-        client.post("/api/refresh/authors/Dummy_Author/sources/unknown").status_code
-        == 422
-    )
+    assert client.post("/api/refresh/authors/Dummy_Author/sources/orcid").status_code == 409
+    assert client.post("/api/refresh/authors/Dummy_Author/sources/unknown").status_code == 422
     assert client.post("/api/refresh/sources/unknown").status_code == 422
 
 
