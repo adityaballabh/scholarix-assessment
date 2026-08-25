@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SourceFetchStatus = Literal[
     "success",
@@ -30,6 +31,40 @@ DecisionAction = Literal[
     "defer",
     "note",
 ]
+
+
+class UserRegistration(BaseModel):
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9._-]+$")
+    display_name: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=8, max_length=1024)
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def trim_display_name(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=1024)
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    username: str
+    display_name: str
 
 
 class SourceRecordReference(BaseModel):

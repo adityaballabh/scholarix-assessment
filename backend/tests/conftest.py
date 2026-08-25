@@ -17,8 +17,10 @@ from merge_review.models import (
     PublicationRecord,
     ReviewSettings,
     SourceRecord,
+    User,
     ValidationCase,
 )
+from merge_review.security import authenticate_writes, get_current_user
 from merge_review.sources.common import FetchStatus
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -83,8 +85,17 @@ def build_client(
     source_record_id = uuid4()
     openalex_source_record_id = uuid4()
     candidate_id = uuid4()
+    test_user_id = uuid4()
 
     with factory.begin() as session:
+        session.add(
+            User(
+                id=test_user_id,
+                username="test-reviewer",
+                display_name="Test Reviewer",
+                password_hash="test-only",
+            )
+        )
         session.add(DatasetSnapshot(id=snapshot_id, dataset_sha256=DUMMY_SNAPSHOT_HASH))
         session.flush()
         session.add(
@@ -348,7 +359,15 @@ def build_client(
         with factory() as session:
             yield session
 
+    def test_current_user():
+        with factory() as session:
+            return session.get(User, test_user_id)
+
     application = FastAPI()
     application.include_router(router)
     application.dependency_overrides[get_session] = test_session
+    application.dependency_overrides[get_current_user] = test_current_user
+    application.dependency_overrides[authenticate_writes] = test_current_user
+    application.state.session_factory = factory
+    application.state.test_user_id = test_user_id
     return TestClient(application)

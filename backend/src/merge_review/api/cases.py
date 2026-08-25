@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from merge_review.api.activity import activity_response
 from merge_review.api.common import ensure_fetch_idle, latest_snapshot, utc_datetime
-from merge_review.config import get_settings
 from merge_review.database import get_session
 from merge_review.models import (
     ActivityEvent,
@@ -20,6 +19,7 @@ from merge_review.models import (
     IdentityCandidatePublication,
     ReviewDecision,
     SourceRecord,
+    User,
     ValidationCase,
 )
 from merge_review.naming import normalized_words
@@ -38,6 +38,7 @@ from merge_review.schemas import (
     SourceRecordReference,
     ValidationCaseResponse,
 )
+from merge_review.security import get_current_user
 
 router = APIRouter()
 VALID_STATUSES = set(get_args(ReviewStatus))
@@ -259,6 +260,7 @@ def get_case(case_id: str, session: Session = Depends(get_session)) -> Validatio
 def post_decision(
     case_id: str,
     request: DecisionRequest,
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ActivityEventResponse:
     snapshot_id = session.scalar(
@@ -290,13 +292,12 @@ def post_decision(
         raise RuntimeError(f"Case {review_case.id} has no author")
     created_at = datetime.now(UTC)
     decision_id = uuid4()
-    reviewer_id = get_settings().reviewer_id
     event = ActivityEvent(
         id=uuid4(),
         decision_id=decision_id,
         case_id=review_case.id,
         action_type=request.action,
-        actor=reviewer_id,
+        actor=current_user.display_name,
         target_name=author.name,
         note=request.note,
         before_status=before,
@@ -308,7 +309,7 @@ def post_decision(
         case_id=review_case.id,
         action=request.action,
         note=request.note,
-        reviewer_id=reviewer_id,
+        reviewer_id=current_user.id,
         expected_case_version=request.expected_version,
         created_at=created_at,
     )

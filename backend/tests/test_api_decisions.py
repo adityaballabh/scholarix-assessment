@@ -1,4 +1,6 @@
 from conftest import build_client
+from merge_review.models import ReviewDecision
+from sqlalchemy import select
 
 
 def test_decisions_are_versioned_and_append_activity() -> None:
@@ -22,11 +24,16 @@ def test_decisions_are_versioned_and_append_activity() -> None:
     )
     detail = client.get("/api/cases/case-one")
     activity = client.get("/api/activity")
+    with client.app.state.session_factory() as session:
+        decisions = list(
+            session.scalars(select(ReviewDecision).order_by(ReviewDecision.created_at))
+        )
 
     assert first.status_code == 200
     assert first.json()["before"] == "pending"
     assert first.json()["after"] == "needs_split"
     assert first.json()["note"] == "Distinct publication clusters"
+    assert first.json()["actor"] == "Test Reviewer"
     assert stale.status_code == 409
     assert reopened.status_code == 200
     assert detail.json()["status"] == "pending"
@@ -35,6 +42,7 @@ def test_decisions_are_versioned_and_append_activity() -> None:
         "reopen",
         "flag_for_split",
     ]
+    assert {decision.reviewer_id for decision in decisions} == {client.app.state.test_user_id}
 
 
 def test_every_decision_action_moves_the_case_to_its_status() -> None:

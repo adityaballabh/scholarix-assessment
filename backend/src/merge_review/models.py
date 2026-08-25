@@ -26,6 +26,16 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    username: Mapped[str] = mapped_column(String(64), unique=True)
+    display_name: Mapped[str] = mapped_column(Text)
+    password_hash: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class DatasetSnapshot(Base):
     __tablename__ = "dataset_snapshots"
 
@@ -288,7 +298,7 @@ class ReviewDecision(Base):
     case_id: Mapped[str] = mapped_column(ForeignKey("validation_cases.id", ondelete="CASCADE"))
     action: Mapped[str] = mapped_column(String(32))
     note: Mapped[str | None] = mapped_column(Text)
-    reviewer_id: Mapped[str] = mapped_column(String(64))
+    reviewer_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
     expected_case_version: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

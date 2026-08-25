@@ -26,6 +26,7 @@ from merge_review.models import (
     ReviewDecision,
     ReviewSettings,
     SourceRecord,
+    User,
     ValidationCase,
 )
 from merge_review.sources.common import FetchStatus
@@ -216,6 +217,16 @@ def snapshot() -> tuple[sessionmaker, UUID]:
 def record_review(factory: sessionmaker, review_case_id: str) -> None:
     with factory.begin() as session:
         review_case = session.get(ValidationCase, review_case_id)
+        reviewer_id = uuid4()
+        session.add(
+            User(
+                id=reviewer_id,
+                username="dummy",
+                display_name=DUMMY_AUTHOR_NAME,
+                password_hash="dummy",
+            )
+        )
+        session.flush()
         decision_id = uuid4()
         session.add(
             ReviewDecision(
@@ -223,7 +234,7 @@ def record_review(factory: sessionmaker, review_case_id: str) -> None:
                 case_id=review_case.id,
                 action="note",
                 note="Keep this review context",
-                reviewer_id="dummy",
+                reviewer_id=reviewer_id,
                 expected_case_version=review_case.version,
                 created_at=DUMMY_FETCHED_AT,
             )
