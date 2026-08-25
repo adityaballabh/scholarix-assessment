@@ -67,11 +67,13 @@ export interface AuthorIdentityDetail {
 export interface ReviewTarget {
   author_slug: string;
   author_name: string;
+  author_affiliation: string | null;
   openalex_id: string | null;
 }
 
 export interface ValidationCase {
   id: string;
+  dataset_imported_at: string;
   status: ReviewStatus;
   queue_eligible: boolean;
   priority_score: number;

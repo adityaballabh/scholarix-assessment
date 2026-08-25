@@ -11,6 +11,13 @@
   margin-left: auto;
 }
 
+/* An anchor wearing the button style: it is a download, so it stays a real link. */
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .action {
   height: 28px;
   padding: 0 11px;

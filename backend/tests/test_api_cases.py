@@ -46,6 +46,14 @@ def test_case_detail_and_errors() -> None:
         "snapshot_max": 50.0,
         "score": 80.0,
     }
+    # The dataset's own claim travels with the case: the matrix compares each source
+    # against it, so a conflict is unreadable without it.
+    assert response.json()["target"] == {
+        "author_slug": "Dummy_Author",
+        "author_name": "Dummy Author",
+        "author_affiliation": "Dummy University",
+        "openalex_id": "A123",
+    }
     assert response.json()["detail"]["top_share"] == 60.0
     assert response.json()["detail"]["openalex_topics"] == ["Fetched Identity Topic"]
     assert response.json()["detail"]["candidate_ids"][0]["publications"] == [

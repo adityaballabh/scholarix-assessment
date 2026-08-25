@@ -87,6 +87,20 @@ export function listCases(
   return requestJson(`/api/cases${queryString ? `?${queryString}` : ""}`);
 }
 
+/**
+ * Export is a file download, not JSON for the app to render, so these build URLs for a
+ * plain anchor instead of going through requestJson. Both endpoints are GETs, and reads
+ * are open, so no session handling is involved.
+ */
+export function caseExportUrl(caseId: string): string {
+  return `${API_BASE_URL}/api/cases/${encodeURIComponent(caseId)}/export`;
+}
+
+export function queueExportUrl(filters: CaseQueryFilters = {}): string {
+  const queryString = buildCaseQueryString(filters);
+  return `${API_BASE_URL}/api/export${queryString ? `?${queryString}` : ""}`;
+}
+
 export function getCase(caseId: string): Promise<ValidationCase> {
   return requestJson(`/api/cases/${caseId}`);
 }

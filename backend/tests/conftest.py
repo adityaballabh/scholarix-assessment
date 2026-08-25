@@ -5,6 +5,7 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from merge_review.api import router
+from merge_review.api.fetches import authenticate_fetch
 from merge_review.database import get_session
 from merge_review.models import (
     Author,
@@ -137,6 +138,7 @@ def build_client(
                     source_id="A123",
                     slug="Dummy_Author",
                     name="Dummy Author",
+                    affiliation="Dummy University",
                     profile={"topics": ["Identity resolution"]},
                 ),
                 Author(
@@ -368,6 +370,7 @@ def build_client(
     application.dependency_overrides[get_session] = test_session
     application.dependency_overrides[get_current_user] = test_current_user
     application.dependency_overrides[authenticate_writes] = test_current_user
+    application.dependency_overrides[authenticate_fetch] = test_current_user
     application.state.session_factory = factory
     application.state.test_user_id = test_user_id
     return TestClient(application)

@@ -11,11 +11,15 @@ from merge_review.security import (
     clear_session_cookie,
     get_current_user,
     hash_password,
+    reject_foreign_origin,
     set_session_cookie,
     verify_password,
 )
 
-router = APIRouter(prefix="/auth")
+# These routes are public but not cross-site: logout takes no body, so without this a foreign
+# page could sign the reviewer out. Register and login carry JSON, which a simple form post
+# cannot send, but the guard costs nothing there.
+router = APIRouter(prefix="/auth", dependencies=[Depends(reject_foreign_origin)])
 
 
 def invalid_credentials() -> HTTPException:

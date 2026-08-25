@@ -20,7 +20,7 @@ import ClustersPage from "./features/reviews/ClustersPage";
 import QueuePage from "./features/reviews/QueuePage";
 import ScoreSettingsPage from "./features/settings/ScoreSettingsPage";
 import { ToastProvider } from "./components/Toast";
-import { abandonFetch, getFetch, startFetch } from "./api/client";
+import { ApiError, abandonFetch, getFetch, startFetch } from "./api/client";
 import type { FetchRun } from "./api/types";
 import { recallSearch, rememberSearch, sectionOf } from "./lib/lastSearch";
 import styles from "./App.module.css";
@@ -34,6 +34,17 @@ const navigationItems = [
 const FILTERED_SECTIONS = ["reviews", "activity"];
 const FORCE_INITIAL_FETCH = import.meta.env.VITE_FORCE_INITIAL_FETCH === "true";
 const FETCH_POLL_MS = 2000;
+
+// The API's own wording stays server-side; these are the two failures a reviewer can act on.
+function startFetchError(cause: unknown): string {
+  if (cause instanceof ApiError && cause.status === 423) {
+    return "A fetch is already running";
+  }
+  if (cause instanceof ApiError && cause.status === 404) {
+    return "No dataset to fetch";
+  }
+  return "The fetch could not be started";
+}
 
 export default function App() {
   const location = useLocation();
@@ -110,7 +121,7 @@ export default function App() {
         setFetch(started);
         setConfirmingFetch(false);
       })
-      .catch(() => setFetchActionError("The fetch could not be started."))
+      .catch((cause: unknown) => setFetchActionError(startFetchError(cause)))
       .finally(() => {
         fetchActionRef.current = false;
         setFetchActionPending(false);
@@ -125,7 +136,7 @@ export default function App() {
     setFetchActionError(null);
     abandonFetch(fetch.id)
       .then(setFetch)
-      .catch(() => setFetchActionError("The fetch could not be abandoned."))
+      .catch(() => setFetchActionError("The fetch could not be abandoned"))
       .finally(() => {
         fetchActionRef.current = false;
         setFetchActionPending(false);
@@ -134,7 +145,7 @@ export default function App() {
 
   if (fetchError) {
     return (
-      <p className={styles.fetchState}>Fetch status could not be loaded.</p>
+      <p className={styles.fetchState}>Fetch status could not be loaded</p>
     );
   }
 

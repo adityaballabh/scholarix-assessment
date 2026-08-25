@@ -66,9 +66,11 @@ def case_response(
     evidence: list[CaseEvidence],
     candidates: list[SemanticScholarCandidate],
     openalex_topics: list[str],
+    dataset_imported_at: datetime,
 ) -> ValidationCaseResponse:
     return ValidationCaseResponse(
         id=review_case.id,
+        dataset_imported_at=dataset_imported_at,
         status=review_case.status,
         queue_eligible=review_case.queue_eligible,
         priority_score=review_case.priority_score,
@@ -77,6 +79,7 @@ def case_response(
         target=ReviewTarget(
             author_slug=author.slug,
             author_name=author.name,
+            author_affiliation=author.affiliation,
             openalex_id=author.source_id,
         ),
         affected_count=review_case.affected_count,
@@ -144,6 +147,12 @@ def case_responses(
 
     snapshot_ids = {author.dataset_snapshot_id for _, author in case_rows}
     source_ids = {author.source_id for _, author in case_rows}
+    imported_at_by_snapshot = {
+        snapshot.id: utc_datetime(snapshot.imported_at)
+        for snapshot in session.scalars(
+            select(DatasetSnapshot).where(DatasetSnapshot.id.in_(snapshot_ids))
+        )
+    }
     openalex_by_author = {
         (record.dataset_snapshot_id, record.entity_key): record.payload
         for record in session.scalars(
@@ -184,6 +193,7 @@ def case_responses(
                     for topic in topics or []
                     if isinstance(topic, dict) and isinstance(topic.get("display_name"), str)
                 ],
+                dataset_imported_at=imported_at_by_snapshot[author.dataset_snapshot_id],
             )
         )
     return responses
@@ -199,19 +209,24 @@ def parse_statuses(value: str | None) -> set[str] | None:
     return statuses
 
 
-@router.get("/cases", response_model=list[ValidationCaseResponse])
-def list_cases(
-    status: str | None = None,
-    scope: QueueScope = "active",
-    query: str | None = None,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    session: Session = Depends(get_session),
-) -> list[ValidationCaseResponse]:
+def filtered_case_rows(
+    session: Session,
+    status: str | None,
+    scope: QueueScope,
+    query: str | None,
+    limit: int | None,
+    offset: int,
+) -> list[tuple[ValidationCase, Author]]:
+    """The queue's definition of which cases the current filters select.
+
+    Shared with export so the file and the screen cannot drift apart. Selection only:
+    callers own their own fetch-idle check and response shape. A `limit` of None takes the
+    whole filtered set, which is what export wants: a page boundary is a screen concern, and
+    silently truncating a file is worse than a large one.
+    """
     snapshot = latest_snapshot(session)
     if snapshot is None:
         return []
-    ensure_fetch_idle(session)
 
     statuses = parse_statuses(status)
     statement = (
@@ -232,16 +247,30 @@ def list_cases(
         statement = statement.where(ValidationCase.status.in_(statuses))
 
     if query:
-        rows = [
+        matched = [
             (review_case, author)
             for review_case, author in session.execute(statement)
             if matches_author_name(author.name, query)
-        ][offset : offset + limit]
-    else:
-        rows = [
-            (review_case, author)
-            for review_case, author in session.execute(statement.limit(limit).offset(offset))
         ]
+        return matched[offset:] if limit is None else matched[offset : offset + limit]
+    if limit is not None:
+        statement = statement.limit(limit)
+    return [
+        (review_case, author) for review_case, author in session.execute(statement.offset(offset))
+    ]
+
+
+@router.get("/cases", response_model=list[ValidationCaseResponse])
+def list_cases(
+    status: str | None = None,
+    scope: QueueScope = "active",
+    query: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+) -> list[ValidationCaseResponse]:
+    ensure_fetch_idle(session)
+    rows = filtered_case_rows(session, status, scope, query, limit, offset)
     return case_responses(session, rows)
 
 

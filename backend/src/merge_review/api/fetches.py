@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,10 +13,37 @@ from merge_review.api.common import (
 )
 from merge_review.database import get_session
 from merge_review.fetch import run_fetch
-from merge_review.models import DatasetSnapshot, FetchRun
+from merge_review.models import DatasetSnapshot, FetchRun, User
 from merge_review.schemas import FetchRunResponse, FetchSourceProgress
+from merge_review.security import (
+    READ_METHODS,
+    reject_foreign_origin,
+    resolve_user,
+    session_cookie,
+)
 
-router = APIRouter()
+
+def authenticate_fetch(
+    request: Request,
+    token: str | None = Depends(session_cookie),
+    session: Session = Depends(get_session),
+) -> User | None:
+    """Reads are open, and so is the first fetch.
+
+    Until one fetch has completed there is no queue to review and no reason for an account
+    to exist yet, so requiring one here would make the app impossible to start. The exemption
+    closes for good the moment a fetch completes. `last_completed_at` is the same condition
+    the frontend uses to show its "Initial fetch pending" screen.
+    """
+    if request.method in READ_METHODS:
+        return None
+    reject_foreign_origin(request)
+    if last_completed_at(session) is None:
+        return None
+    return resolve_user(token, session)
+
+
+router = APIRouter(dependencies=[Depends(authenticate_fetch)])
 
 
 def fetch_response(fetch: FetchRun, completed_at: datetime | None) -> FetchRunResponse:

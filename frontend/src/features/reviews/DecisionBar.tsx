@@ -54,6 +54,7 @@ export default function DecisionBar({
   notes,
   busy,
   fetchingAll,
+  exportUrl,
   onDecide,
   onFetchAll,
 }: {
@@ -61,6 +62,7 @@ export default function DecisionBar({
   notes: ActivityEvent[];
   busy: boolean;
   fetchingAll: boolean;
+  exportUrl: string;
   onDecide: (action: DecisionAction, note: string) => Promise<void>;
   onFetchAll: () => void;
 }) {
@@ -146,6 +148,13 @@ export default function DecisionBar({
         >
           {fetchingAll ? "fetching" : "fetch all evidence"}
         </button>
+        <a
+          className={`${styles.action} ${styles.actionLink}`}
+          href={exportUrl}
+          download
+        >
+          export evidence
+        </a>
       </div>
 
       <dialog
@@ -202,7 +211,9 @@ export default function DecisionBar({
               }}
             />
             <div className={styles.dialogActions}>
-              <span className={failure ? styles.submitError : styles.submitHint}>
+              <span
+                className={failure ? styles.submitError : styles.submitHint}
+              >
                 {failure ?? (blocked ? "" : "enter to submit")}
               </span>
               <button

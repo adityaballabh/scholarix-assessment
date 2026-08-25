@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { listCases } from "../../api/client";
+import { listCases, queueExportUrl } from "../../api/client";
 import Hint from "../../components/Hint";
 import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
 import Select from "../../components/Select";
@@ -100,7 +100,10 @@ export default function QueuePage() {
   useEffect(() => {
     if (draftQuery === query) return;
 
-    const timer = setTimeout(() => updateFilter("query", draftQuery), SEARCH_DEBOUNCE_MS);
+    const timer = setTimeout(
+      () => updateFilter("query", draftQuery),
+      SEARCH_DEBOUNCE_MS,
+    );
     return () => clearTimeout(timer);
   }, [draftQuery]);
 
@@ -224,6 +227,19 @@ export default function QueuePage() {
           >
             reset
           </button>
+        )}
+        {Boolean(cases?.length) && (
+          <a
+            className={`${styles.resetFilters} ${styles.exportFilters}`}
+            href={queueExportUrl({
+              query,
+              scope,
+              status: getStatusFilter(status),
+            })}
+            download
+          >
+            export evidence
+          </a>
         )}
         <div className={styles.queueLinks}>
           <Link

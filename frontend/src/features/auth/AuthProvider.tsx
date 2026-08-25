@@ -38,8 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [prompting, setPrompting] = useState(false);
-  // Held while a refused write waits for the reviewer to sign in or dismiss.
-  const waiting = useRef<((signedIn: boolean) => void) | null>(null);
+  // Every refused write waiting on the reviewer to sign in or dismiss. A list rather than a
+  // single resolver: two writes can be refused before either settles — a decision and a
+  // header fetch, say — and holding only the newest would strand the older request forever,
+  // leaving its caller's busy flag stuck on.
+  const waiting = useRef<((signedIn: boolean) => void)[]>([]);
 
   useEffect(() => {
     getCurrentUser()
@@ -52,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(
       () =>
         new Promise<boolean>((resolve) => {
-          waiting.current = resolve;
+          waiting.current.push(resolve);
           setPrompting(true);
         }),
     );
@@ -61,8 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const settle = useCallback((signedIn: boolean) => {
     setPrompting(false);
-    waiting.current?.(signedIn);
-    waiting.current = null;
+    const pending = waiting.current;
+    waiting.current = [];
+    for (const resolve of pending) resolve(signedIn);
   }, []);
 
   const value = useMemo<Session>(

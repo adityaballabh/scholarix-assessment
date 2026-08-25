@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     app_name: str = "Merge Review API"
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "postgresql+psycopg://merge_review:merge_review@localhost:5432/merge_review"
-    frontend_origin: str = "http://localhost:5174"
+    frontend_origin: str = "http://localhost:5173"
     auth_secret: str = Field(default=DEFAULT_AUTH_SECRET, min_length=32)
     auth_token_hours: int = Field(default=12, ge=1, le=720)
     fetch_use_cache: bool = False

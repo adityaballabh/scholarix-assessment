@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import {
   ApiError,
+  caseExportUrl,
   getCase,
   listActivity,
   listCases,
@@ -255,10 +256,13 @@ export default function CasePage() {
         fetchingAll={refreshing === "all"}
         onDecide={decide}
         onFetchAll={() => void refreshEvidence()}
+        exportUrl={caseExportUrl(reviewCase.id)}
       />
 
       <Matrix
         evidence={reviewCase.evidence}
+        target={reviewCase.target}
+        importedAt={reviewCase.dataset_imported_at}
         refreshing={refreshing}
         onRefreshSource={(source) => void refreshEvidence(source)}
         shares={Object.fromEntries(

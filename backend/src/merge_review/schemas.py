@@ -103,8 +103,11 @@ class AuthorIdentityDetail(BaseModel):
 
 
 class ReviewTarget(BaseModel):
+    """The dataset's own claim about the author, which the evidence is checked against."""
+
     author_slug: str
     author_name: str
+    author_affiliation: str | None
     openalex_id: str | None
 
 
@@ -182,6 +185,7 @@ class QueueRebuildResponse(BaseModel):
 
 class ValidationCaseResponse(BaseModel):
     id: str
+    dataset_imported_at: datetime
     status: ReviewStatus
     queue_eligible: bool
     priority_score: float
@@ -233,3 +237,26 @@ class ReviewOverview(BaseModel):
     total_publications: int
     queue_updated_at: datetime | None
     sources: list[SourceStatus]
+
+
+class ExportSnapshot(BaseModel):
+    id: UUID
+    dataset_sha256: str
+    imported_at: datetime
+
+
+class ExportFilters(BaseModel):
+    scope: QueueScope
+    status: str | None
+    query: str | None
+
+
+class EvidenceExport(BaseModel):
+    """A case export carries its own scope so a file read later explains itself."""
+
+    exported_at: datetime
+    dataset_snapshot: ExportSnapshot
+    queue_settings: QueueSettingsResponse
+    filters: ExportFilters | None
+    case_count: int
+    cases: list[ValidationCaseResponse]

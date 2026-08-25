@@ -1,25 +1,22 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from merge_review.api import router
 from merge_review.config import Settings
 from merge_review.database import get_session
-from merge_review.models import Base, User
-from pydantic import ValidationError
+from merge_review.models import Base, DatasetSnapshot, FetchRun, User
 from merge_review.security import (
     COOKIE_NAME,
-    READ_METHODS,
-    authenticate_writes,
-    get_current_user,
     DUMMY_PASSWORD_HASH,
+    READ_METHODS,
     create_session_token,
     verify_password,
 )
+from pydantic import ValidationError
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -232,7 +229,9 @@ def test_every_write_route_requires_a_signed_in_reviewer() -> None:
 
     responses = {}
     for path, operations in client.app.openapi()["paths"].items():
-        if path.startswith("/api/auth"):
+        # Auth routes are public by definition; fetch routes carry their own guard and are
+        # covered by test_the_first_fetch_is_open_and_later_fetches_are_not.
+        if path.startswith("/api/auth") or path.startswith("/api/fetches"):
             continue
         url = path
         for name, value in placeholders.items():
@@ -244,5 +243,69 @@ def test_every_write_route_requires_a_signed_in_reviewer() -> None:
                 method.upper(), url, json={}
             ).status_code
 
-    assert len(responses) >= 8
+    assert len(responses) >= 6
     assert {route: status for route, status in responses.items() if status != 401} == {}
+
+
+def test_the_first_fetch_is_open_and_later_fetches_are_not() -> None:
+    client, factory = build_auth_client()
+
+    # 404 rather than 401: the guard let the request through and the route itself found
+    # no dataset and no fetch to act on, which is what an empty database should say.
+    cold_start = client.post("/api/fetches")
+    cold_abandon = client.post(f"/api/fetches/{uuid4()}/abandon")
+
+    with factory() as session:
+        snapshot = DatasetSnapshot(dataset_sha256="a" * 64)
+        session.add(snapshot)
+        session.flush()
+        session.add(
+            FetchRun(
+                dataset_snapshot_id=snapshot.id,
+                status="complete",
+                source_progress={},
+                finished_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+
+    warm_start = client.post("/api/fetches")
+    warm_abandon = client.post(f"/api/fetches/{uuid4()}/abandon")
+    warm_read = client.get("/api/fetches/current")
+
+    assert cold_start.status_code == 404
+    assert cold_abandon.status_code == 404
+    assert warm_start.status_code == 401
+    assert warm_abandon.status_code == 401
+    assert warm_read.status_code == 200
+
+
+def test_a_write_carrying_a_foreign_origin_is_rejected() -> None:
+    client, _ = build_auth_client()
+    register(client)
+    allowed = Settings().frontend_origin
+
+    hostile = client.post("/api/queue/rebuild", headers={"Origin": "https://evil.example"})
+    hostile_fetch = client.post("/api/fetches", headers={"Origin": "https://evil.example"})
+    hostile_logout = client.post("/api/auth/logout", headers={"Origin": "https://evil.example"})
+    same_origin = client.post("/api/queue/rebuild", headers={"Origin": allowed})
+    no_origin = client.post("/api/queue/rebuild")
+    hostile_read = client.get("/api/overview", headers={"Origin": "https://evil.example"})
+    # "null" is what a sandboxed iframe, a redirected post, or a file:// page sends. It is a
+    # present header whose value happens to spell null, so it must not be read as absent —
+    # only a genuinely missing Origin may pass, which is what keeps curl and CLI clients
+    # working. Guard against a later rewrite to a falsy check.
+    opaque = client.post("/api/queue/rebuild", headers={"Origin": "null"})
+    empty = client.post("/api/queue/rebuild", headers={"Origin": ""})
+
+    # Production cookies are SameSite=None, so the browser attaches them cross-site and CORS
+    # only hides the response. These routes take no body, so a plain form POST would reach
+    # them as the signed-in reviewer.
+    assert hostile.status_code == 403
+    assert hostile_fetch.status_code == 403
+    assert hostile_logout.status_code == 403
+    assert opaque.status_code == 403
+    assert empty.status_code == 403
+    assert same_origin.status_code != 403
+    assert no_origin.status_code != 403
+    assert hostile_read.status_code == 200

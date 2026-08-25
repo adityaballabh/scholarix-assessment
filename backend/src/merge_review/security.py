@@ -67,6 +67,19 @@ def authentication_error() -> HTTPException:
     return HTTPException(401, detail="Authentication required")
 
 
+def reject_foreign_origin(request: Request) -> None:
+    """Refuse a write carrying someone else's Origin.
+
+    Production cookies are SameSite=None so a split deployment works, which means the browser
+    also attaches them to cross-site requests. CORS does not help: it governs whether a
+    response can be read, not whether the request runs, so a plain cross-site form POST to any
+    of the bodyless write routes would otherwise execute as the signed-in reviewer.
+    """
+    origin = request.headers.get("origin")
+    if origin is not None and origin != get_settings().frontend_origin:
+        raise HTTPException(403, detail="Cross-site request rejected")
+
+
 def get_current_user(
     token: str | None = Depends(session_cookie),
     session: Session = Depends(get_session),
@@ -82,6 +95,7 @@ def authenticate_writes(
     """Reading the queue is open; anything that changes state needs a signed-in reviewer."""
     if request.method in READ_METHODS:
         return None
+    reject_foreign_origin(request)
     return resolve_user(token, session)
 
 
