@@ -80,7 +80,7 @@
 
 .caseHead > tr {
   display: grid;
-  grid-template-columns: 36px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 36px repeat(5, 1fr);
   min-width: 760px;
   gap: 14px;
   padding: 10px 0 6px;
@@ -89,11 +89,28 @@
   font: var(--text-micro);
 }
 
+.hintHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.headerLink {
+  color: var(--ink-muted);
+  border-bottom: var(--hairline) solid var(--rule-strong);
+  text-decoration: none;
+}
+
+.headerLink:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
 .caseRow {
   position: relative;
   min-height: 34px;
   display: grid;
-  grid-template-columns: 36px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 36px repeat(5, 1fr);
   min-width: 760px;
   align-items: center;
   gap: 14px;
@@ -118,7 +135,14 @@
   background: var(--surface);
 }
 
+.caseRow:last-child,
+.sourceRow:last-child,
+.activityRow:last-child {
+  border-bottom: 0;
+}
+
 .position,
+.score,
 .topShare,
 .candidateCount,
 .affectedCount {
@@ -136,6 +160,7 @@
 }
 
 .topShare,
+.score,
 .candidateCount,
 .affectedCount {
   text-align: left;
@@ -143,7 +168,7 @@
 
 .sourceHead > tr {
   display: grid;
-  grid-template-columns: 36px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 36px repeat(5, 1fr);
   min-width: 760px;
   gap: 14px;
   padding: 10px 0 6px;
@@ -155,7 +180,7 @@
 .sourceRow {
   min-height: 34px;
   display: grid;
-  grid-template-columns: 36px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 36px repeat(5, 1fr);
   min-width: 760px;
   align-items: baseline;
   gap: 14px;
@@ -189,6 +214,10 @@
   color: var(--alert);
 }
 
+.partialSource {
+  color: var(--ink-muted);
+}
+
 .emptyState {
   margin: 0;
   padding: 14px 0 12px var(--rail-inset);
@@ -209,7 +238,7 @@
 
 .activityHead > tr {
   display: grid;
-  grid-template-columns: 36px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 36px repeat(5, 1fr);
   min-width: 760px;
   gap: 14px;
   padding: 10px 0 6px;
@@ -221,7 +250,7 @@
 .activityRow {
   min-height: 34px;
   display: grid;
-  grid-template-columns: 36px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 36px repeat(5, 1fr);
   min-width: 760px;
   align-items: center;
   gap: 14px;

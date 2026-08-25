@@ -1,15 +1,21 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getOverview, listActivity, listCases } from "../../api/client";
 import type {
   ActivityEvent,
   ReviewOverview,
-  SourceFetchStatus,
+  SourceHealthState,
   ValidationCase,
 } from "../../api/types";
+import Hint from "../../components/Hint";
 import SectionRule from "../../components/SectionRule";
-import { formatEventTime, formatFetchedAt } from "../../lib/datetime";
+import {
+  formatCompactRelativeTime,
+  formatEventTime,
+  formatFetchedAt,
+} from "../../lib/datetime";
 import { actionLabels } from "../../lib/decisions";
+import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
 import styles from "./OverviewPage.module.css";
 
 const sourceNames: Record<string, string> = {
@@ -17,7 +23,6 @@ const sourceNames: Record<string, string> = {
   openalex: "OpenAlex",
   orcid: "ORCID",
   google_scholar: "Google Scholar",
-  crossref: "Crossref",
   pubmed: "PubMed",
 };
 
@@ -25,32 +30,11 @@ function sourceName(source: string) {
   return sourceNames[source] ?? source.replace(/_/g, " ");
 }
 
-const sourceStateLabels: Record<SourceFetchStatus, string> = {
-  success: "available",
-  pending: "pending",
-  never_attempted: "not fetched",
-  empty: "empty response",
-  not_found: "not found",
-  rate_limited: "rate limited",
-  timeout: "timed out",
-  error: "failed",
+const sourceStateLabels: Record<SourceHealthState, string> = {
+  available: "available",
+  partially_available: "partially available",
+  unavailable: "unavailable",
 };
-
-function fetchedAge(iso: string | null) {
-  if (!iso) return "never";
-
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  return `${days} days ago`;
-}
-
-function daysSinceRun(iso: string | null) {
-  if (!iso) return "—";
-
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  return `${Math.max(days, 0)}d`;
-}
 
 const ACTIVITY_PREVIEW = 4;
 
@@ -98,24 +82,42 @@ export default function OverviewPage() {
 
   return (
     <div className={styles.sections}>
-      <SectionRule label="Review Status" />
+      <SectionRule label="Audit Results" />
       <div className={styles.summaryStrip}>
         <Stat
-          value={overview.authors_audited.toLocaleString()}
+          value={overview.total_authors.toLocaleString()}
           label="profiles audited"
         />
-        <Stat value={overview.authors.toLocaleString()} label="flagged" />
         <Stat
-          value={overview.publications.toLocaleString()}
-          label={`of ${overview.publications_audited.toLocaleString()} publications affected`}
+          value={overview.flagged_authors.toLocaleString()}
+          label="flagged"
         />
         <Stat
-          value={daysSinceRun(overview.audited_at)}
-          label="since last run"
+          value={overview.affected_publications.toLocaleString()}
+          label={`of ${overview.total_publications.toLocaleString()} publications affected`}
+        />
+        <Stat
+          value={formatCompactRelativeTime(overview.audited_at)}
+          label={
+            <>
+              since last audit
+              <Hint
+                text="Fetching all data, changing queue settings, or fetching evidence for a specific case reruns the audit"
+                align="end"
+              />
+            </>
+          }
         />
       </div>
 
-      <SectionRule label="Pending Cases" />
+      <SectionRule
+        label="Pending Cases"
+        hint={
+          <Link to="/reviews" className={styles.headerLink}>
+            see all pending
+          </Link>
+        }
+      />
       <div className={styles.caseList}>
         <table role="table" className={styles.table}>
           <thead role="rowgroup" className={styles.caseHead}>
@@ -126,11 +128,17 @@ export default function OverviewPage() {
               <th role="columnheader" scope="col">
                 author
               </th>
-              <th role="columnheader" scope="col">
-                top share
+              <th role="columnheader" scope="col" className={styles.hintHeader}>
+                score
+                <Hint text={SCORE_HINT} />
               </th>
-              <th role="columnheader" scope="col">
+              <th role="columnheader" scope="col" className={styles.hintHeader}>
+                top share
+                <Hint text={SHARE_HINT} />
+              </th>
+              <th role="columnheader" scope="col" className={styles.hintHeader}>
                 candidates
+                <Hint text={CANDIDATES_HINT} />
               </th>
               <th role="columnheader" scope="col">
                 publications
@@ -182,7 +190,7 @@ export default function OverviewPage() {
                 </th>
                 <td
                   role="cell"
-                  className={`${styles.sourceState} ${source.state === "success" ? "" : styles.unavailableSource}`}
+                  className={`${styles.sourceState} ${source.state === "partially_available" ? styles.partialSource : ""} ${source.state === "unavailable" ? styles.unavailableSource : ""}`}
                 >
                   {sourceStateLabels[source.state]}
                 </td>
@@ -194,12 +202,8 @@ export default function OverviewPage() {
                   {source.note}
                 </td>
                 <td role="cell" className={styles.sourceFetched}>
-                  <time
-                    dateTime={source.fetched_at ?? undefined}
-                    title={formatFetchedAt(source.fetched_at) ?? undefined}
-                    aria-label={fetchedAge(source.fetched_at)}
-                  >
-                    {fetchedAge(source.fetched_at)}
+                  <time dateTime={source.fetched_at ?? undefined}>
+                    {formatFetchedAt(source.fetched_at) ?? "never"}
                   </time>
                 </td>
               </tr>
@@ -208,7 +212,14 @@ export default function OverviewPage() {
         </table>
       </div>
 
-      <SectionRule label="Recent Activity" />
+      <SectionRule
+        label="Recent Activity"
+        hint={
+          <Link to="/activity" className={styles.headerLink}>
+            see all activity
+          </Link>
+        }
+      />
       {activity.length === 0 ? (
         <p className={styles.emptyState}>
           No{" "}
@@ -278,7 +289,7 @@ export default function OverviewPage() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label }: { value: string; label: ReactNode }) {
   return (
     <div className={styles.stat}>
       <span className={styles.statValue}>{value}</span>
@@ -304,6 +315,9 @@ function CaseRow({
           {reviewCase.target.author_name}
         </Link>
       </th>
+      <td role="cell" className={styles.score}>
+        {Math.round(reviewCase.priority_score)}
+      </td>
       <td role="cell" className={styles.topShare}>
         {reviewCase.detail.top_share === null
           ? "—"

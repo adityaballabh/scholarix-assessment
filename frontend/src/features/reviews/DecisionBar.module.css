@@ -7,6 +7,10 @@
   gap: 6px;
 }
 
+.fetchAll {
+  margin-left: auto;
+}
+
 .action {
   height: 28px;
   padding: 0 11px;

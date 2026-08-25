@@ -2,26 +2,24 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { listCases } from "../../api/client";
 import Hint from "../../components/Hint";
+import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
 import Select from "../../components/Select";
 import SortHeader from "../../components/SortHeader";
 import type { SortDirection } from "../../components/SortHeader";
 import type { ValidationCase } from "../../api/types";
 import {
-  DEFAULT_STATUS,
+  defaultStatusForScope,
   getStatusFilter,
-  priorityOptions,
   readOption,
+  readQueueScope,
   statusOptions,
   statusOrder,
 } from "./filters";
 import styles from "./QueuePage.module.css";
 
-type SortColumn = "share" | "publications" | "status";
+type SortColumn = "score" | "share" | "candidates" | "publications" | "status";
 
 const STALE_DELAY_MS = 500;
-
-const SHARE_HINT =
-  "highest share of publications across all S2 IDs for an author";
 
 export default function QueuePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -32,14 +30,19 @@ export default function QueuePage() {
   const [stale, setStale] = useState(false);
 
   const query = searchParams.get("query") ?? "";
-  const rawPriority = searchParams.get("priority");
   const rawStatus = searchParams.get("status");
-  const priority = readOption(rawPriority, priorityOptions, "");
-  const status = readOption(rawStatus, statusOptions, DEFAULT_STATUS);
+  const rawScope = searchParams.get("scope");
+  const scope = readQueueScope(rawScope);
+  const defaultStatus = defaultStatusForScope(scope);
+  const status = readOption(rawStatus, statusOptions, defaultStatus);
   const rowSearch = searchParams.toString();
   const rawSort = searchParams.get("sort");
   const sort: SortColumn | "" =
-    rawSort === "publications" || rawSort === "share" || rawSort === "status"
+    rawSort === "score" ||
+    rawSort === "share" ||
+    rawSort === "candidates" ||
+    rawSort === "publications" ||
+    rawSort === "status"
       ? rawSort
       : "";
   const direction: SortDirection =
@@ -50,7 +53,7 @@ export default function QueuePage() {
   useEffect(() => {
     let active = true;
 
-    listCases()
+    listCases({ scope })
       .then((allCases) => {
         if (active) setAnyCasesExist(allCases.length > 0);
       })
@@ -59,7 +62,7 @@ export default function QueuePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     if (!loading) {
@@ -74,7 +77,7 @@ export default function QueuePage() {
   useEffect(() => {
     const invalid = [
       rawStatus !== null && rawStatus !== status ? "status" : null,
-      rawPriority !== null && rawPriority !== priority ? "priority" : null,
+      rawScope !== null && rawScope !== scope ? "scope" : null,
     ].filter(Boolean) as string[];
 
     if (invalid.length === 0) return;
@@ -87,7 +90,7 @@ export default function QueuePage() {
       },
       { replace: true },
     );
-  }, [rawStatus, rawPriority]);
+  }, [rawStatus, rawScope, scope, status]);
 
   useEffect(() => {
     setDraftQuery(query);
@@ -107,7 +110,7 @@ export default function QueuePage() {
 
     listCases({
       query: query || undefined,
-      priority: priority || undefined,
+      scope,
       status: getStatusFilter(status),
     })
       .then((reviewCases) => {
@@ -124,18 +127,28 @@ export default function QueuePage() {
     return () => {
       active = false;
     };
-  }, [priority, query, status]);
+  }, [query, scope, status]);
 
   function orderCases(rows: ValidationCase[]): ValidationCase[] {
     if (!sort) return rows;
 
+    const sortValue = (reviewCase: ValidationCase): number => {
+      switch (sort) {
+        case "score":
+          return reviewCase.priority_score;
+        case "share":
+          return reviewCase.detail.top_share ?? 0;
+        case "candidates":
+          return reviewCase.detail.candidate_ids.length;
+        case "status":
+          return statusOrder.indexOf(reviewCase.status);
+        default:
+          return reviewCase.affected_count;
+      }
+    };
+
     return [...rows].sort((a, b) => {
-      const gap =
-        sort === "share"
-          ? (a.detail.top_share ?? 0) - (b.detail.top_share ?? 0)
-          : sort === "status"
-            ? statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
-            : a.affected_count - b.affected_count;
+      const gap = sortValue(a) - sortValue(b);
       return direction === "asc" ? gap : -gap;
     });
   }
@@ -164,7 +177,7 @@ export default function QueuePage() {
       (previous) => {
         const nextParams = new URLSearchParams(previous);
 
-        if (value && !(name === "status" && value === DEFAULT_STATUS)) {
+        if (value && !(name === "status" && value === defaultStatus)) {
           nextParams.set(name, value);
         } else {
           nextParams.delete(name);
@@ -176,7 +189,7 @@ export default function QueuePage() {
     );
   }
 
-  const filtered = Boolean(query || priority || status !== DEFAULT_STATUS);
+  const filtered = Boolean(query || status !== defaultStatus);
 
   return (
     <section className={styles.page}>
@@ -197,21 +210,35 @@ export default function QueuePage() {
           options={statusOptions}
           onChange={(value) => updateFilter("status", value)}
         />
-        <Select
-          label="Priority"
-          value={priority}
-          options={priorityOptions}
-          onChange={(value) => updateFilter("priority", value)}
-        />
         {filtered && (
           <button
             type="button"
             className={styles.resetFilters}
-            onClick={() => setSearchParams({}, { replace: true })}
+            onClick={() =>
+              setSearchParams(
+                scope === "archived" ? { scope: "archived" } : {},
+                { replace: true },
+              )
+            }
           >
             reset
           </button>
         )}
+        <div className={styles.queueLinks}>
+          <Link
+            className={styles.scopeLink}
+            to="/reviews/settings"
+            state={{ returnTo: `/reviews${rowSearch ? `?${rowSearch}` : ""}` }}
+          >
+            queue settings
+          </Link>
+          <Link
+            className={styles.scopeLink}
+            to={scope === "active" ? "/reviews?scope=archived" : "/reviews"}
+          >
+            {scope === "active" ? "view archived" : "back to active"}
+          </Link>
+        </div>
       </div>
 
       <p className={styles.srOnly} role="status">
@@ -228,7 +255,9 @@ export default function QueuePage() {
         <p className={styles.pageState}>
           {anyCasesExist
             ? "No reviews match the current filters"
-            : "No reviews left"}
+            : scope === "archived"
+              ? "No archived reviews"
+              : "No reviews left"}
         </p>
       ) : (
         <>
@@ -283,7 +312,17 @@ function ReviewTable({
             <th role="columnheader" scope="col">
               author
             </th>
-            <th role="columnheader" scope="col" className={styles.shareHeader}>
+            <th role="columnheader" scope="col" className={styles.hintHeader}>
+              <SortHeader
+                label="score"
+                active={sort === "score"}
+                direction={direction}
+                clearable
+                onSort={(next) => onSort("score", next)}
+              />
+              <Hint text={SCORE_HINT} />
+            </th>
+            <th role="columnheader" scope="col" className={styles.hintHeader}>
               <SortHeader
                 label="top share"
                 active={sort === "share"}
@@ -295,8 +334,15 @@ function ReviewTable({
               </SortHeader>
               <Hint text={SHARE_HINT} />
             </th>
-            <th role="columnheader" scope="col">
-              candidates
+            <th role="columnheader" scope="col" className={styles.hintHeader}>
+              <SortHeader
+                label="candidates"
+                active={sort === "candidates"}
+                direction={direction}
+                clearable
+                onSort={(next) => onSort("candidates", next)}
+              />
+              <Hint text={CANDIDATES_HINT} />
             </th>
             <th role="columnheader" scope="col">
               <SortHeader
@@ -306,9 +352,6 @@ function ReviewTable({
                 clearable
                 onSort={(next) => onSort("publications", next)}
               />
-            </th>
-            <th role="columnheader" scope="col">
-              priority
             </th>
             <th role="columnheader" scope="col">
               <SortHeader
@@ -358,6 +401,9 @@ function ReviewRow({
           {reviewCase.target.author_name}
         </Link>
       </th>
+      <td role="cell" className={styles.score}>
+        {Math.round(reviewCase.priority_score)}
+      </td>
       <td role="cell" className={styles.numericValue}>
         {reviewCase.detail.top_share === null
           ? "—"
@@ -368,9 +414,6 @@ function ReviewRow({
       </td>
       <td role="cell" className={styles.numericValue}>
         {reviewCase.affected_count}
-      </td>
-      <td role="cell" className={styles.priority}>
-        {reviewCase.priority}
       </td>
       <td role="cell" className={styles.status}>
         {reviewCase.status.replace(/_/g, " ")}

@@ -23,6 +23,22 @@
   font: var(--text-micro);
 }
 
+.queueLinks {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+}
+
+.scopeLink {
+  color: var(--ink-muted);
+  font: var(--text-micro);
+  text-underline-offset: 3px;
+}
+
+.scopeLink:hover {
+  color: var(--ink);
+}
+
 .search {
   width: 240px;
   padding: 0 8px;
@@ -55,7 +71,7 @@
   transition: opacity var(--duration-instant) var(--ease-out);
 }
 
-.shareHeader {
+.hintHeader {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -135,7 +151,7 @@
 
 .position,
 .numericValue,
-.priority,
+.score,
 .status {
   color: var(--ink-muted);
   font: var(--text-micro);
@@ -171,5 +187,9 @@
 
   .search {
     width: 100%;
+  }
+
+  .queueLinks {
+    margin-left: 0;
   }
 }
