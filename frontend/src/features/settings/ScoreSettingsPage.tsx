@@ -33,10 +33,14 @@ interface FieldError {
   message: string;
 }
 
-const WEIGHT_FIELDS: { key: WeightKey; label: string }[] = [
-  { key: "publication_impact", label: "publications" },
-  { key: "fragmentation", label: "fragmentation (100 − top share)" },
-  { key: "cluster_ambiguity", label: "candidates" },
+const WEIGHT_FIELDS: { key: WeightKey; label: string; term: string }[] = [
+  { key: "publication_impact", label: "publications", term: "publications" },
+  {
+    key: "fragmentation",
+    label: "fragmentation (100 − top share)",
+    term: "fragmentation",
+  },
+  { key: "cluster_ambiguity", label: "candidates", term: "candidates" },
 ];
 
 function formValues(config: QueueSettings): FormValues {
@@ -56,42 +60,53 @@ function parseValue(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function buildUpdate(
-  values: FormValues,
-  config: QueueSettings,
-): QueueSettingsUpdate | FieldError {
-  const maxTopCandidateShare = parseValue(values.maxTopCandidateShare);
-  if (
-    maxTopCandidateShare === null ||
-    maxTopCandidateShare < 0 ||
-    maxTopCandidateShare > 100
-  ) {
-    return {
-      scope: "eligibility",
-      message: "Top share limit must be between 0 and 100",
-    };
-  }
+function getEligibilityError(values: FormValues): FieldError | null {
+  const limit = parseValue(values.maxTopCandidateShare);
+  return limit === null || limit < 0 || limit > 100
+    ? {
+        scope: "eligibility",
+        message: "Top share limit must be between 0 and 100",
+      }
+    : null;
+}
 
-  const weights = {
-    publication_impact: parseValue(values.weights.publication_impact),
-    fragmentation: parseValue(values.weights.fragmentation),
-    cluster_ambiguity: parseValue(values.weights.cluster_ambiguity),
-  };
-  if (Object.values(weights).some((weight) => weight === null || weight < 0)) {
+function getWeightsError(values: FormValues): FieldError | null {
+  const weights = Object.values(values.weights).map(parseValue);
+  if (weights.some((weight) => weight === null)) {
+    return { scope: "weights", message: "All multipliers are required" };
+  }
+  if (weights.some((weight) => weight !== null && weight < 0)) {
     return { scope: "weights", message: "Multipliers must be 0 or greater" };
   }
-  const parsedWeights = weights as PriorityWeights;
-  if (
-    Object.values(parsedWeights).reduce((sum, weight) => sum + weight, 0) <= 0
-  ) {
+  if (weights.reduce<number>((sum, weight) => sum + (weight ?? 0), 0) <= 0) {
     return {
       scope: "weights",
       message: "At least one multiplier must be greater than 0",
     };
   }
+  return null;
+}
+
+function buildUpdate(
+  values: FormValues,
+  config: QueueSettings,
+): QueueSettingsUpdate | FieldError {
+  const eligibilityError = getEligibilityError(values);
+  if (eligibilityError) return eligibilityError;
+
+  const weightsError = getWeightsError(values);
+  if (weightsError) return weightsError;
+
+  const maxTopCandidateShare = parseValue(values.maxTopCandidateShare);
+  const weights = {
+    publication_impact: parseValue(values.weights.publication_impact),
+    fragmentation: parseValue(values.weights.fragmentation),
+    cluster_ambiguity: parseValue(values.weights.cluster_ambiguity),
+  };
+  const parsedWeights = weights as PriorityWeights;
 
   return {
-    max_top_candidate_share: maxTopCandidateShare,
+    max_top_candidate_share: maxTopCandidateShare as number,
     weights: parsedWeights,
     expected_version: config.version,
   };
@@ -115,15 +130,15 @@ function differsFromSaved(values: FormValues, config: QueueSettings): boolean {
   );
 }
 
-function weightShare(values: FormValues, key: WeightKey): string {
+function weightValue(values: FormValues, key: WeightKey): string {
   const weights = WEIGHT_FIELDS.map(({ key: weightKey }) =>
     parseValue(values.weights[weightKey]),
   );
-  if (weights.some((weight) => weight === null || weight < 0)) return "—";
+  if (weights.some((weight) => weight === null || weight < 0)) return "";
   const total = weights.reduce<number>((sum, weight) => sum + (weight ?? 0), 0);
-  if (total === 0) return "—";
+  if (total === 0) return "";
   const weight = parseValue(values.weights[key]) ?? 0;
-  return `${((weight / total) * 100).toFixed(1)}%`;
+  return ((weight / total) * 100).toFixed(1);
 }
 
 export default function ScoreSettingsPage() {
@@ -162,7 +177,7 @@ export default function ScoreSettingsPage() {
     const next = { ...values, weights: { ...values.weights, [key]: value } };
     setValues(next);
     setSavedForRebuild(false);
-    setActionError(value.trim() === "" ? null : checkErrors(next, config));
+    setActionError(null);
   }
 
   async function saveAndRebuildQueue() {
@@ -219,6 +234,8 @@ export default function ScoreSettingsPage() {
   }
 
   const dirty = differsFromSaved(values, config);
+  const eligibilityError = getEligibilityError(values);
+  const weightsError = getWeightsError(values);
   const valid = checkErrors(values, config) === null;
 
   return (
@@ -268,30 +285,28 @@ export default function ScoreSettingsPage() {
                   };
                   setValues(next);
                   setSavedForRebuild(false);
-                  setActionError(
-                    event.target.value.trim() === ""
-                      ? null
-                      : checkErrors(next, config),
-                  );
+                  setActionError(null);
                 }}
               />
               <span>%</span>
             </span>
           </div>
-          {actionError?.scope === "eligibility" && (
+          {eligibilityError && (
             <p className={styles.rowError} role="alert">
-              {actionError.message}
+              {eligibilityError.message}
             </p>
           )}
         </fieldset>
 
         <fieldset className={styles.group} disabled={busy}>
-          <SectionRule
-            label="Score Rates"
-            hint="multipliers, normalized to 100%"
-          />
-          {WEIGHT_FIELDS.map(({ key, label }) => (
-            <label className={styles.row} key={key}>
+          <div className={styles.scoreRule}>
+            <SectionRule
+              label="Score Computation"
+              hint="multipliers normalized to 100%"
+            />
+          </div>
+          {WEIGHT_FIELDS.map(({ key, label, term }, index) => (
+            <label className={`${styles.row} ${styles.weightRow}`} key={key}>
               <span className={styles.rowLabel}>{label}</span>
               <span className={styles.control}>
                 <input
@@ -302,13 +317,29 @@ export default function ScoreSettingsPage() {
                   value={values.weights[key]}
                   onChange={(event) => updateWeight(key, event.target.value)}
                 />
-                <span className={styles.share}>{weightShare(values, key)}</span>
+              </span>
+              <span className={styles.termText}>
+                <span className={styles.operator}>
+                  {index === 0 ? "" : "+"}
+                </span>
+                <span className={styles.termShare}>
+                  {weightValue(values, key)}
+                </span>
+                <span className={styles.formulaText}>
+                  <span className={styles.multiply}>×</span>
+                  <span className={styles.formulaBody}>
+                    {term} / max {term}
+                  </span>
+                </span>
               </span>
             </label>
           ))}
-          {actionError && actionError.scope !== "eligibility" && (
+          <p className={styles.scoreNote}>
+            max is computed across all authors currently in the queue
+          </p>
+          {(weightsError || actionError?.scope === "form") && (
             <p className={styles.rowError} role="alert">
-              {actionError.message}
+              {weightsError?.message ?? actionError?.message}
             </p>
           )}
         </fieldset>
