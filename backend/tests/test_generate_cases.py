@@ -317,9 +317,6 @@ def test_identity_case_is_built_from_every_source(snapshot) -> None:
         {"entity_type": "author", "id": DUMMY_CANDIDATE_IDS[1]},
     ]
     assert evidence[0].value == "2 S2 IDs for publications matching this name"
-    assert evidence[0].interpretation == (
-        "Publications under the stored name map to multiple Semantic Scholar author IDs"
-    )
     assert [row.fetch_status for row in evidence] == [FetchStatus.SUCCESS] * 4
     assert [row.fetched_at for row in evidence] == [DUMMY_FETCHED_AT.replace(tzinfo=None)] * 4
     assert evidence[1].value == DUMMY_AUTHOR_NAME

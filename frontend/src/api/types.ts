@@ -42,7 +42,6 @@ export interface EvidenceRecord {
   field: string;
   value: string | null;
   value_state: EvidenceValueState;
-  interpretation: string;
 }
 
 export interface SemanticScholarCandidate {

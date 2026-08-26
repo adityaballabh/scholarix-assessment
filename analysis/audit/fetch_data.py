@@ -137,7 +137,7 @@ def get_response_json(response, missing_ok=True):
 
     if response.status_code == 429:
         raise RuntimeError(
-            f"Rate limited (429) by {response.url}. \nSet MAILTO in .env to use the "
+            f"Rate limited (429) by {response.url}. \Try setting MAILTO in .env to use the "
             "API's polite pool for higher limits or try again later."
         )
 

@@ -94,7 +94,6 @@ def case_response(
                 field=row.field,
                 value=row.value,
                 value_state=row.value_state,
-                interpretation=row.interpretation,
             )
             for row in evidence
         ],

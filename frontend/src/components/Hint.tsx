@@ -9,8 +9,10 @@ export default function Hint({
   text: string;
   align?: "start" | "end";
 }) {
-  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const textRef = useRef<HTMLSpanElement>(null);
+  const open = hovered || focused;
 
   // Keep the tooltip on screen: nudge it back inside the viewport when it
   // would overflow an edge (routine on a narrow phone).
@@ -32,10 +34,10 @@ export default function Hint({
       type="button"
       className={styles.hint}
       aria-label={text}
-      onPointerEnter={() => setOpen(true)}
-      onPointerLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
     >
       <span aria-hidden="true" className={styles.mark}>
         i

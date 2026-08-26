@@ -4,7 +4,8 @@
   --surface-sunk: #dbe0e7;
   --header: #e5e8ee;
   --row-hover: #eaedf2;
-  --shadow-pop: 0 1px 2px rgba(22, 24, 28, 0.04), 0 4px 10px rgba(22, 24, 28, 0.06);
+  --shadow-pop: 0 1px 2px rgba(22, 24, 28, 0.04),
+    0 4px 10px rgba(22, 24, 28, 0.06);
 
   --ink: #16181c;
   --ink-secondary: #454a53;

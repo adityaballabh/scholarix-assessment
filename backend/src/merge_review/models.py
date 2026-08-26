@@ -244,7 +244,6 @@ class CaseEvidence(Base):
     field: Mapped[str] = mapped_column(String(64))
     value: Mapped[str | None] = mapped_column(Text)
     value_state: Mapped[str] = mapped_column(String(32))
-    interpretation: Mapped[str] = mapped_column(Text, default="")
 
 
 class IdentityCandidate(Base):

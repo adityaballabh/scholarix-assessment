@@ -102,7 +102,6 @@
   opacity: 0.5;
 }
 
-/* Sets the action apart from the identity cluster beside it */
 .headerDivider {
   width: 1px;
   height: 14px;
@@ -147,7 +146,6 @@
     white-space: nowrap;
   }
 
-  /* The wrapped header rows leave it orphaned at a row's edge */
   .headerDivider {
     display: none;
   }
@@ -159,9 +157,7 @@
     min-height: 34px;
   }
 
-  /* Two rows: wordmark + name on top, tabs + fetch below.
-     margin-right on the wordmark and margin-left on fetch (base rule)
-     right-align the name and the action on their rows. */
+  /* Auto margins align each mobile header row at opposite edges */
   .wordmark {
     order: 1;
     margin-right: auto;
