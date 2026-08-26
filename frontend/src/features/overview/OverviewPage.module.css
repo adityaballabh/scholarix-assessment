@@ -141,7 +141,7 @@
 }
 
 .caseRow:hover {
-  background: var(--surface);
+  background: var(--row-hover);
 }
 
 .caseRow:last-child,
@@ -234,6 +234,7 @@
   color: var(--ink-secondary);
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+  box-shadow: var(--shadow-pop);
   font: var(--text-micro);
   white-space: normal;
 }

@@ -139,6 +139,7 @@
   color: var(--ink-secondary);
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+  box-shadow: var(--shadow-pop);
   font: var(--text-micro);
 }
 

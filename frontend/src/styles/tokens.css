@@ -1,15 +1,18 @@
 :root {
-  --canvas: #eceef1;
-  --surface: #f6f7f9;
-  --surface-sunk: #e4e7eb;
+  --canvas: #e5e8ee;
+  --surface: #eff1f6;
+  --surface-sunk: #dbe0e7;
+  --header: #e5e8ee;
+  --row-hover: #eaedf2;
+  --shadow-pop: 0 1px 2px rgba(22, 24, 28, 0.04), 0 4px 10px rgba(22, 24, 28, 0.06);
 
   --ink: #16181c;
   --ink-secondary: #454a53;
   --ink-muted: #555c66;
   --ink-faint: #606771;
 
-  --rule: #d5d9df;
-  --rule-strong: #b6bcc5;
+  --rule: #ccd2db;
+  --rule-strong: #aeb5c1;
 
   --accent: #2f3f9e;
   --accent-weak: #e6e8f4;
@@ -108,11 +111,9 @@ button {
   }
 }
 
-/* Mobile Safari zooms the page when a focused field is under 16px */
 @media (max-width: 720px) {
   :root input,
   :root textarea {
     min-height: 34px;
-    font-size: 16px;
   }
 }

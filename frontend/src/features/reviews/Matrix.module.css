@@ -85,7 +85,7 @@
 .position {
   display: flex;
   align-items: center;
-  height: var(--matrix-row-height);
+  min-height: var(--matrix-row-height);
   padding: 8px 12px;
   color: var(--ink-faint);
   font: var(--text-micro);
@@ -97,7 +97,7 @@
   flex-direction: column;
   justify-content: center;
   gap: 3px;
-  height: var(--matrix-row-height);
+  min-height: var(--matrix-row-height);
   padding: 8px 12px;
 }
 
@@ -116,7 +116,7 @@
   flex-direction: column;
   justify-content: center;
   gap: 3px;
-  height: var(--matrix-row-height);
+  min-height: var(--matrix-row-height);
   padding: 8px 12px;
 }
 

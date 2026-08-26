@@ -57,6 +57,7 @@
   list-style: none;
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+  box-shadow: var(--shadow-pop);
   border-radius: var(--radius);
 }
 

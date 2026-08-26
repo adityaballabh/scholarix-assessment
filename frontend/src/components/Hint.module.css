@@ -28,26 +28,21 @@
   left: -6px;
   z-index: 3;
   width: max-content;
-  max-width: 280px;
+  max-width: min(280px, calc(100vw - 24px));
   padding: 7px 9px;
   color: var(--ink-secondary);
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+  box-shadow: var(--shadow-pop);
   font: var(--text-micro);
   text-align: left;
   white-space: normal;
-  display: none;
 }
 
 /* Last column: anchor right so the panel grows inward from the table edge */
 .textEnd {
   left: auto;
   right: -6px;
-}
-
-.hint:hover .text,
-.hint:focus .text {
-  display: block;
 }
 
 .hint:focus {
@@ -59,10 +54,3 @@
   background: var(--accent);
 }
 
-@media (max-width: 700px) {
-  .text {
-    left: auto;
-    right: -6px;
-    max-width: min(280px, calc(100vw - 40px));
-  }
-}

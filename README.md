@@ -38,7 +38,7 @@ Then open <http://localhost:8080> and click *fetch data*, which takes ~3 minutes
 
 ### Optional
 
-Create `.env` at the root with `MAILTO=<your_email>` as identification for public API requests, which can lead to quicker responses or higher rate limits
+Create `.env` at the root with `MAILTO=<your_email>` as identification for public API requests, which can lead to higher rate limits or quicker responses
 
 ## Sources
 

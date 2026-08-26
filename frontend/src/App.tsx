@@ -243,8 +243,24 @@ export default function App() {
               setConfirmingFetch(true);
             }}
           >
-            fetch data
+            <svg
+              className={styles.fetchIcon}
+              width="11"
+              height="11"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.89" />
+              <path d="M13.5 2.5V5.2h-2.7" />
+            </svg>
+            <span>fetch data</span>
           </button>
+          <span className={styles.headerDivider} aria-hidden="true" />
           <span className={styles.session}>
             {!ready ? null : user ? (
               <SessionMenu user={user} onSignOut={() => void signOut()} />

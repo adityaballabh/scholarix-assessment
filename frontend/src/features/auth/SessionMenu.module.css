@@ -35,16 +35,12 @@
   padding: 3px 0;
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+  box-shadow: var(--shadow-pop);
 }
 
-/* The trigger truncates, so this is the only place the whole name is readable */
+/* Only the truncating (mobile) trigger needs the full name repeated here */
 .name {
-  max-width: 220px;
-  margin: 0;
-  padding: 5px 12px;
-  color: var(--ink);
-  font: var(--text-micro);
-  overflow-wrap: anywhere;
+  display: none;
 }
 
 .item {
@@ -83,5 +79,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .name {
+    display: block;
+    margin: 0;
+    padding: 5px 12px;
+    color: var(--ink);
+    font: var(--text-micro);
+    overflow-wrap: anywhere;
   }
 }

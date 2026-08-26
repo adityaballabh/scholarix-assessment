@@ -2,7 +2,7 @@ import json
 import time
 from pathlib import Path
 from urllib.parse import quote
-from zipfile import ZipFile
+from zipfile import ZipFile, ZipInfo
 
 from requests_cache import CachedSession
 from requests_ratelimiter import LimiterAdapter
@@ -55,12 +55,25 @@ def create_session():
     return session
 
 
+def member_name(entry: ZipInfo) -> str:
+    # Names are UTF-8 but the zip omits the UTF-8 flag, so zipfile misreads
+    # them as CP437. Re-encode to recover the actual bytes
+    if entry.flag_bits & 0x800:
+        return entry.filename
+    try:
+        return entry.filename.encode("cp437").decode("utf-8")
+    except UnicodeError:
+        return entry.filename
+
+
 def extract_authors():
     if AUTHORS_DIR.exists():
         return
 
     with ZipFile(AUTHORS_ZIP) as archive:
-        archive.extractall(DATASET_DIR)
+        for entry in archive.infolist():
+            entry.filename = member_name(entry)
+            archive.extract(entry, DATASET_DIR)
 
 
 def get_author_dirs():
@@ -121,6 +134,12 @@ def get_orcid_ids(authors):
 def get_response_json(response, missing_ok=True):
     if response.status_code == 404 and missing_ok:
         return None
+
+    if response.status_code == 429:
+        raise RuntimeError(
+            f"Rate limited (429) by {response.url}. \nSet MAILTO in .env to use the "
+            "API's polite pool for higher limits or try again later."
+        )
 
     response.raise_for_status()
     return response.json()
