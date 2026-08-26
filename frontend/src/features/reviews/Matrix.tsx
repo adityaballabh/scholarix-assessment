@@ -153,7 +153,7 @@ export default function Matrix({
         style={
           {
             "--matrix-columns": `var(--matrix-rail, 36px) var(--matrix-field, 150px) repeat(${sources.length + 1}, minmax(0, 1fr))`,
-            "--matrix-min-width": `${226 + (sources.length + 1) * 130}px`,
+            "--matrix-min-width": `calc(var(--matrix-rail, 36px) + var(--matrix-field, 150px) + ${(sources.length + 1) * 130}px)`,
           } as React.CSSProperties
         }
       >

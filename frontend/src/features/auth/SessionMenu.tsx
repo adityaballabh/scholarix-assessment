@@ -36,6 +36,7 @@ export function SessionMenu({
       <button
         type="button"
         className={styles.trigger}
+        title={user.display_name}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((showing) => !showing)}
@@ -44,6 +45,7 @@ export function SessionMenu({
       </button>
       {open ? (
         <div className={styles.menu} role="menu">
+          <p className={styles.name}>{user.display_name}</p>
           <button
             type="button"
             role="menuitem"

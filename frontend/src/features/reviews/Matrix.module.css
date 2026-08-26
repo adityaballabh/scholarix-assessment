@@ -195,4 +195,20 @@
     overflow: visible;
     white-space: normal;
   }
+
+  .row > :nth-child(1),
+  .row > :nth-child(2) {
+    position: sticky;
+    z-index: 1;
+    background: var(--canvas);
+  }
+
+  .row > :nth-child(1) {
+    left: 0;
+  }
+
+  .row > :nth-child(2) {
+    left: var(--matrix-rail);
+    box-shadow: 1px 0 0 var(--rule);
+  }
 }

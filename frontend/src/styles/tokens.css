@@ -107,3 +107,12 @@ button {
     transition-duration: 1ms !important;
   }
 }
+
+/* Mobile Safari zooms the page when a focused field is under 16px */
+@media (max-width: 720px) {
+  :root input,
+  :root textarea {
+    min-height: 34px;
+    font-size: 16px;
+  }
+}

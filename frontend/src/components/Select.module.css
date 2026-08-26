@@ -51,6 +51,7 @@
   left: 0;
   z-index: 2;
   min-width: 100%;
+  max-width: min(280px, calc(100vw - 24px));
   margin: 0;
   padding: 0;
   list-style: none;
@@ -67,6 +68,9 @@
   display: flex;
   align-items: center;
   height: 26px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 10px 0 8px;
   color: var(--ink-secondary);
   font: var(--text-micro);
@@ -82,4 +86,14 @@
 .option[aria-selected="true"] {
   color: var(--ink);
   font-weight: 500;
+}
+
+@media (max-width: 720px) {
+  .trigger {
+    height: 34px;
+  }
+
+  .option {
+    min-height: 34px;
+  }
 }

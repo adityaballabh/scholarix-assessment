@@ -116,18 +116,36 @@
   flex-shrink: 0;
 }
 
+/* The nav wraps to a second row because hiding the session control would
+   strand sign-out */
 @media (max-width: 720px) {
   .header {
+    height: auto;
+    flex-wrap: wrap;
     gap: 16px;
-    padding: 0 12px;
+    padding: 4px 12px 0;
+  }
+
+  .wordmark,
+  .fetchButton {
+    white-space: nowrap;
+  }
+
+  .fetchButton,
+  .sessionAction {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+  }
+
+  .navigation {
+    order: 1;
+    width: 100%;
   }
 
   .navigationLink {
     padding: 0 14px;
-  }
-
-  .session {
-    display: none;
+    height: 32px;
   }
 
   .main {

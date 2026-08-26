@@ -226,17 +226,6 @@
     border-color: var(--accent);
   }
 
-  .search {
-    width: 240px;
-    height: 28px;
-    padding: 0 8px;
-    color: var(--ink-secondary);
-    background: transparent;
-    border: var(--hairline) solid var(--rule-strong);
-    border-radius: 0;
-    font: var(--text-micro);
-  }
-
   .search::placeholder {
     color: var(--ink-faint);
     opacity: 1;

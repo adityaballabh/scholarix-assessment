@@ -31,9 +31,20 @@
   right: -9px;
   z-index: 11;
   min-width: max-content;
+  max-width: min(220px, calc(100vw - 24px));
   padding: 3px 0;
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+}
+
+/* The trigger truncates, so this is the only place the whole name is readable */
+.name {
+  max-width: 220px;
+  margin: 0;
+  padding: 5px 12px;
+  color: var(--ink);
+  font: var(--text-micro);
+  overflow-wrap: anywhere;
 }
 
 .item {
@@ -57,4 +68,20 @@
   outline: none;
   color: var(--accent);
   border-color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .root {
+    min-width: 0;
+    max-width: 140px;
+  }
+
+  .trigger {
+    display: block;
+    max-width: 100%;
+    min-height: 34px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }

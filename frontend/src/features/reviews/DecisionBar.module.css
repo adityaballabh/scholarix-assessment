@@ -186,4 +186,8 @@
   .actions {
     flex-wrap: wrap;
   }
+
+  .fetchAll {
+    margin-left: 0;
+  }
 }
