@@ -44,6 +44,22 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_BASE_URL}${path}`, { ...init, credentials: "include" });
 }
 
+function errorDetail(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return null;
+
+  for (const issue of value) {
+    if (!issue || typeof issue !== "object") continue;
+    const { loc, msg } = issue as { loc?: unknown; msg?: unknown };
+    if (typeof msg !== "string") continue;
+    const field = Array.isArray(loc) ? loc[loc.length - 1] : null;
+    return typeof field === "string"
+      ? `${field.replace(/_/g, " ")}: ${msg}`
+      : msg;
+  }
+  return null;
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   let response = await send(path, init);
   if (
@@ -57,7 +73,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = response.statusText;
     try {
       const body = (await response.json()) as { detail?: unknown };
-      if (typeof body.detail === "string") detail = body.detail;
+      detail = errorDetail(body.detail) ?? detail;
     } catch {}
     throw new ApiError(response.status, detail);
   }

@@ -153,6 +153,7 @@
   background: transparent;
   border: 0;
   font: var(--text-cell);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;

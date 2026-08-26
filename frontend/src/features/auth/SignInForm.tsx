@@ -7,6 +7,34 @@ import styles from "./SignInForm.module.css";
 
 type Mode = "sign-in" | "register";
 
+const USERNAME_PATTERN = /^[a-z0-9._-]+$/;
+
+function validationError(
+  registering: boolean,
+  username: string,
+  displayName: string,
+  password: string,
+): string | null {
+  if (registering && username.length < 3) {
+    return "Username must be at least 3 characters";
+  }
+  if (!registering && username.length < 1) return "Username is required";
+  if (username.length > 64) return "Username can have at most 64 characters";
+  if (registering && !USERNAME_PATTERN.test(username)) {
+    return "Username can only contain letters, numbers, periods, underscores, and hyphens";
+  }
+  if (registering && displayName.length < 1) return "Display name is required";
+  if (registering && displayName.length > 64) {
+    return "Display name can have at most 64 characters";
+  }
+  if (registering && password.length < 8) {
+    return "Password must be at least 8 characters";
+  }
+  if (!registering && password.length < 1) return "Password is required";
+  if (password.length > 1024) return "Password is too long";
+  return null;
+}
+
 export function SignInForm({
   autoFocus = false,
   initialMode = "sign-in",
@@ -28,16 +56,29 @@ export function SignInForm({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const normalizedUsername = username.trim().toLowerCase();
+    const normalizedDisplayName = displayName.trim();
+    const invalid = validationError(
+      registering,
+      normalizedUsername,
+      normalizedDisplayName,
+      password,
+    );
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+
     setPending(true);
     setError(null);
     try {
       const user = registering
         ? await createAccount({
-            username,
+            username: normalizedUsername,
             password,
-            display_name: displayName,
+            display_name: normalizedDisplayName,
           })
-        : await signIn({ username, password });
+        : await signIn({ username: normalizedUsername, password });
       await rememberCredentials({
         id: user.username,
         password,
@@ -55,7 +96,7 @@ export function SignInForm({
   }
 
   return (
-    <form className={styles.form} onSubmit={submit}>
+    <form className={styles.form} noValidate onSubmit={submit}>
       <p className={styles.heading}>
         {registering ? "Create account" : "Sign in"}
       </p>
@@ -68,8 +109,14 @@ export function SignInForm({
           name="username"
           className={styles.input}
           value={username}
+          required
+          minLength={registering ? 3 : 1}
+          pattern={registering ? "[a-z0-9._-]+" : undefined}
           autoFocus={autoFocus}
           autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           disabled={pending}
           onChange={(event) => setUsername(event.target.value)}
         />
@@ -85,6 +132,7 @@ export function SignInForm({
             name="display_name"
             className={styles.input}
             value={displayName}
+            required
             autoComplete="name"
             disabled={pending}
             onChange={(event) => setDisplayName(event.target.value)}
@@ -102,6 +150,9 @@ export function SignInForm({
           className={styles.input}
           type="password"
           value={password}
+          required
+          minLength={registering ? 8 : 1}
+          maxLength={1024}
           autoComplete={registering ? "new-password" : "current-password"}
           disabled={pending}
           onChange={(event) => setPassword(event.target.value)}
