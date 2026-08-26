@@ -89,7 +89,7 @@ export default function Identity({
                     <span role="cell" className={styles.span}>
                       {yearSpan(candidate) ?? "—"}
                     </span>
-                    <span role="cell" className={styles.title}>
+                    <span role="cell" className={styles.title} title="">
                       {leadTitle(candidate)}
                     </span>
                   </div>

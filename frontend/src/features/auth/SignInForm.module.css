@@ -1,0 +1,120 @@
+.form {
+  width: min(320px, 100%);
+}
+
+.heading {
+  margin: 0 0 20px;
+  color: var(--ink-muted);
+  font: var(--text-section);
+}
+
+.field + .field {
+  margin-top: 16px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--ink-secondary);
+  font: var(--text-micro);
+}
+
+.input {
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  color: var(--ink);
+  background: transparent;
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: 0;
+  font: var(--text-interface);
+}
+
+/*
+ * Chrome paints autofilled fields yellow and ignores background-color, so the
+ * canvas is painted back in with an inset shadow. Not a shadow in the design
+ * sense; it is the only property that wins here.
+ */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus,
+.input:autofill {
+  -webkit-box-shadow: 0 0 0 40px var(--canvas) inset;
+  box-shadow: 0 0 0 40px var(--canvas) inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--ink-faint);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.input:disabled {
+  color: var(--ink-faint);
+  border-color: var(--rule);
+}
+
+.error {
+  margin: 16px 0 0;
+  color: var(--alert);
+  font: var(--text-micro);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.switch {
+  height: 24px;
+  padding: 0 9px 0 0;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  font: var(--text-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.switch:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.submit {
+  height: 28px;
+  padding: 0 11px;
+  color: var(--accent);
+  background: transparent;
+  border: var(--hairline) solid var(--accent);
+  border-radius: 0;
+  font: var(--text-micro);
+  cursor: pointer;
+}
+
+.submit:hover:not(:disabled) {
+  color: var(--canvas);
+  background: var(--accent);
+}
+
+.switch:focus-visible,
+.submit:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.submit:disabled,
+.switch:disabled {
+  color: var(--ink-faint);
+  border-color: var(--rule);
+  background: transparent;
+  cursor: default;
+}

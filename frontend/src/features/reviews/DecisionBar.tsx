@@ -4,7 +4,9 @@ import type {
   DecisionAction,
   ReviewStatus,
 } from "../../api/types";
+import { ApiError } from "../../api/client";
 import { formatFetchedAt } from "../../lib/datetime";
+import { statusText } from "../../lib/decisions";
 import styles from "./DecisionBar.module.css";
 
 interface Judgement {
@@ -53,6 +55,7 @@ export default function DecisionBar({
   notes,
   busy,
   fetchingAll,
+  exportUrl,
   onDecide,
   onFetchAll,
 }: {
@@ -60,11 +63,13 @@ export default function DecisionBar({
   notes: ActivityEvent[];
   busy: boolean;
   fetchingAll: boolean;
+  exportUrl: string;
   onDecide: (action: DecisionAction, note: string) => Promise<void>;
   onFetchAll: () => void;
 }) {
   const [pending, setPending] = useState<Judgement | null>(null);
   const [viewingNotes, setViewingNotes] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const available = judgements.filter(
     (judgement) => judgement.status !== status,
   );
@@ -92,14 +97,22 @@ export default function DecisionBar({
     if (busy) return;
     setPending(null);
     setViewingNotes(false);
+    setFailure(null);
     triggerRef.current?.focus();
   }
 
   function confirm() {
     if (!pending || busy) return;
+    setFailure(null);
     void onDecide(pending.action, note)
       .then(close)
-      .catch(() => {});
+      .catch((cause) => {
+        setFailure(
+          cause instanceof ApiError && cause.status === 401
+            ? "Sign in to record this decision."
+            : "The decision was not recorded. Reload the case and try again.",
+        );
+      });
   }
 
   return (
@@ -136,6 +149,13 @@ export default function DecisionBar({
         >
           {fetchingAll ? "fetching" : "fetch all evidence"}
         </button>
+        <a
+          className={`${styles.action} ${styles.actionLink}`}
+          href={exportUrl}
+          download
+        >
+          export evidence
+        </a>
       </div>
 
       <dialog
@@ -157,8 +177,7 @@ export default function DecisionBar({
                     <span>{event.actor}</span>
                     {event.before !== event.after && (
                       <span>
-                        {event.before?.replace(/_/g, " ")} →{" "}
-                        {event.after?.replace(/_/g, " ")}
+                        {statusText(event.before)} → {statusText(event.after)}
                       </span>
                     )}
                     <span>{formatFetchedAt(event.created_at)}</span>
@@ -192,8 +211,10 @@ export default function DecisionBar({
               }}
             />
             <div className={styles.dialogActions}>
-              <span className={styles.submitHint}>
-                {blocked ? "" : "enter to submit"}
+              <span
+                className={failure ? styles.submitError : styles.submitHint}
+              >
+                {failure ?? (blocked ? "" : "enter to submit")}
               </span>
               <button
                 type="button"
@@ -222,7 +243,7 @@ export default function DecisionBar({
       </dialog>
 
       <span aria-live="polite" className={styles.srOnly}>
-        Case is {status.replace(/_/g, " ")}
+        Case is {statusText(status)}
       </span>
     </div>
   );

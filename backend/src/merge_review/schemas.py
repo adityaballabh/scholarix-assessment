@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SourceFetchStatus = Literal[
     "success",
@@ -30,6 +31,40 @@ DecisionAction = Literal[
     "defer",
     "note",
 ]
+
+
+class UserRegistration(BaseModel):
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9._-]+$")
+    display_name: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=8, max_length=1024)
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def trim_display_name(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=1024)
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    username: str
+    display_name: str
 
 
 class SourceRecordReference(BaseModel):
@@ -70,6 +105,7 @@ class AuthorIdentityDetail(BaseModel):
 class ReviewTarget(BaseModel):
     author_slug: str
     author_name: str
+    author_affiliation: str | None
     openalex_id: str | None
 
 
@@ -102,13 +138,13 @@ class PriorityWeights(BaseModel):
         return self
 
 
-class AuditConfigUpdate(BaseModel):
+class QueueSettingsUpdate(BaseModel):
     max_top_candidate_share: float = Field(ge=0, le=100)
     weights: PriorityWeights
     expected_version: int = Field(ge=1)
 
 
-class AuditConfigResponse(BaseModel):
+class QueueSettingsResponse(BaseModel):
     max_top_candidate_share: float
     weights: PriorityWeights
     version: int
@@ -122,31 +158,32 @@ class RefreshResponse(BaseModel):
     cases: int
 
 
-class AuditSourceProgress(BaseModel):
+class FetchSourceProgress(BaseModel):
     completed: int
     total: int
     by_status: dict[str, int]
     completed_at: datetime | None = None
 
 
-class AuditRunResponse(BaseModel):
+class FetchRunResponse(BaseModel):
     id: str
     status: Literal["queued", "running", "complete", "failed", "abandoned"]
     current_source: str | None
-    source_progress: dict[str, AuditSourceProgress]
+    source_progress: dict[str, FetchSourceProgress]
     started_at: datetime | None
     finished_at: datetime | None
     last_completed_at: datetime | None
     error: str | None
 
 
-class AuditResponse(BaseModel):
+class QueueRebuildResponse(BaseModel):
     config_version: int
     cases: int
 
 
 class ValidationCaseResponse(BaseModel):
     id: str
+    dataset_imported_at: datetime
     status: ReviewStatus
     queue_eligible: bool
     priority_score: float
@@ -196,5 +233,30 @@ class ReviewOverview(BaseModel):
     affected_publications: int
     total_authors: int
     total_publications: int
-    audited_at: datetime | None
+    queue_updated_at: datetime | None
     sources: list[SourceStatus]
+
+
+class ExportedCase(ValidationCaseResponse):
+    history: list[ActivityEventResponse]
+
+
+class ExportSnapshot(BaseModel):
+    id: UUID
+    dataset_sha256: str
+    imported_at: datetime
+
+
+class ExportFilters(BaseModel):
+    scope: QueueScope
+    status: str | None
+    query: str | None
+
+
+class EvidenceExport(BaseModel):
+    exported_at: datetime
+    dataset_snapshot: ExportSnapshot
+    queue_settings: QueueSettingsResponse
+    filters: ExportFilters | None
+    case_count: int
+    cases: list[ExportedCase]

@@ -15,6 +15,8 @@ interface SelectProps<T extends string> {
   onChange: (value: T) => void;
 }
 
+const TYPEAHEAD_RESET_MS = 600;
+
 export default function Select<T extends string>({
   label,
   prefix,
@@ -70,7 +72,7 @@ export default function Select<T extends string>({
     typeahead.current.buffer += character.toLowerCase();
     typeahead.current.timer = window.setTimeout(() => {
       typeahead.current.buffer = "";
-    }, 600);
+    }, TYPEAHEAD_RESET_MS);
 
     const match = options.findIndex((option) =>
       option.label.toLowerCase().startsWith(typeahead.current.buffer),
@@ -135,7 +137,7 @@ export default function Select<T extends string>({
         aria-label={`${label}: ${selected.label}`}
         onClick={() => setOpen((isOpen) => !isOpen)}
       >
-        <span className={styles.triggerLabel}>
+        <span className={styles.triggerLabel} title="">
           {prefix ? `${prefix} ${selected.label}` : selected.label}
         </span>
         <span className={styles.caret} aria-hidden="true" />

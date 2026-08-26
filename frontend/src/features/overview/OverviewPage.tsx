@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getOverview, listActivity, listCases } from "../../api/client";
 import type {
@@ -10,25 +10,14 @@ import type {
 import Hint from "../../components/Hint";
 import SectionRule from "../../components/SectionRule";
 import {
-  formatCompactRelativeTime,
+  compactRelativeParts,
   formatEventTime,
   formatFetchedAt,
 } from "../../lib/datetime";
 import { actionLabels } from "../../lib/decisions";
 import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
+import { sourceLabel } from "../../lib/sources";
 import styles from "./OverviewPage.module.css";
-
-const sourceNames: Record<string, string> = {
-  semantic_scholar: "Semantic Scholar",
-  openalex: "OpenAlex",
-  orcid: "ORCID",
-  google_scholar: "Google Scholar",
-  pubmed: "PubMed",
-};
-
-function sourceName(source: string) {
-  return sourceNames[source] ?? source.replace(/_/g, " ");
-}
 
 const sourceStateLabels: Record<SourceHealthState, string> = {
   available: "available",
@@ -76,33 +65,45 @@ export default function OverviewPage() {
     );
   }
 
-  if (!data) return <p className={styles.pageState}>Loading review data…</p>;
-
-  const { overview, cases, activity } = data;
+  // The page keeps its structure while the three requests are outstanding, so
+  // section rules and table heads hold their place and only values swap in.
+  const loading = data === null;
+  const pending = "\u2014";
+  const cases = data?.cases ?? [];
+  const activity = data?.activity ?? [];
+  const sources = data?.overview.sources ?? [];
 
   return (
     <div className={styles.sections}>
-      <SectionRule label="Audit Results" />
+      <SectionRule label="Review Queue" />
       <div className={styles.summaryStrip}>
         <Stat
-          value={overview.total_authors.toLocaleString()}
-          label="profiles audited"
+          value={
+            loading ? pending : data.overview.total_authors.toLocaleString()
+          }
+          label="profiles assessed"
         />
         <Stat
-          value={overview.flagged_authors.toLocaleString()}
+          value={
+            loading ? pending : data.overview.flagged_authors.toLocaleString()
+          }
           label="flagged"
         />
         <Stat
-          value={overview.affected_publications.toLocaleString()}
-          label={`of ${overview.total_publications.toLocaleString()} publications affected`}
+          value={
+            loading
+              ? pending
+              : data.overview.affected_publications.toLocaleString()
+          }
+          label={`of ${loading ? pending : data.overview.total_publications.toLocaleString()} publications affected`}
         />
         <Stat
-          value={formatCompactRelativeTime(overview.audited_at)}
+          value={<CompactAge iso={data?.overview.queue_updated_at ?? null} />}
           label={
             <>
-              since last audit
+              since last queue update
               <Hint
-                text="Fetching all data, changing queue settings, or fetching evidence for a specific case reruns the audit"
+                text="Fetching all data, changing queue settings, or fetching evidence for a specific case rebuilds the queue"
                 align="end"
               />
             </>
@@ -180,13 +181,13 @@ export default function OverviewPage() {
             </tr>
           </thead>
           <tbody role="rowgroup">
-            {overview.sources.map((source, index) => (
+            {sources.map((source, index) => (
               <tr role="row" className={styles.sourceRow} key={source.source}>
                 <td role="cell" className={styles.position}>
                   {index + 1}
                 </td>
                 <th role="rowheader" scope="row" className={styles.sourceName}>
-                  {sourceName(source.source)}
+                  {sourceLabel(source.source)}
                 </th>
                 <td
                   role="cell"
@@ -194,12 +195,8 @@ export default function OverviewPage() {
                 >
                   {sourceStateLabels[source.state]}
                 </td>
-                <td
-                  role="cell"
-                  className={styles.sourceNote}
-                  title={source.note}
-                >
-                  {source.note}
+                <td role="cell" className={styles.sourceNoteCell}>
+                  <SourceNote note={source.note} />
                 </td>
                 <td role="cell" className={styles.sourceFetched}>
                   <time dateTime={source.fetched_at ?? undefined}>
@@ -220,7 +217,7 @@ export default function OverviewPage() {
           </Link>
         }
       />
-      {activity.length === 0 ? (
+      {loading ? null : activity.length === 0 ? (
         <p className={styles.emptyState}>
           No{" "}
           <Link to="/activity" className={styles.emptyStateLink}>
@@ -289,7 +286,45 @@ export default function OverviewPage() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: ReactNode }) {
+function SourceNote({ note }: { note: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [clipped, setClipped] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const measure = () => setClipped(element.scrollWidth > element.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [note]);
+
+  return (
+    <span
+      className={styles.sourceNoteWrap}
+      data-hint={clipped ? note : undefined}
+    >
+      {/* Safari shows its own tooltip over any ellipsis-truncated text, with no
+          title attribute involved. An empty title is what suppresses it. */}
+      <span ref={ref} className={styles.sourceNote} title="">
+        {note}
+      </span>
+    </span>
+  );
+}
+
+function CompactAge({ iso }: { iso: string | null }) {
+  const { value, unit } = compactRelativeParts(iso);
+  return (
+    <>
+      {value}
+      {unit ? <span className={styles.statUnit}>{unit}</span> : null}
+    </>
+  );
+}
+
+function Stat({ value, label }: { value: ReactNode; label: ReactNode }) {
   return (
     <div className={styles.stat}>
       <span className={styles.statValue}>{value}</span>

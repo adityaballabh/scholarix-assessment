@@ -1,0 +1,52 @@
+.dialog {
+  width: min(412px, calc(100vw - 32px));
+  padding: 0;
+  color: var(--ink);
+  background: var(--canvas);
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: 0;
+  box-shadow: 0 8px 24px -12px rgba(22, 24, 28, 0.28);
+}
+
+/* Opaque enough to mask the dialog this one interrupts. */
+.dialog::backdrop {
+  background: rgba(22, 24, 28, 0.55);
+}
+
+.body {
+  position: relative;
+  padding: 16px;
+}
+
+.message {
+  margin: 0 0 20px;
+  padding-right: 20px;
+  color: var(--ink-secondary);
+  font: var(--text-interface);
+  line-height: 1.5;
+}
+
+.close {
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  padding: 0 4px;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: var(--hairline) solid transparent;
+  border-radius: 0;
+  font: var(--text-interface);
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--ink);
+}
+
+.close:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--accent);
+}

@@ -36,6 +36,9 @@
 }
 
 .sourceTitle {
+  /* Matches .refreshSource so a column without a fetch button keeps the same title height
+     and its provenance lines stay on the others' baselines. */
+  min-height: 20px;
   display: flex;
   align-items: center;
   gap: 10px;

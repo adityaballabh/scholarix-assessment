@@ -3,15 +3,14 @@ from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
-from merge_review.generate_cases import (
+from merge_review.cases.evidence import orcid_evidence
+from merge_review.cases.generate import (
     Candidate,
     IdentityCaseData,
     PriorityMaximums,
     case_id,
     generate_identity_cases,
-    institutions_match,
     normalized_component,
-    normalized_institution,
     requires_identity_review,
     score_values,
 )
@@ -27,9 +26,10 @@ from merge_review.models import (
     ReviewDecision,
     ReviewSettings,
     SourceRecord,
+    User,
     ValidationCase,
 )
-from merge_review.source_records import FetchStatus
+from merge_review.sources.common import FetchStatus
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
@@ -68,26 +68,6 @@ def test_case_ids_are_snapshot_scoped() -> None:
 def test_component_score_is_zero_when_the_snapshot_has_no_maximum() -> None:
     assert normalized_component(0, 0) == 0.0
     assert normalized_component(3, 0) == 0.0
-
-
-def test_institution_normalization_ignores_at() -> None:
-    assert normalized_institution(
-        "University of Illinois Urbana-Champaign"
-    ) == normalized_institution("University of Illinois at Urbana-Champaign")
-    assert normalized_institution("Research and Development Center") == (
-        normalized_institution("The Research Development Center")
-    )
-
-
-def test_institution_matching_does_not_infer_parent_system() -> None:
-    assert not institutions_match(
-        "University of Illinois Urbana-Champaign",
-        "University of Illinois System",
-    )
-    assert not institutions_match(
-        "University of Illinois Urbana-Champaign",
-        "Argonne National Laboratory",
-    )
 
 
 def test_configured_weights_change_score() -> None:
@@ -237,6 +217,16 @@ def snapshot() -> tuple[sessionmaker, UUID]:
 def record_review(factory: sessionmaker, review_case_id: str) -> None:
     with factory.begin() as session:
         review_case = session.get(ValidationCase, review_case_id)
+        reviewer_id = uuid4()
+        session.add(
+            User(
+                id=reviewer_id,
+                username="dummy",
+                display_name=DUMMY_AUTHOR_NAME,
+                password_hash="dummy",
+            )
+        )
+        session.flush()
         decision_id = uuid4()
         session.add(
             ReviewDecision(
@@ -244,7 +234,7 @@ def record_review(factory: sessionmaker, review_case_id: str) -> None:
                 case_id=review_case.id,
                 action="note",
                 note="Keep this review context",
-                reviewer_id="dummy",
+                reviewer_id=reviewer_id,
                 expected_case_version=review_case.version,
                 created_at=DUMMY_FETCHED_AT,
             )
@@ -310,6 +300,79 @@ def test_identity_case_is_built_from_every_source(snapshot) -> None:
         "supports",
         "supports",
     ]
+    assert [row.source for row in evidence] == [
+        "semantic_scholar",
+        "openalex",
+        "openalex",
+        "orcid",
+    ]
+    assert [row.field for row in evidence] == [
+        "author_identity",
+        "canonical_name",
+        "affiliation",
+        "affiliation",
+    ]
+    assert evidence[0].source_refs == [
+        {"entity_type": "author", "id": DUMMY_CANDIDATE_IDS[0]},
+        {"entity_type": "author", "id": DUMMY_CANDIDATE_IDS[1]},
+    ]
+    assert evidence[0].value == "2 S2 IDs for publications matching this name"
+    assert evidence[0].interpretation == (
+        "Publications under the stored name map to multiple Semantic Scholar author IDs. "
+        "This is a review signal, not a merge determination."
+    )
+    assert [row.fetch_status for row in evidence] == [FetchStatus.SUCCESS] * 4
+    assert [row.fetched_at for row in evidence] == [DUMMY_FETCHED_AT.replace(tzinfo=None)] * 4
+    assert evidence[1].value == DUMMY_AUTHOR_NAME
+    assert evidence[2].value == DUMMY_INSTITUTION
+    assert evidence[3].value == DUMMY_INSTITUTION
+
+
+@pytest.mark.parametrize(
+    ("orcid_id", "fetch_status", "institution", "expected_state", "expected_fetch_status"),
+    [
+        (DUMMY_ORCID, FetchStatus.SUCCESS, DUMMY_INSTITUTION, "supports", FetchStatus.SUCCESS),
+        (DUMMY_ORCID, FetchStatus.SUCCESS, "Other University", "conflict", FetchStatus.SUCCESS),
+        (DUMMY_ORCID, FetchStatus.ERROR, DUMMY_INSTITUTION, "unverifiable", FetchStatus.ERROR),
+        (None, FetchStatus.SUCCESS, DUMMY_INSTITUTION, "missing", FetchStatus.NOT_APPLICABLE),
+    ],
+)
+def test_orcid_evidence_states(
+    snapshot,
+    orcid_id,
+    fetch_status,
+    institution,
+    expected_state,
+    expected_fetch_status,
+) -> None:
+    factory, _ = snapshot
+    with factory.begin() as session:
+        author = session.scalar(select(Author))
+        record = session.scalar(select(SourceRecord).where(SourceRecord.source == "orcid"))
+        author.orcid_id = orcid_id
+        record.fetch_status = fetch_status
+        record.payload = {
+            "activities-summary": {
+                "employments": {
+                    "affiliation-group": [
+                        {
+                            "summaries": [
+                                {"employment-summary": {"organization": {"name": institution}}}
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+        row = orcid_evidence(session, author)
+
+    assert row["source_refs"] == (
+        [{"entity_type": "author", "id": DUMMY_ORCID}] if orcid_id else []
+    )
+    assert row["fetch_status"] == expected_fetch_status
+    assert row["value_state"] == expected_state
+    expected_value = institution if expected_state in {"supports", "conflict"} else None
+    assert row["value"] == expected_value
 
 
 def test_regenerating_after_a_refetch_updates_the_case_in_place(snapshot) -> None:

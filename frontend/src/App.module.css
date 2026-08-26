@@ -74,7 +74,7 @@
   font: var(--text-micro);
 }
 
-.auditButton {
+.fetchButton {
   margin-left: auto;
   padding: 0;
   color: var(--ink-faint);
@@ -84,16 +84,16 @@
   cursor: pointer;
 }
 
-.auditButton:hover:not(:disabled) {
+.fetchButton:hover:not(:disabled) {
   color: var(--ink);
 }
 
-.auditButton:disabled {
-  cursor: wait;
+.fetchButton:disabled {
+  cursor: default;
   opacity: 0.5;
 }
 
-.auditState {
+.fetchState {
   margin: 0;
   padding: 24px;
   color: var(--ink-muted);
@@ -143,4 +143,18 @@
   .navigationLink {
     padding: 0 10px;
   }
+}
+
+.sessionAction {
+  padding: 0;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  font: var(--text-micro);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sessionAction:hover {
+  color: var(--ink);
 }

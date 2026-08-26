@@ -2,20 +2,14 @@ import type {
   EvidenceRecord,
   EvidenceValueState,
   RefreshSource,
+  ReviewTarget,
   SourceFetchStatus,
 } from "../../api/types";
 import Hint from "../../components/Hint";
 import { formatFetchedAt } from "../../lib/datetime";
+import { sourceLabel } from "../../lib/sources";
 import { countedNoun } from "./labels";
 import styles from "./Matrix.module.css";
-
-const sourceNames: Record<string, string> = {
-  semantic_scholar: "Semantic Scholar",
-  openalex: "OpenAlex",
-  orcid: "ORCID",
-  google_scholar: "Google Scholar",
-  pubmed: "PubMed",
-};
 
 const refreshableSources: RefreshSource[] = [
   "semantic_scholar",
@@ -35,6 +29,18 @@ const fieldNames: Record<string, string> = {
   orcid_id: "orcid",
   publications: "publications",
 };
+
+/**
+ * The dataset's own values, by the evidence field they are checked against. This is the
+ * baseline the sources are compared to rather than a source of its own, so it carries no
+ * fetch state, no timestamp, and no supports/conflict styling.
+ */
+function datasetValues(target: ReviewTarget): Record<string, string | null> {
+  return {
+    canonical_name: target.author_name,
+    affiliation: target.author_affiliation,
+  };
+}
 
 const fetchNotes: Record<SourceFetchStatus, string> = {
   success: "200 ok",
@@ -58,10 +64,6 @@ const brokenFetches: SourceFetchStatus[] = [
   "error",
   "not_found",
 ];
-
-function sourceName(source: string) {
-  return sourceNames[source] ?? source.replace(/_/g, " ");
-}
 
 function fieldName(field: string) {
   return fieldNames[field] ?? field.replace(/_/g, " ");
@@ -93,14 +95,19 @@ function recordLabel(record: EvidenceRecord, shares: Record<string, number>) {
 export default function Matrix({
   evidence,
   shares = {},
+  target,
+  importedAt,
   refreshing,
   onRefreshSource,
 }: {
   evidence: EvidenceRecord[];
   shares?: Record<string, number>;
+  target: ReviewTarget;
+  importedAt: string;
   refreshing: RefreshSource | "all" | null;
   onRefreshSource: (source: RefreshSource) => void;
 }) {
+  const provided = datasetValues(target);
   const sources = [...new Set(evidence.map((record) => record.source))];
   const fields = [...new Set(evidence.map((record) => record.field))];
 
@@ -145,8 +152,8 @@ export default function Matrix({
         className={styles.matrix}
         style={
           {
-            "--matrix-columns": `var(--matrix-rail, 36px) var(--matrix-field, 150px) repeat(${sources.length}, minmax(0, 1fr))`,
-            "--matrix-min-width": `${226 + sources.length * 130}px`,
+            "--matrix-columns": `var(--matrix-rail, 36px) var(--matrix-field, 150px) repeat(${sources.length + 1}, minmax(0, 1fr))`,
+            "--matrix-min-width": `${226 + (sources.length + 1) * 130}px`,
           } as React.CSSProperties
         }
       >
@@ -157,6 +164,19 @@ export default function Matrix({
             </div>
             <div role="columnheader" className={styles.headCell}>
               <span className={styles.srOnly}>field</span>
+            </div>
+            <div role="columnheader" className={styles.headCell}>
+              <span className={styles.sourceTitle}>
+                <span className={styles.sourceName}>Dataset</span>
+              </span>
+              {/* Two lines like the source columns: the label where they print an
+                  identifier, the date where they print their fetch time. */}
+              <span className={styles.provenance} title="">
+                imported
+              </span>
+              <span className={styles.provenance} title="">
+                {fetchedLabel(importedAt)}
+              </span>
             </div>
             {sources.map((source) => {
               const state = deadColumns.get(source);
@@ -174,25 +194,25 @@ export default function Matrix({
                 >
                   <span className={styles.sourceTitle}>
                     <span className={styles.sourceName}>
-                      {sourceName(source)}
+                      {sourceLabel(source)}
                     </span>
                     {refreshable && (
                       <button
                         type="button"
                         className={styles.refreshSource}
                         disabled={refreshing !== null || !applicable}
-                        aria-label={`fetch ${sourceName(source)} evidence`}
+                        aria-label={`fetch ${sourceLabel(source)} evidence`}
                         onClick={() => onRefreshSource(source)}
                       >
                         {refreshing === source ? "fetching" : "fetch"}
                       </button>
                     )}
                   </span>
-                  <span className={styles.provenance}>
+                  <span className={styles.provenance} title="">
                     {sample ? recordLabel(sample, shares) : "—"}
                   </span>
                   {sample?.fetch_status !== "not_applicable" && (
-                    <span className={styles.provenance}>
+                    <span className={styles.provenance} title="">
                       {fetchedLabel(sample?.fetched_at ?? null)}
                     </span>
                   )}
@@ -212,6 +232,13 @@ export default function Matrix({
                 <span className={styles.fieldName}>{fieldName(field)}</span>
                 {conflicted.has(field) && (
                   <span className={styles.conflictTag}>conflict</span>
+                )}
+              </div>
+              <div role="cell" className={styles.cell}>
+                {provided[field] && (
+                  <span className={`${styles.cellLine} ${styles.value}`}>
+                    {provided[field]}
+                  </span>
                 )}
               </div>
               {sources.map((source) => (
@@ -266,7 +293,7 @@ function Cell({
           </>
         ) : (
           <span className={styles.srOnly}>
-            {sourceName(source)} {fetchNotes[columnState]}, {fieldName(field)}{" "}
+            {sourceLabel(source)} {fetchNotes[columnState]}, {fieldName(field)}{" "}
             unknown
           </span>
         )}
@@ -278,7 +305,7 @@ function Cell({
     return (
       <div role="cell" className={styles.cell}>
         <span className={styles.srOnly}>
-          {sourceName(source)} holds no {fieldName(field)} field
+          {sourceLabel(source)} holds no {fieldName(field)} field
         </span>
       </div>
     );

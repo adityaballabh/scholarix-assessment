@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { getOverview, listActivity } from "../../api/client";
 import type { ActivityEvent, ReviewStatus } from "../../api/types";
-import Hint from "../../components/Hint";
 import Select from "../../components/Select";
 import type { SelectOption } from "../../components/Select";
-import SortHeader from "../../components/SortHeader";
 import type { SortDirection } from "../../components/SortHeader";
-import { formatEventTime } from "../../lib/datetime";
-import { statusText } from "../../lib/decisions";
 import { matchesAuthorName, matchesNote } from "../../lib/search";
+import { updateSortParams } from "../../lib/sortParams";
+import ActivityTable from "./ActivityTable";
+import type { ActivitySort } from "./ActivityTable";
 import styles from "./ActivityPage.module.css";
 
 type SideFilter = ReviewStatus | "";
@@ -23,13 +22,11 @@ const sideOptions: SelectOption<SideFilter>[] = [
   { value: "deferred", label: "deferred" },
 ];
 
-type ActivitySort = "time" | "author" | "reviewer";
-
 type SinceFilter = "" | "1h" | "24h" | "7d" | "30d" | "run";
 
 const sinceOptions: SelectOption<SinceFilter>[] = [
   { value: "", label: "any time" },
-  { value: "run", label: "since the last audit" },
+  { value: "run", label: "since the last queue update" },
   { value: "1h", label: "last hour" },
   { value: "24h", label: "last 24 hours" },
   { value: "7d", label: "last 7 days" },
@@ -58,7 +55,7 @@ function readSide(raw: string | null): SideFilter {
 export default function ActivityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<ActivityEvent[] | null>(null);
-  const [auditedAt, setAuditedAt] = useState<string | null>(null);
+  const [queueUpdatedAt, setQueueUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [overviewError, setOverviewError] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(true);
@@ -89,7 +86,7 @@ export default function ActivityPage() {
       });
     getOverview()
       .then((overview) => {
-        if (active) setAuditedAt(overview.audited_at);
+        if (active) setQueueUpdatedAt(overview.queue_updated_at);
       })
       .catch(() => {
         if (active) setOverviewError(true);
@@ -125,7 +122,7 @@ export default function ActivityPage() {
   const cutoff = !since
     ? null
     : since === "run"
-      ? (auditedAt && new Date(auditedAt).getTime()) || null
+      ? (queueUpdatedAt && new Date(queueUpdatedAt).getTime()) || null
       : Date.now() - sinceWindows[since];
   const runFilterUnavailable = since === "run" && overviewError;
   const runFilterLoading = since === "run" && overviewLoading;
@@ -152,22 +149,9 @@ export default function ActivityPage() {
   });
 
   function applySort(column: ActivitySort, next: SortDirection | null) {
-    setSearchParams(
-      (previous) => {
-        const params = new URLSearchParams(previous);
-        params.delete("dir");
-
-        if (next === null) {
-          params.delete("sort");
-          return params;
-        }
-
-        params.set("sort", column);
-        if (next === "asc") params.set("dir", "asc");
-        return params;
-      },
-      { replace: true },
-    );
+    setSearchParams((previous) => updateSortParams(previous, column, next), {
+      replace: true,
+    });
   }
 
   function updateFilter(name: string, value: string) {
@@ -189,8 +173,6 @@ export default function ActivityPage() {
       </p>
     );
   }
-
-  if (!events) return <p className={styles.pageState}>Loading activity…</p>;
 
   return (
     <section className={styles.page}>
@@ -252,11 +234,9 @@ export default function ActivityPage() {
         )}
       </div>
 
-      {runFilterLoading ? (
-        <p className={styles.pageState}>Loading the last audit time…</p>
-      ) : runFilterUnavailable ? (
+      {!events || runFilterLoading ? null : runFilterUnavailable ? (
         <p className={styles.pageState} role="alert">
-          The last audit time could not be loaded.
+          The last queue update time could not be loaded.
         </p>
       ) : ordered.length === 0 ? (
         <p className={styles.pageState}>
@@ -265,139 +245,14 @@ export default function ActivityPage() {
             : "No activity matches the current filters"}
         </p>
       ) : (
-        <div
-          role="table"
-          aria-label="Recorded decisions"
-          className={styles.table}
-        >
-          <div role="rowgroup">
-            <div role="row" className={`${styles.row} ${styles.head}`}>
-              <span role="columnheader">
-                <span className={styles.srOnly}>position</span>
-              </span>
-              <span role="columnheader">
-                <SortHeader
-                  label="author"
-                  active={explicitSort === "author"}
-                  direction={direction}
-                  clearable
-                  onSort={(next) => applySort("author", next)}
-                />
-              </span>
-              <span role="columnheader">case</span>
-              <span role="columnheader" className={styles.actionHeader}>
-                action
-                <Hint text="Matching from and to values mean a note was added without changing the state" />
-              </span>
-              <span role="columnheader">
-                <SortHeader
-                  label="reviewer"
-                  active={explicitSort === "reviewer"}
-                  direction={direction}
-                  clearable
-                  onSort={(next) => applySort("reviewer", next)}
-                />
-              </span>
-              <span role="columnheader">
-                <SortHeader
-                  label="time"
-                  active={explicitSort === "time"}
-                  direction={direction}
-                  clearable
-                  onSort={(next) => applySort("time", next)}
-                >
-                  when
-                </SortHeader>
-              </span>
-              <span role="columnheader">note</span>
-            </div>
-          </div>
-
-          <div role="rowgroup">
-            {ordered.map((event, index) => (
-              <div role="row" className={styles.row} key={event.id}>
-                <span role="cell" className={styles.position}>
-                  {index + 1}
-                </span>
-                <span role="cell" className={styles.author}>
-                  {event.target_name}
-                </span>
-                <span role="cell" className={styles.case}>
-                  <Link
-                    to={`/reviews/${event.case_id}`}
-                    className={styles.caseLink}
-                  >
-                    {event.case_id.replace(/^c-/, "#")}
-                  </Link>
-                </span>
-                <span role="cell" className={styles.transition}>
-                  {statusText(event.before)} → {statusText(event.after)}
-                </span>
-                <span role="cell" className={styles.actor}>
-                  {event.actor}
-                </span>
-                <span role="cell" className={styles.time}>
-                  {formatEventTime(event.created_at)}
-                </span>
-                <span role="cell" className={styles.noteCell}>
-                  {event.note && (
-                    <Note text={event.note} revealed={noteQuery !== ""} />
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ActivityTable
+          events={ordered}
+          sort={explicitSort}
+          direction={direction}
+          revealNotes={noteQuery !== ""}
+          onSort={applySort}
+        />
       )}
     </section>
-  );
-}
-
-function Note({ text, revealed }: { text: string; revealed: boolean }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(revealed);
-  const [clipped, setClipped] = useState(false);
-
-  useEffect(() => {
-    setOpen(revealed);
-  }, [revealed]);
-
-  useEffect(() => {
-    const element = ref.current;
-    // Only measure while collapsed, since expanded text wraps and never reports overflow
-    if (!element || open) return;
-
-    const measure = () => setClipped(element.scrollWidth > element.clientWidth);
-    measure();
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [text, open]);
-
-  const interactive = clipped || open;
-
-  return (
-    <span
-      className={styles.noteWrap}
-      data-hint={
-        interactive
-          ? open
-            ? "click to collapse"
-            : "click to expand"
-          : undefined
-      }
-    >
-      <button
-        ref={ref}
-        type="button"
-        disabled={!interactive}
-        aria-expanded={open}
-        className={`${styles.note} ${open ? styles.noteOpen : ""}`}
-        onClick={() => setOpen((current) => !current)}
-      >
-        {text}
-      </button>
-    </span>
   );
 }
