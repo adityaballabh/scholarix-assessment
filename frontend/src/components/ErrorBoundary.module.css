@@ -1,0 +1,15 @@
+.panel {
+  width: min(560px, 100%);
+  padding: 48px 0;
+}
+
+.title {
+  margin: 0;
+  font: var(--text-display);
+}
+
+.message {
+  margin: 12px 0 0;
+  color: var(--ink-muted);
+  font: var(--text-interface);
+}

@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: merge_review
+      POSTGRES_PASSWORD: merge_review
+      POSTGRES_DB: merge_review
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merge_review -d merge_review"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  importer:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      MERGE_REVIEW_DATABASE_URL: postgresql+psycopg://merge_review:merge_review@db:5432/merge_review
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python -m merge_review.import_dataset
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MERGE_REVIEW_DATABASE_URL: postgresql+psycopg://merge_review:merge_review@db:5432/merge_review
+      MERGE_REVIEW_FRONTEND_ORIGIN: http://localhost:8080
+      MERGE_REVIEW_FETCH_USE_CACHE: "true"
+    volumes:
+      - fetch-cache:/app/cache
+    depends_on:
+      db:
+        condition: service_healthy
+      importer:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:8080:80"
+      - "[::1]:8080:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  fetch-cache:

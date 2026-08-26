@@ -18,13 +18,16 @@ REQUEST_TIMEOUT_SECONDS = 30
 
 
 def get_mailto():
+    if not ENV_PATH.exists():
+        return None
+
     for line in ENV_PATH.read_text().splitlines():
         key, _, value = line.partition("=")
 
         if key == MAILTO_KEY:
-            return value.strip()
+            return value.strip() or None
 
-    raise RuntimeError(MAILTO_KEY + " is missing from .env")
+    return None
 
 
 def create_session():

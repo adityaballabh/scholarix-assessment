@@ -218,13 +218,7 @@ export default function OverviewPage() {
         }
       />
       {loading ? null : activity.length === 0 ? (
-        <p className={styles.emptyState}>
-          No{" "}
-          <Link to="/activity" className={styles.emptyStateLink}>
-            activity
-          </Link>{" "}
-          yet
-        </p>
+        <p className={styles.emptyState}>No activity yet</p>
       ) : (
         <div className={styles.activityList}>
           <table role="table" className={styles.table}>

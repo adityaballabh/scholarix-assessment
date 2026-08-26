@@ -55,7 +55,7 @@ export default function FetchPage({
           <>
             <p className={styles.message}>
               External evidence is being fetched for the entire dataset. This
-              usually takes around 5 minutes. Review actions are paused.
+              usually takes around 3 minutes. Review actions are paused.
             </p>
             <div className={styles.overall}>
               <span>

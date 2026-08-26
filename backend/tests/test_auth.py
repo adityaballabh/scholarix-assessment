@@ -1,3 +1,4 @@
+import warnings
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
@@ -16,7 +17,6 @@ from merge_review.security import (
     create_session_token,
     verify_password,
 )
-from pydantic import ValidationError
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -185,28 +185,29 @@ def test_registration_validates_account_fields() -> None:
     assert long_name.status_code == 422
 
 
-def test_production_requires_a_configured_auth_secret() -> None:
-    with pytest.raises(ValidationError):
-        Settings(environment="production", _env_file=None)
+def test_the_default_auth_secret_warns() -> None:
+    with pytest.warns(UserWarning, match="development default"):
+        Settings(_env_file=None)
 
-    configured = Settings(
-        environment="production",
-        auth_secret="a-real-deployment-secret-of-sufficient-length",
-        _env_file=None,
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        configured = Settings(
+            auth_secret="a-real-deployment-secret-of-sufficient-length",
+            _env_file=None,
+        )
 
     assert configured.auth_secret == "a-real-deployment-secret-of-sufficient-length"
 
 
 def test_a_deployed_cookie_is_secure_and_cross_site() -> None:
     client, _ = build_auth_client()
-    production = Settings(
-        environment="production",
+    deployed = Settings(
+        frontend_hosting="separate_origin",
         auth_secret="a-real-deployment-secret-of-sufficient-length",
         _env_file=None,
     )
 
-    with patch("merge_review.security.get_settings", return_value=production):
+    with patch("merge_review.security.get_settings", return_value=deployed):
         response = register(client)
 
     cookie = response.headers["set-cookie"].lower()
@@ -247,7 +248,7 @@ def test_every_write_route_requires_a_signed_in_reviewer() -> None:
     assert {route: status for route, status in responses.items() if status != 401} == {}
 
 
-def test_the_first_fetch_is_open_and_later_fetches_are_not() -> None:
+def test_starting_a_fetch_is_gated_once_one_has_completed_but_abandoning_never_is() -> None:
     client, factory = build_auth_client()
 
     # 404 rather than 401: the guard let the request through and the route itself found
@@ -276,7 +277,7 @@ def test_the_first_fetch_is_open_and_later_fetches_are_not() -> None:
     assert cold_start.status_code == 404
     assert cold_abandon.status_code == 404
     assert warm_start.status_code == 401
-    assert warm_abandon.status_code == 401
+    assert warm_abandon.status_code == 404
     assert warm_read.status_code == 200
 
 

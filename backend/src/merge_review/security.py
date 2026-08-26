@@ -45,9 +45,8 @@ def create_session_token(
 def set_session_cookie(response: Response, user_id: UUID) -> None:
     settings = get_settings()
     max_age = settings.auth_token_hours * 60 * 60
-    # A deployed frontend is a different site, so the cookie needs SameSite=None,
-    # which browsers only accept alongside Secure.
-    cross_site = settings.environment == "production"
+    # A cross-site cookie needs SameSite=None, allowed only alongside Secure
+    cross_site = settings.frontend_hosting == "separate_origin"
     response.set_cookie(
         key=COOKIE_NAME,
         value=create_session_token(user_id),
