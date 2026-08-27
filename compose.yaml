@@ -19,6 +19,8 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       MERGE_REVIEW_DATABASE_URL: postgresql+psycopg://merge_review:merge_review@db:5432/merge_review
+    volumes:
+      - auth-secret:/app/secrets
     depends_on:
       db:
         condition: service_healthy
@@ -38,6 +40,7 @@ services:
       MERGE_REVIEW_FETCH_USE_CACHE: "true"
     volumes:
       - fetch-cache:/app/cache
+      - auth-secret:/app/secrets
     depends_on:
       db:
         condition: service_healthy
@@ -50,10 +53,10 @@ services:
       dockerfile: frontend/Dockerfile
     ports:
       - "127.0.0.1:8080:80"
-      - "[::1]:8080:80"
     depends_on:
       - api
 
 volumes:
   pgdata:
   fetch-cache:
+  auth-secret:

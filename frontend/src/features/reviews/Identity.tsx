@@ -45,11 +45,6 @@ export default function Identity({
               )
             }
           />
-          <p className={styles.coverage}>
-            {matched} of {affectedCount} publications matched to an S2 ID.{" "}
-            Unmatched publications may lack a DOI or S2 attribution. They cannot
-            establish whether the profile contains one researcher or several
-          </p>
           <div className={styles.scroll}>
             <div
               role="table"

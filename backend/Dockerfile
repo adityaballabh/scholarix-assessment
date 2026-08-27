@@ -13,4 +13,5 @@ COPY dataset/authors.zip ./dataset/authors.zip
 
 EXPOSE 8000
 
+ENTRYPOINT ["python", "-m", "merge_review.docker_entrypoint"]
 CMD ["uvicorn", "merge_review.main:app", "--host", "0.0.0.0", "--port", "8000"]

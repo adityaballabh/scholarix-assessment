@@ -98,10 +98,3 @@
   color: var(--ink);
   border-bottom-color: var(--ink);
 }
-
-.coverage {
-  margin: 0 0 12px;
-  max-width: 90ch;
-  color: var(--ink-muted);
-  font: var(--text-micro);
-}
