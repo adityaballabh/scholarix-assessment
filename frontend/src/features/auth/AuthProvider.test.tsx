@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import {
   createAccount,
   getCurrentUser,
+  signIn,
+  signOut,
   setUnauthorizedHandler,
 } from "../../api/client";
 import { REVIEWER } from "../../test/data";
@@ -113,4 +115,92 @@ it("shows registration validation before calling the API", async () => {
     within(dialog).getByText("Username must be at least 3 characters"),
   ).toHaveAttribute("role", "alert");
   expect(createAccount).not.toHaveBeenCalled();
+});
+
+it("settles every concurrent refused write on dismissal", async () => {
+  const user = userEvent.setup();
+  render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>,
+  );
+  await screen.findByText("signed out");
+  let first!: Promise<boolean>;
+  let second!: Promise<boolean>;
+  act(() => {
+    first = clientState.unauthorizedHandler!();
+    second = clientState.unauthorizedHandler!();
+  });
+  await user.click(screen.getByRole("button", { name: "Close" }));
+  await expect(Promise.all([first, second])).resolves.toEqual([false, false]);
+});
+
+it("settles waiting writes if the provider unmounts", async () => {
+  const { unmount } = render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>,
+  );
+  await screen.findByText("signed out");
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = clientState.unauthorizedHandler!();
+  });
+  unmount();
+  await expect(pending).resolves.toBe(false);
+});
+
+it("resumes concurrent writes after existing-account sign-in", async () => {
+  const user = userEvent.setup();
+  vi.mocked(signIn).mockResolvedValue(REVIEWER);
+  render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>,
+  );
+  await screen.findByText("signed out");
+  let first!: Promise<boolean>;
+  let second!: Promise<boolean>;
+  act(() => {
+    first = clientState.unauthorizedHandler!();
+    second = clientState.unauthorizedHandler!();
+  });
+  await user.click(
+    screen.getByRole("button", { name: "already have an account" }),
+  );
+  await user.type(screen.getByLabelText("username"), "reviewer");
+  await user.type(screen.getByLabelText("password"), "correct horse");
+  await user.click(screen.getByRole("button", { name: "sign in" }));
+  await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+  expect(await screen.findByText(REVIEWER.display_name)).toBeInTheDocument();
+});
+
+it("keeps the reviewer when logout fails", async () => {
+  function SignOutControl() {
+    const { user, signOut } = useSession();
+    return (
+      <button
+        onClick={() => {
+          void signOut().catch(() => {});
+        }}
+      >
+        {user?.display_name ?? "signed out"}
+      </button>
+    );
+  }
+  const user = userEvent.setup();
+  vi.mocked(getCurrentUser).mockResolvedValue(REVIEWER);
+  vi.mocked(signOut).mockRejectedValue(new Error("offline"));
+  render(
+    <AuthProvider>
+      <SignOutControl />
+    </AuthProvider>,
+  );
+  await user.click(
+    await screen.findByRole("button", { name: REVIEWER.display_name }),
+  );
+  expect(signOut).toHaveBeenCalledOnce();
+  expect(
+    screen.getByRole("button", { name: REVIEWER.display_name }),
+  ).toBeInTheDocument();
 });

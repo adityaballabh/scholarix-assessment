@@ -1,56 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getOverview, listActivity } from "../../api/client";
-import type { ActivityEvent, ReviewStatus } from "../../api/types";
+import type { ActivityEvent } from "../../api/types";
 import Select from "../../components/Select";
 import type { SelectOption } from "../../components/Select";
 import type { SortDirection } from "../../components/SortHeader";
 import { matchesAuthorName, matchesNote } from "../../lib/search";
 import { updateSortParams } from "../../lib/sortParams";
 import ActivityTable from "./ActivityTable";
-import type { ActivitySort } from "./ActivityTable";
+import {
+  normalizeActivitySearch,
+  readActivityFilters,
+  sinceOptions,
+  transitionOptions,
+  SINCE_WINDOWS_MS,
+  type ActivitySort,
+} from "./filters";
 import styles from "./ActivityPage.module.css";
-
-type SideFilter = ReviewStatus | "";
-
-const sideOptions: SelectOption<SideFilter>[] = [
-  { value: "", label: "any" },
-  { value: "pending", label: "pending" },
-  { value: "one_author", label: "one author" },
-  { value: "needs_split", label: "needs split" },
-  { value: "uncertain", label: "uncertain" },
-  { value: "deferred", label: "deferred" },
-];
-
-type SinceFilter = "" | "1h" | "24h" | "7d" | "30d" | "run";
-
-const sinceOptions: SelectOption<SinceFilter>[] = [
-  { value: "", label: "any time" },
-  { value: "run", label: "since the last queue update" },
-  { value: "1h", label: "last hour" },
-  { value: "24h", label: "last 24 hours" },
-  { value: "7d", label: "last 7 days" },
-  { value: "30d", label: "last 30 days" },
-];
-
-const sinceWindows: Record<Exclude<SinceFilter, "" | "run">, number> = {
-  "1h": 3600_000,
-  "24h": 86_400_000,
-  "7d": 7 * 86_400_000,
-  "30d": 30 * 86_400_000,
-};
-
-function readSince(raw: string | null): SinceFilter {
-  return sinceOptions.some((option) => option.value === raw)
-    ? (raw as SinceFilter)
-    : "";
-}
-
-function readSide(raw: string | null): SideFilter {
-  return sideOptions.some((option) => option.value === raw)
-    ? (raw as SideFilter)
-    : "";
-}
 
 export default function ActivityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -60,23 +26,12 @@ export default function ActivityPage() {
   const [overviewError, setOverviewError] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(true);
 
-  const from = readSide(searchParams.get("from"));
-  const to = readSide(searchParams.get("to"));
-  const reviewer = searchParams.get("reviewer") ?? "";
-  const query = searchParams.get("query") ?? "";
-  const since = readSince(searchParams.get("since"));
-  const noteQuery = searchParams.get("note") ?? "";
-  const rawSort = searchParams.get("sort");
-  const explicitSort: ActivitySort | null =
-    rawSort === "author" || rawSort === "reviewer" || rawSort === "time"
-      ? rawSort
-      : null;
-  const sort: ActivitySort = explicitSort ?? "time";
-  const direction: SortDirection =
-    searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const [activityAttempt, setActivityAttempt] = useState(0);
+  const [overviewAttempt, setOverviewAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setError(false);
     listActivity()
       .then((found) => {
         if (active) setEvents(found);
@@ -84,6 +39,15 @@ export default function ActivityPage() {
       .catch(() => {
         if (active) setError(true);
       });
+    return () => {
+      active = false;
+    };
+  }, [activityAttempt]);
+
+  useEffect(() => {
+    let active = true;
+    setOverviewError(false);
+    setOverviewLoading(true);
     getOverview()
       .then((overview) => {
         if (active) setQueueUpdatedAt(overview.queue_updated_at);
@@ -97,23 +61,46 @@ export default function ActivityPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [overviewAttempt]);
 
-  const reviewerOptions = useMemo<SelectOption<string>[]>(() => {
-    const actors = [
-      ...new Set((events ?? []).map((event) => event.actor)),
-    ].sort();
-    return [
-      { value: "", label: "all reviewers" },
-      ...actors.map((actor) => ({ value: actor, label: actor })),
-    ];
-  }, [events]);
+  const reviewers = useMemo(
+    () =>
+      events === null
+        ? undefined
+        : [...new Set(events.map((event) => event.actor))].sort(),
+    [events],
+  );
+  const reviewerOptions: SelectOption<string>[] = [
+    { value: "", label: "all reviewers" },
+    ...(reviewers ?? []).map((actor) => ({ value: actor, label: actor })),
+  ];
+  const search = searchParams.toString();
+  const normalizedSearch = normalizeActivitySearch(
+    searchParams,
+    reviewers,
+  ).toString();
+  const {
+    fromStatus,
+    toStatus,
+    reviewer,
+    query,
+    noteQuery,
+    since,
+    explicitSort,
+    sort,
+    direction,
+  } = readActivityFilters(new URLSearchParams(normalizedSearch));
 
-  const filtered = Boolean(
+  useEffect(() => {
+    if (search !== normalizedSearch)
+      setSearchParams(normalizedSearch, { replace: true });
+  }, [search, normalizedSearch, setSearchParams]);
+
+  const hasActiveFilters = Boolean(
     query ||
       noteQuery ||
-      from ||
-      to ||
+      fromStatus ||
+      toStatus ||
       reviewer ||
       since ||
       explicitSort !== null,
@@ -123,14 +110,14 @@ export default function ActivityPage() {
     ? null
     : since === "run"
       ? (queueUpdatedAt && new Date(queueUpdatedAt).getTime()) || null
-      : Date.now() - sinceWindows[since];
+      : Date.now() - SINCE_WINDOWS_MS[since];
   const runFilterUnavailable = since === "run" && overviewError;
   const runFilterLoading = since === "run" && overviewLoading;
 
   const visible = (events ?? []).filter(
     (event) =>
-      (!from || event.before === from) &&
-      (!to || event.after === to) &&
+      (!fromStatus || event.before === fromStatus) &&
+      (!toStatus || event.after === toStatus) &&
       (!reviewer || event.actor === reviewer) &&
       (!query || matchesAuthorName(event.target_name, query)) &&
       (!noteQuery ||
@@ -169,7 +156,14 @@ export default function ActivityPage() {
   if (error) {
     return (
       <p className={styles.pageState} role="alert">
-        Activity could not be loaded.
+        Could not load activity{" "}
+        <button
+          type="button"
+          className={styles.resetFilters}
+          onClick={() => setActivityAttempt((attempt) => attempt + 1)}
+        >
+          retry
+        </button>
       </p>
     );
   }
@@ -200,15 +194,15 @@ export default function ActivityPage() {
         <Select
           label="from state"
           prefix="from"
-          value={from}
-          options={sideOptions}
+          value={fromStatus}
+          options={transitionOptions}
           onChange={(value) => updateFilter("from", value)}
         />
         <Select
           label="to state"
           prefix="to"
-          value={to}
-          options={sideOptions}
+          value={toStatus}
+          options={transitionOptions}
           onChange={(value) => updateFilter("to", value)}
         />
         <Select
@@ -223,7 +217,7 @@ export default function ActivityPage() {
           options={sinceOptions}
           onChange={(value) => updateFilter("since", value)}
         />
-        {filtered && (
+        {hasActiveFilters && (
           <button
             type="button"
             className={styles.resetFilters}
@@ -236,7 +230,14 @@ export default function ActivityPage() {
 
       {!events || runFilterLoading ? null : runFilterUnavailable ? (
         <p className={styles.pageState} role="alert">
-          The last queue update time could not be loaded.
+          Could not load the last queue update time{" "}
+          <button
+            type="button"
+            className={styles.resetFilters}
+            onClick={() => setOverviewAttempt((attempt) => attempt + 1)}
+          >
+            retry
+          </button>
         </p>
       ) : ordered.length === 0 ? (
         <p className={styles.pageState}>
@@ -247,7 +248,7 @@ export default function ActivityPage() {
       ) : (
         <ActivityTable
           events={ordered}
-          sort={explicitSort}
+          sort={sort}
           direction={direction}
           revealNotes={noteQuery !== ""}
           onSort={applySort}

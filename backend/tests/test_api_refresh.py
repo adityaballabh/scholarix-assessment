@@ -1,7 +1,7 @@
 from collections import Counter
 from unittest.mock import Mock, patch
 
-from conftest import DUMMY_DOI, build_client
+from support import DUMMY_DOI, build_client
 
 
 def test_refresh_doi_bypasses_cache_and_recomputes_cases() -> None:

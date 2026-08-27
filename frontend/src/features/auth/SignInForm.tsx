@@ -19,13 +19,13 @@ function validationError(
     return "Username must be at least 3 characters";
   }
   if (!registering && username.length < 1) return "Username is required";
-  if (username.length > 64) return "Username can have at most 64 characters";
+  if (username.length > 64) return "Username must be 64 characters or fewer";
   if (registering && !USERNAME_PATTERN.test(username)) {
-    return "Username can only contain letters, numbers, periods, underscores, and hyphens";
+    return "Use letters, numbers, periods, underscores, or hyphens for the username";
   }
   if (registering && displayName.length < 1) return "Display name is required";
   if (registering && displayName.length > 64) {
-    return "Display name can have at most 64 characters";
+    return "Display name must be 64 characters or fewer";
   }
   if (registering && password.length < 8) {
     return "Password must be at least 8 characters";
@@ -89,7 +89,7 @@ export function SignInForm({
       setError(
         cause instanceof ApiError && cause.status < 500
           ? cause.message
-          : "Could not reach the review service",
+          : "Could not reach the server",
       );
       setPending(false);
     }

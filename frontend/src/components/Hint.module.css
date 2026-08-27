@@ -39,17 +39,21 @@
   white-space: normal;
 }
 
-/* Last column: anchor right so the panel grows inward from the table edge */
 .textEnd {
   left: auto;
   right: -6px;
 }
 
-.hint:focus {
-  outline: none;
-}
-
 .hint:focus .mark {
   color: var(--canvas);
   background: var(--accent);
+}
+
+.text::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  height: 7px;
 }

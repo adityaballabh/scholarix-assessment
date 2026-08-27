@@ -74,7 +74,6 @@ def normalize_datacite_publication(response):
     authors = []
     journal = None
 
-    # Prefer explicit IsPublishedIn metadata
     for related_item in attributes.get("relatedItems") or []:
         if related_item.get("relationType") != "IsPublishedIn":
             continue

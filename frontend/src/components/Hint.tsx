@@ -1,5 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
-
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import styles from "./Hint.module.css";
 
 export default function Hint({
@@ -11,23 +10,35 @@ export default function Hint({
 }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const textRef = useRef<HTMLSpanElement>(null);
-  const open = hovered || focused;
+  const [dismissed, setDismissed] = useState(false);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const open = (hovered || focused) && !dismissed;
 
-  // Keep the tooltip on screen: nudge it back inside the viewport when it
-  // would overflow an edge (routine on a narrow phone).
+  useEffect(() => {
+    if (!hovered && !focused) setDismissed(false);
+  }, [hovered, focused]);
+
+  useEffect(() => {
+    if (!open) return;
+    function dismiss(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setDismissed(true);
+    }
+    document.addEventListener("keydown", dismiss);
+    return () => document.removeEventListener("keydown", dismiss);
+  }, [open]);
+
   useLayoutEffect(() => {
-    const el = textRef.current;
-    if (!open || !el) return;
-    el.style.transform = "";
-    const margin = 8;
-    const { left, right } = el.getBoundingClientRect();
-    let shift = 0;
-    if (left < margin) shift = margin - left;
-    else if (right > window.innerWidth - margin)
-      shift = window.innerWidth - margin - right;
-    if (shift) el.style.transform = `translateX(${Math.round(shift)}px)`;
-  }, [open, text]);
+    const tooltip = tooltipRef.current;
+    if (!open || !tooltip) return;
+    tooltip.style.transform = "";
+    const { left, right } = tooltip.getBoundingClientRect();
+    const shift =
+      left < 8 ? 8 - left : Math.min(0, window.innerWidth - 8 - right);
+    tooltip.style.transform = `translateX(${Math.round(shift)}px)`;
+  }, [open, text, align]);
 
   return (
     <button
@@ -44,7 +55,7 @@ export default function Hint({
       </span>
       {open && (
         <span
-          ref={textRef}
+          ref={tooltipRef}
           aria-hidden="true"
           className={`${styles.text} ${align === "end" ? styles.textEnd : ""}`}
         >

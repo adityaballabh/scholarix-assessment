@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from merge_review.api.common import ensure_fetch_idle, latest_snapshot, utc_datetime
-from merge_review.cases.generate import default_review_settings, review_settings
+from merge_review.cases.generate import default_review_settings, get_or_create_review_settings
 from merge_review.cases.rebuild import rebuild_queue
 from merge_review.database import get_session
 from merge_review.models import DatasetSnapshot, ReviewSettings
@@ -49,7 +49,7 @@ def update_queue_settings(
         .with_for_update()
     )
     if settings is None:
-        settings = review_settings(session, snapshot.id)
+        settings = get_or_create_review_settings(session, snapshot.id)
     if settings.version != request.expected_version:
         raise HTTPException(409, detail={"current_version": settings.version})
 
@@ -71,7 +71,7 @@ def rebuild_review_queue(session: Session = Depends(get_session)) -> QueueRebuil
     )
     ensure_fetch_idle(session)
     cases = rebuild_queue(session, snapshot.id)
-    settings = review_settings(session, snapshot.id)
+    settings = get_or_create_review_settings(session, snapshot.id)
     response = QueueRebuildResponse(config_version=settings.version, cases=cases)
     session.commit()
     return response

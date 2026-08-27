@@ -1,4 +1,9 @@
-import { listCases, postDecision, setUnauthorizedHandler } from "./client";
+import {
+  listCases,
+  postDecision,
+  setUnauthorizedHandler,
+  signOut,
+} from "./client";
 import {
   AUTHOR_NAME,
   CASE_ID,
@@ -121,4 +126,34 @@ it("surfaces FastAPI field validation details", async () => {
     status: 422,
     message: "username: String should have at least 3 characters",
   });
+});
+
+it("accepts a successful no-content logout response", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(signOut()).resolves.toBeUndefined();
+  expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+});
+
+it.each([403, 500])("rejects a failed %s logout response", async (status) => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ detail: "Logout failed" }, status)),
+  );
+  await expect(signOut()).rejects.toMatchObject({
+    status,
+    message: "Logout failed",
+  });
+});
+
+it("propagates logout connection failures", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+  await expect(signOut()).rejects.toThrow("offline");
 });

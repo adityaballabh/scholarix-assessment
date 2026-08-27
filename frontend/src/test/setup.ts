@@ -9,6 +9,7 @@ class TestResizeObserver {
 globalThis.ResizeObserver =
   TestResizeObserver as unknown as typeof ResizeObserver;
 
+// Native dialog focus and modality need browser tests
 Object.defineProperties(HTMLDialogElement.prototype, {
   showModal: {
     value() {

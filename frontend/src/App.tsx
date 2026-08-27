@@ -36,10 +36,9 @@ const navigationItems = [
 const FILTERED_SECTIONS = ["reviews", "activity"];
 const FORCE_INITIAL_FETCH = import.meta.env.VITE_FORCE_INITIAL_FETCH === "true";
 const ACTIVE_POLL_MS = 3000;
-// Idle polling exists only to notice a fetch started in another tab
+// Poll idle state for fetches started in other tabs
 const IDLE_POLL_MS = 30000;
 
-// The API's own wording stays server-side; these are the two failures a reviewer can act on.
 function startFetchError(cause: unknown): string {
   if (cause instanceof ApiError && cause.status === 423) {
     return "A fetch is already running";
@@ -47,23 +46,23 @@ function startFetchError(cause: unknown): string {
   if (cause instanceof ApiError && cause.status === 404) {
     return "No dataset to fetch";
   }
-  return "The fetch could not be started";
+  return "Could not start the fetch";
 }
 
 export default function App() {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const { user, ready, signOut } = useSession();
-  const [fetch, setFetch] = useState<FetchRun | null>();
+  const [fetchRun, setFetchRun] = useState<FetchRun | null>();
   const [fetchError, setFetchError] = useState(false);
   const [fetchActionPending, setFetchActionPending] = useState(false);
   const [fetchActionError, setFetchActionError] = useState<string | null>(null);
   const [confirmingFetch, setConfirmingFetch] = useState(false);
   const fetchActionRef = useRef(false);
   const fetchRequest = useRef(0);
-  const fetchLoaded = fetch !== undefined;
-  const fetchRunning =
-    !!fetch && ["queued", "running", "failed"].includes(fetch.status);
+  const fetchLoaded = fetchRun !== undefined;
+  const fetchBlocksApp =
+    !!fetchRun && ["queued", "running", "failed"].includes(fetchRun.status);
 
   useEffect(() => {
     const section = sectionOf(location.pathname);
@@ -76,14 +75,14 @@ export default function App() {
   }, [location]);
 
   useEffect(() => {
-    // .main is the scroll container, so router scroll restoration does not reach it.
+    // .main is the scroll container, so router scroll restoration does not reach it
     mainRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
 
   useEffect(() => {
     let active = true;
     let timer: number | undefined;
-    const delay = fetchRunning || fetchError ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+    const delay = fetchBlocksApp || fetchError ? ACTIVE_POLL_MS : IDLE_POLL_MS;
 
     function schedule() {
       timer = window.setTimeout(loadFetch, delay);
@@ -98,7 +97,7 @@ export default function App() {
       getFetch()
         .then((current) => {
           if (!active || request !== fetchRequest.current) return;
-          setFetch(current);
+          setFetchRun(current);
           setFetchError(false);
           if (
             current &&
@@ -115,7 +114,7 @@ export default function App() {
         });
     }
 
-    // Reruns when a fetch starts, cancelling the pending idle timer
+    // Starting a fetch replaces the pending idle poll
     if (fetchLoaded) schedule();
     else loadFetch();
 
@@ -123,7 +122,7 @@ export default function App() {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [fetchRunning, fetchLoaded, fetchError]);
+  }, [fetchBlocksApp, fetchLoaded, fetchError]);
 
   function beginFetch() {
     if (fetchActionPending) return;
@@ -133,10 +132,26 @@ export default function App() {
     setFetchActionError(null);
     startFetch()
       .then((started) => {
-        setFetch(started);
+        setFetchRun(started);
         setConfirmingFetch(false);
       })
-      .catch((cause: unknown) => setFetchActionError(startFetchError(cause)))
+      .catch(async (cause: unknown) => {
+        setFetchActionError(startFetchError(cause));
+        if (cause instanceof ApiError && cause.status === 423) {
+          try {
+            const current = await getFetch();
+            setFetchRun(current);
+            setFetchError(false);
+            if (
+              current &&
+              ["queued", "running", "failed"].includes(current.status)
+            )
+              setConfirmingFetch(false);
+          } catch {
+            setFetchError(true);
+          }
+        }
+      })
       .finally(() => {
         fetchActionRef.current = false;
         setFetchActionPending(false);
@@ -144,14 +159,14 @@ export default function App() {
   }
 
   function leaveFailedFetch() {
-    if (!fetch || fetchActionPending) return;
+    if (!fetchRun || fetchActionPending) return;
     fetchActionRef.current = true;
     fetchRequest.current += 1;
     setFetchActionPending(true);
     setFetchActionError(null);
-    abandonFetch(fetch.id)
-      .then(setFetch)
-      .catch(() => setFetchActionError("The fetch could not be abandoned"))
+    abandonFetch(fetchRun.id)
+      .then(setFetchRun)
+      .catch(() => setFetchActionError("Could not abandon the fetch"))
       .finally(() => {
         fetchActionRef.current = false;
         setFetchActionPending(false);
@@ -162,14 +177,14 @@ export default function App() {
     return <UnreachablePage />;
   }
 
-  if (fetch === undefined) {
+  if (fetchRun === undefined) {
     return <p className={styles.fetchState}>Loading fetch status…</p>;
   }
 
-  if (fetch && ["queued", "running", "failed"].includes(fetch.status)) {
+  if (fetchRun && fetchBlocksApp) {
     return (
       <FetchPage
-        fetch={fetch}
+        fetchRun={fetchRun}
         busy={fetchActionPending}
         actionError={fetchActionError}
         onRetry={beginFetch}
@@ -184,7 +199,7 @@ export default function App() {
       busy={fetchActionPending}
       error={fetchActionError}
       lastCompletedAt={
-        FORCE_INITIAL_FETCH ? null : (fetch?.last_completed_at ?? null)
+        FORCE_INITIAL_FETCH ? null : (fetchRun?.last_completed_at ?? null)
       }
       onCancel={() => {
         if (!fetchActionPending) setConfirmingFetch(false);
@@ -193,7 +208,7 @@ export default function App() {
     />
   );
 
-  if (FORCE_INITIAL_FETCH || !fetch || !fetch.last_completed_at) {
+  if (FORCE_INITIAL_FETCH || !fetchRun || !fetchRun.last_completed_at) {
     return (
       <>
         <FetchSetupPage
@@ -263,7 +278,7 @@ export default function App() {
           <span className={styles.headerDivider} aria-hidden="true" />
           <span className={styles.session}>
             {!ready ? null : user ? (
-              <SessionMenu user={user} onSignOut={() => void signOut()} />
+              <SessionMenu key={user.id} user={user} onSignOut={signOut} />
             ) : (
               <Link to="/login" className={styles.sessionAction}>
                 sign in

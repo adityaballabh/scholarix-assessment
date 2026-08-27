@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
 
-from conftest import DUMMY_FETCHED_AT, build_client
 from merge_review.api.overview import fetch_source_statuses
-from merge_review.models import FetchRun
+from merge_review.models import Author, FetchRun, PublicationRecord
+from sqlalchemy import select
+from support import DUMMY_FETCHED_AT, build_client
 
 
 def test_fetch_source_statuses_aggregate_openalex_stages() -> None:
@@ -75,3 +76,23 @@ def test_overview() -> None:
             }
         ],
     }
+
+
+def test_overview_counts_distinct_works_per_author() -> None:
+    client = build_client()
+    with client.app.state.session_factory.begin() as session:
+        author = session.scalar(select(Author).where(Author.source_id == "A123"))
+        session.add(
+            PublicationRecord(
+                author_id=author.id,
+                position=1,
+                normalized_doi="10.123/case",
+                title="Duplicate DOI occurrence",
+                payload={},
+            )
+        )
+
+    response = client.get("/api/overview")
+
+    assert response.status_code == 200
+    assert response.json()["total_publications"] == 2

@@ -29,7 +29,6 @@
 }
 
 .backLink:focus-visible {
-  outline: none;
   color: var(--accent);
 }
 
@@ -70,11 +69,6 @@
 
 .clusterRow:hover {
   background: var(--row-hover);
-}
-
-.clusterRow:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
 }
 
 .rail {
@@ -161,4 +155,14 @@
   .panel {
     padding-left: 28px;
   }
+}
+
+.pageState button {
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }

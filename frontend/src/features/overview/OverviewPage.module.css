@@ -81,8 +81,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  /* Without this the head's background is only as wide as the viewport, so it
-     slides away when the table scrolls sideways */
+  /* Match the sticky header width to the horizontally scrolling rows */
   min-width: var(--overview-table-width);
   background: var(--canvas);
 }
@@ -221,7 +220,6 @@
   min-width: 0;
 }
 
-/* Same reveal the Activity note column uses, in place of a native title. */
 .sourceNoteWrap[data-hint]:hover::after {
   content: attr(data-hint);
   position: absolute;
@@ -319,8 +317,7 @@
     --rail-inset: 0;
   }
 
-  /* Scoped to narrow widths: overflow-x forces overflow-y to auto, and that
-     clipping context swallows the cell hints on desktop. */
+  /* Restrict horizontal scrolling to narrow screens to keep desktop hints visible */
   .sourceList,
   .activityList {
     overflow-x: auto;
@@ -331,4 +328,14 @@
     column-gap: 32px;
     row-gap: 18px;
   }
+}
+
+.pageState button {
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }

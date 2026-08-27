@@ -44,21 +44,17 @@ export default function FetchConfirmDialog({
       <div className={styles.body}>
         <p className={styles.message}>
           {initialFetch ? (
-            <>
-              Fetching data takes around 3 minutes. Are you sure you want to
-              continue?
-            </>
+            <>Fetch data now? This usually takes around 3 minutes</>
           ) : (
             <>
-              Last fetched {formatRelativeTime(lastCompletedAt)}. Fetching data
-              takes around 3 minutes.
+              Last fetched {formatRelativeTime(lastCompletedAt)}. This usually
+              takes around 3 minutes
             </>
           )}
         </p>
         {!initialFetch && (
           <p className={styles.reviewLockout}>
-            Review actions will be unavailable until the fetch is complete. Are
-            you sure you want to continue?
+            Review actions stay paused until the fetch finishes
           </p>
         )}
         {error && (

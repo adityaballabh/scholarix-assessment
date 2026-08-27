@@ -13,7 +13,7 @@ export default function FetchSetupPage({
         <p className={styles.wordmark}>Merge Review</p>
         <h1 className={styles.title}>Initial fetch pending</h1>
         <p className={styles.message}>
-          Need to fetch external evidence to generate the review queue.
+          Fetch external evidence to create the review queue
         </p>
         <div className={styles.actions}>
           <button type="button" disabled={busy} onClick={onRun}>

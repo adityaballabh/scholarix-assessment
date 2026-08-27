@@ -7,8 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from merge_review.api.activity import activity_response
-from merge_review.api.cases import case_responses, filtered_case_rows
-from merge_review.api.common import ensure_fetch_idle, latest_snapshot, utc_datetime
+from merge_review.api.case_read import case_responses, filtered_case_rows
+from merge_review.api.common import lock_current_snapshot_for_read, utc_datetime
 from merge_review.api.queue import queue_settings_response
 from merge_review.cases.generate import default_review_settings
 from merge_review.cases.naming import normalized_words
@@ -38,16 +38,6 @@ def filename_slug(value: str) -> str:
     return "-".join(normalized_words(value)) or "case"
 
 
-def lock_snapshot_then_ensure_idle(session: Session) -> None:
-    session.scalars(
-        select(DatasetSnapshot)
-        .order_by(DatasetSnapshot.imported_at.desc())
-        .limit(1)
-        .with_for_update(read=True)
-    ).all()
-    ensure_fetch_idle(session)
-
-
 def with_history(
     session: Session,
     cases: list[ValidationCaseResponse],
@@ -72,12 +62,10 @@ def with_history(
 
 def export_document(
     session: Session,
+    snapshot: DatasetSnapshot,
     cases: list[ValidationCaseResponse],
     filters: ExportFilters | None,
 ) -> EvidenceExport:
-    snapshot = latest_snapshot(session)
-    if snapshot is None:
-        raise HTTPException(404, detail="No dataset imported")
     settings = session.get(ReviewSettings, snapshot.id) or default_review_settings(snapshot.id)
     return EvidenceExport(
         exported_at=datetime.now(UTC),
@@ -104,14 +92,21 @@ def download(document: EvidenceExport, filename: str) -> Response:
 
 @router.get("/cases/{case_id}/export", response_model=EvidenceExport)
 def export_case(case_id: str, session: Session = Depends(get_session)) -> Response:
-    lock_snapshot_then_ensure_idle(session)
+    snapshot = lock_current_snapshot_for_read(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="Case not found")
     row = session.execute(
-        select(ValidationCase, Author).join(Author).where(ValidationCase.id == case_id)
+        select(ValidationCase, Author)
+        .join(Author)
+        .where(
+            ValidationCase.id == case_id,
+            ValidationCase.dataset_snapshot_id == snapshot.id,
+        )
     ).one_or_none()
     if row is None:
         raise HTTPException(404, detail="Case not found")
     cases = case_responses(session, [(row[0], row[1])])
-    document = export_document(session, cases, filters=None)
+    document = export_document(session, snapshot, cases, filters=None)
     return download(document, f"{FILENAME_STEM}-{filename_slug(cases[0].target.author_name)}.json")
 
 
@@ -122,10 +117,20 @@ def export_cases(
     query: str | None = None,
     session: Session = Depends(get_session),
 ) -> Response:
-    lock_snapshot_then_ensure_idle(session)
-    rows = filtered_case_rows(session, status, scope, query, None, 0)
+    snapshot = lock_current_snapshot_for_read(session)
+    if snapshot is None:
+        raise HTTPException(404, detail="No dataset imported")
+    rows = filtered_case_rows(
+        session,
+        snapshot_id=snapshot.id,
+        status=status,
+        scope=scope,
+        query=query,
+        limit=None,
+        offset=0,
+    )
     cases = case_responses(session, rows)
     filters = ExportFilters(scope=scope, status=status, query=query)
-    document = export_document(session, cases, filters)
+    document = export_document(session, snapshot, cases, filters)
     stamp = document.exported_at.strftime("%Y%m%d")
     return download(document, f"{FILENAME_STEM}-{scope}-{stamp}.json")

@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -9,6 +8,7 @@ from merge_review.cases.generate import (
     IdentityCaseData,
     PriorityMaximums,
     case_id,
+    default_review_settings,
     generate_identity_cases,
     normalized_component,
     requires_identity_review,
@@ -70,7 +70,7 @@ def test_component_score_is_zero_when_the_snapshot_has_no_maximum() -> None:
     assert normalized_component(3, 0) == 0.0
 
 
-def test_configured_weights_change_score() -> None:
+def test_configured_weights_override_defaults() -> None:
     author = Author(
         source_id=DUMMY_AUTHOR_ID,
         slug="Dummy_Author",
@@ -81,8 +81,22 @@ def test_configured_weights_change_score() -> None:
         Candidate("candidateID1", (), 50.0, None, None),
         Candidate("candidateID2", (), 50.0, None, None),
     ]
-    data = IdentityCaseData(author, candidates, [Mock()] * 5, {})
+    data = IdentityCaseData(author, candidates, 5, {})
     maximums = PriorityMaximums(10, 50, 4)
+
+    settings = default_review_settings(uuid4())
+    assert settings.priority_weights == {
+        "publication_impact": 1.0,
+        "fragmentation": 2.0,
+        "cluster_ambiguity": 2.0,
+    }
+    score, _, config = score_values(data, maximums)
+    assert score == 70.0
+    assert config["weights"] == {
+        "publication_impact": 0.2,
+        "fragmentation": 0.4,
+        "cluster_ambiguity": 0.4,
+    }
 
     score, _, config = score_values(
         data,
@@ -322,6 +336,41 @@ def test_identity_case_is_built_from_every_source(snapshot) -> None:
     assert evidence[1].value == DUMMY_AUTHOR_NAME
     assert evidence[2].value == DUMMY_INSTITUTION
     assert evidence[3].value == DUMMY_INSTITUTION
+
+
+def test_affected_count_uses_distinct_works(snapshot) -> None:
+    factory, snapshot_id = snapshot
+    with factory.begin() as session:
+        author = session.scalar(select(Author))
+        session.add_all(
+            [
+                PublicationRecord(
+                    author_id=author.id,
+                    position=3,
+                    normalized_doi=DUMMY_DOIS[0],
+                    title="Duplicate DOI occurrence",
+                    payload={},
+                ),
+                PublicationRecord(
+                    author_id=author.id,
+                    position=4,
+                    normalized_doi=None,
+                    title="Publication without a DOI",
+                    payload={},
+                ),
+            ]
+        )
+        generate_identity_cases(session, snapshot_id)
+
+    with factory() as session:
+        review_case = session.get(ValidationCase, case_id(snapshot_id, "Dummy_Author"))
+        candidate_publication_count = session.scalar(
+            select(func.count(IdentityCandidatePublication.id))
+        )
+
+    assert review_case.affected_count == 4
+    assert review_case.priority_components["publication_impact"]["value"] == 4.0
+    assert candidate_publication_count == 3
 
 
 @pytest.mark.parametrize(

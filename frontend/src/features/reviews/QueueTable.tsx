@@ -5,20 +5,14 @@ import SortHeader from "../../components/SortHeader";
 import type { SortDirection } from "../../components/SortHeader";
 import { statusText } from "../../lib/decisions";
 import { CANDIDATES_HINT, SCORE_HINT, SHARE_HINT } from "../../lib/hints";
+import type { QueueSortColumn } from "./ordering";
 import styles from "./QueuePage.module.css";
-
-export type QueueSortColumn =
-  | "score"
-  | "share"
-  | "candidates"
-  | "publications"
-  | "status";
 
 export default function QueueTable({
   cases,
   loading,
   stale,
-  rowSearch,
+  caseLinkSearch,
   sort,
   direction,
   onSort,
@@ -26,8 +20,8 @@ export default function QueueTable({
   cases: ValidationCase[];
   loading: boolean;
   stale: boolean;
-  rowSearch: string;
-  sort: QueueSortColumn | "";
+  caseLinkSearch: string;
+  sort: QueueSortColumn | null;
   direction: SortDirection;
   onSort: (column: QueueSortColumn, direction: SortDirection | null) => void;
 }) {
@@ -37,7 +31,6 @@ export default function QueueTable({
         ? "ascending"
         : "descending"
       : "none";
-
   return (
     <div className={styles.tableScroll}>
       <table
@@ -130,7 +123,7 @@ export default function QueueTable({
               key={reviewCase.id}
               reviewCase={reviewCase}
               position={index + 1}
-              search={rowSearch}
+              search={caseLinkSearch}
             />
           ))}
         </tbody>

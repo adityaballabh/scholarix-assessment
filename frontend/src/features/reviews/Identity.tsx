@@ -45,6 +45,11 @@ export default function Identity({
               )
             }
           />
+          <p className={styles.coverage}>
+            {matched} of {affectedCount} publications matched to an S2 ID.{" "}
+            Unmatched publications may lack a DOI or S2 attribution. They cannot
+            establish whether the profile contains one researcher or several
+          </p>
           <div className={styles.scroll}>
             <div
               role="table"
@@ -63,7 +68,7 @@ export default function Identity({
                   <span role="columnheader" className={styles.shareHeader}>
                     share
                     <Hint
-                      text={`Share is based on the ${matched} publications matching an S2 ID out of ${affectedCount} total`}
+                      text={`Share uses ${matched} matched publications out of ${affectedCount} total`}
                     />
                   </span>
                   <span role="columnheader">years</span>

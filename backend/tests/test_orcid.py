@@ -1,12 +1,12 @@
 from unittest.mock import Mock
 from uuid import uuid4
 
-from conftest import make_response
 from merge_review.models import Author, Base, DatasetSnapshot, SourceRecord
 from merge_review.sources.common import FetchStatus
 from merge_review.sources.orcid import sync_orcid_records
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
+from support import make_response
 
 DUMMY_ORCID = "0000-0000-0000-0000"
 

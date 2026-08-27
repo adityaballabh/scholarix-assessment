@@ -20,7 +20,6 @@ export function matchesAuthorName(authorName: string, query: string): boolean {
   );
 }
 
-// Every query word must appear in the note, in any order as a substring
 export function matchesNote(note: string, query: string): boolean {
   const haystack = fold(note);
 

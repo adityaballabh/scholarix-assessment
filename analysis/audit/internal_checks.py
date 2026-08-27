@@ -10,7 +10,7 @@ PROFILE_URLS = {
     "researchgate": r"researchgate\.net/profile/",
 }
 
-# Check MathML first so it is not double-counted as HTML
+# Match MathML before HTML to avoid counting the same markup twice
 MARKUP_PATTERNS = {
     "mml": re.compile(r"mml:", re.I),
     "html": re.compile(r"</?[a-z][^>]*>", re.I),

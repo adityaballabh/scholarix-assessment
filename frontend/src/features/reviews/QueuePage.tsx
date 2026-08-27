@@ -11,10 +11,9 @@ import {
   readOption,
   readQueueScope,
   statusOptions,
-  statusOrder,
 } from "./filters";
 import QueueTable from "./QueueTable";
-import type { QueueSortColumn } from "./QueueTable";
+import { orderCases, readQueueSort, type QueueSortColumn } from "./ordering";
 import styles from "./QueuePage.module.css";
 
 const STALE_DELAY_MS = 500;
@@ -27,6 +26,7 @@ export default function QueuePage() {
   const [error, setError] = useState(false);
   const [anyCasesExist, setAnyCasesExist] = useState(true);
   const [stale, setStale] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const query = searchParams.get("query") ?? "";
   const rawStatus = searchParams.get("status");
@@ -34,18 +34,10 @@ export default function QueuePage() {
   const scope = readQueueScope(rawScope);
   const defaultStatus = defaultStatusForScope(scope);
   const status = readOption(rawStatus, statusOptions, defaultStatus);
-  const rowSearch = searchParams.toString();
+  const caseLinkSearch = searchParams.toString();
   const rawSort = searchParams.get("sort");
-  const sort: QueueSortColumn | "" =
-    rawSort === "score" ||
-    rawSort === "share" ||
-    rawSort === "candidates" ||
-    rawSort === "publications" ||
-    rawSort === "status"
-      ? rawSort
-      : "";
-  const direction: SortDirection =
-    searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const rawDirection = searchParams.get("dir");
+  const { column: sort, direction } = readQueueSort(searchParams);
 
   const [draftQuery, setDraftQuery] = useState(query);
 
@@ -57,7 +49,7 @@ export default function QueuePage() {
         if (active) setAnyCasesExist(allCases.length > 0);
       })
       .catch(() => {
-        // The filtered request below owns the visible error state.
+        // The filtered request reports load errors
       });
 
     return () => {
@@ -76,11 +68,12 @@ export default function QueuePage() {
   }, [loading]);
 
   useEffect(() => {
-    const invalid = [
-      rawStatus !== null && rawStatus !== status ? "status" : null,
-      rawScope !== null && rawScope !== scope ? "scope" : null,
-    ].filter(Boolean) as string[];
-
+    const invalid: string[] = [];
+    if (rawStatus !== null && rawStatus !== status) invalid.push("status");
+    if (rawScope !== null && rawScope !== scope) invalid.push("scope");
+    if (rawSort !== null && rawSort !== sort) invalid.push("sort");
+    if (rawDirection !== null && (!sort || rawDirection !== "asc"))
+      invalid.push("dir");
     if (invalid.length === 0) return;
 
     setSearchParams(
@@ -91,7 +84,16 @@ export default function QueuePage() {
       },
       { replace: true },
     );
-  }, [rawStatus, rawScope, scope, status]);
+  }, [
+    rawStatus,
+    rawScope,
+    scope,
+    status,
+    rawSort,
+    sort,
+    rawDirection,
+    setSearchParams,
+  ]);
 
   useEffect(() => {
     setDraftQuery(query);
@@ -101,11 +103,20 @@ export default function QueuePage() {
     if (draftQuery === query) return;
 
     const timer = setTimeout(
-      () => updateFilter("query", draftQuery),
+      () =>
+        setSearchParams(
+          (previous) => {
+            const next = new URLSearchParams(previous);
+            if (draftQuery) next.set("query", draftQuery);
+            else next.delete("query");
+            return next;
+          },
+          { replace: true },
+        ),
       SEARCH_DEBOUNCE_MS,
     );
     return () => clearTimeout(timer);
-  }, [draftQuery]);
+  }, [draftQuery, query, setSearchParams]);
 
   useEffect(() => {
     let active = true;
@@ -131,31 +142,7 @@ export default function QueuePage() {
     return () => {
       active = false;
     };
-  }, [query, scope, status]);
-
-  function orderCases(rows: ValidationCase[]): ValidationCase[] {
-    if (!sort) return rows;
-
-    const sortValue = (reviewCase: ValidationCase): number => {
-      switch (sort) {
-        case "score":
-          return reviewCase.priority_score;
-        case "share":
-          return reviewCase.detail.top_share ?? 0;
-        case "candidates":
-          return reviewCase.detail.candidate_ids.length;
-        case "status":
-          return statusOrder.indexOf(reviewCase.status);
-        default:
-          return reviewCase.affected_count;
-      }
-    };
-
-    return [...rows].sort((a, b) => {
-      const gap = sortValue(a) - sortValue(b);
-      return direction === "asc" ? gap : -gap;
-    });
-  }
+  }, [query, scope, status, loadAttempt]);
 
   function applySort(column: QueueSortColumn, next: SortDirection | null) {
     setSearchParams((previous) => updateSortParams(previous, column, next), {
@@ -180,7 +167,7 @@ export default function QueuePage() {
     );
   }
 
-  const filtered = Boolean(query || status !== defaultStatus);
+  const hasActiveFilters = Boolean(query || status !== defaultStatus);
 
   return (
     <section className={styles.page}>
@@ -201,7 +188,7 @@ export default function QueuePage() {
           options={statusOptions}
           onChange={(value) => updateFilter("status", value)}
         />
-        {filtered && (
+        {hasActiveFilters && (
           <button
             type="button"
             className={styles.resetFilters}
@@ -232,7 +219,9 @@ export default function QueuePage() {
           <Link
             className={styles.scopeLink}
             to="/reviews/settings"
-            state={{ returnTo: `/reviews${rowSearch ? `?${rowSearch}` : ""}` }}
+            state={{
+              returnTo: `/reviews${caseLinkSearch ? `?${caseLinkSearch}` : ""}`,
+            }}
           >
             queue settings
           </Link>
@@ -251,7 +240,14 @@ export default function QueuePage() {
 
       {error ? (
         <p className={styles.pageState} role="alert">
-          The review queue could not be loaded.
+          Could not load the review queue{" "}
+          <button
+            type="button"
+            className={styles.resetFilters}
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+          >
+            retry
+          </button>
         </p>
       ) : cases === null ? null : cases.length === 0 ? (
         <p className={styles.pageState}>
@@ -262,21 +258,15 @@ export default function QueuePage() {
               : "No reviews left"}
         </p>
       ) : (
-        <>
-          <QueueTable
-            cases={orderCases(cases)}
-            loading={loading}
-            stale={stale}
-            rowSearch={rowSearch}
-            sort={sort}
-            direction={direction}
-            onSort={applySort}
-          />
-          {status === "all" &&
-            cases.some((reviewCase) => reviewCase.status === "deferred") && (
-              <p className={styles.tableFooter}>deferred at the end</p>
-            )}
-        </>
+        <QueueTable
+          cases={orderCases(cases, sort, direction)}
+          loading={loading}
+          stale={stale}
+          caseLinkSearch={caseLinkSearch}
+          sort={sort}
+          direction={direction}
+          onSort={applySort}
+        />
       )}
     </section>
   );

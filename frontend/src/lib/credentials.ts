@@ -1,10 +1,4 @@
-/**
- * Tell the browser's password manager that a sign-in succeeded, rather than
- * leaving it to infer one from an SPA submit that never navigates.
- *
- * Chromium only. Safari and Firefox do not implement PasswordCredential and
- * fall back to their own heuristics, so this is best-effort by design.
- */
+// SPA sign-ins can bypass password-manager detection
 interface PasswordCredentialData {
   id: string;
   password: string;
@@ -28,6 +22,6 @@ export async function rememberCredentials(
   try {
     await navigator.credentials.store(new constructor(data));
   } catch {
-    // A declined or unavailable password manager must not fail the sign-in.
+    // Keep sign-in successful if the password manager rejects the request
   }
 }

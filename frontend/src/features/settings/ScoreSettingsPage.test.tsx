@@ -95,8 +95,106 @@ it("reports a settings version conflict without rebuilding", async () => {
 
   expect(
     await screen.findByText(
-      "Queue settings changed elsewhere — reload and try again",
+      "Queue settings changed elsewhere. Reload and try again",
     ),
   ).toHaveAttribute("role", "alert");
   expect(rebuildQueue).not.toHaveBeenCalled();
+});
+
+it("retries a failed rebuild without saving the same settings again", async () => {
+  const user = userEvent.setup();
+  vi.mocked(updateQueueSettings).mockResolvedValue(
+    buildQueueSettings({ max_top_candidate_share: 70, version: 5 }),
+  );
+  vi.mocked(rebuildQueue)
+    .mockRejectedValueOnce(new Error("rebuild failed"))
+    .mockResolvedValue({ config_version: 5, cases: 8 });
+  renderSettings();
+  const limit = await screen.findByLabelText("top share limit");
+  await user.clear(limit);
+  await user.type(limit, "70");
+  await user.click(
+    screen.getByRole("button", { name: "save and rebuild queue" }),
+  );
+  expect(
+    await screen.findByText("Settings saved. Could not rebuild the queue"),
+  ).toHaveAttribute("role", "alert");
+  const retry = screen.getByRole("button", { name: "retry rebuild" });
+  expect(retry).toBeEnabled();
+  await user.click(retry);
+  await waitFor(() => expect(rebuildQueue).toHaveBeenCalledTimes(2));
+  expect(updateQueueSettings).toHaveBeenCalledOnce();
+  await waitFor(() =>
+    expect(screen.getByTestId("location").textContent).toBe("/reviews"),
+  );
+});
+
+it("preserves the pending rebuild after editing and reverting the saved values", async () => {
+  const user = userEvent.setup();
+  vi.mocked(updateQueueSettings).mockResolvedValue(
+    buildQueueSettings({ max_top_candidate_share: 70, version: 5 }),
+  );
+  vi.mocked(rebuildQueue).mockRejectedValue(new Error("rebuild failed"));
+  renderSettings();
+  const limit = await screen.findByLabelText("top share limit");
+  await user.clear(limit);
+  await user.type(limit, "70");
+  await user.click(
+    screen.getByRole("button", { name: "save and rebuild queue" }),
+  );
+  await screen.findByRole("button", { name: "retry rebuild" });
+  await user.clear(limit);
+  await user.type(limit, "65");
+  await user.click(screen.getByRole("button", { name: "revert" }));
+  expect(limit).toHaveValue(70);
+  expect(screen.getByRole("button", { name: "retry rebuild" })).toBeEnabled();
+});
+
+it("does not label a new failed save as a rebuild failure after an earlier partial save", async () => {
+  const user = userEvent.setup();
+  vi.mocked(updateQueueSettings)
+    .mockResolvedValueOnce(
+      buildQueueSettings({ max_top_candidate_share: 70, version: 5 }),
+    )
+    .mockRejectedValueOnce(new Error("save failed"));
+  vi.mocked(rebuildQueue).mockRejectedValue(new Error("rebuild failed"));
+  renderSettings();
+  const limit = await screen.findByLabelText("top share limit");
+  await user.clear(limit);
+  await user.type(limit, "70");
+  await user.click(
+    screen.getByRole("button", { name: "save and rebuild queue" }),
+  );
+  await screen.findByRole("button", { name: "retry rebuild" });
+  await user.clear(limit);
+  await user.type(limit, "65");
+  await user.click(
+    screen.getByRole("button", { name: "save and rebuild queue" }),
+  );
+  expect(
+    await screen.findByText("Could not save queue settings"),
+  ).toHaveAttribute("role", "alert");
+  expect(limit).toHaveValue(65);
+  expect(rebuildQueue).toHaveBeenCalledOnce();
+});
+
+it("preserves score formulas and blanks normalized values for incomplete weights", async () => {
+  const user = userEvent.setup();
+  renderSettings();
+  await screen.findByLabelText("top share limit");
+  expect(screen.getByText("Score Computation")).toBeInTheDocument();
+  expect(
+    screen.getByText("publications / max publications"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("fragmentation / max fragmentation"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("candidates / max candidates")).toBeInTheDocument();
+  expect(screen.getAllByText("33.3")).toHaveLength(3);
+  await user.clear(screen.getByRole("spinbutton", { name: /^publications/ }));
+  expect(screen.queryByText("33.3")).toBeNull();
+  expect(screen.getByText("All multipliers are required")).toHaveAttribute(
+    "role",
+    "alert",
+  );
 });

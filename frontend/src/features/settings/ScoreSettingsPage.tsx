@@ -6,140 +6,23 @@ import {
   rebuildQueue,
   updateQueueSettings,
 } from "../../api/client";
-import type {
-  QueueSettings,
-  QueueSettingsUpdate,
-  PriorityWeights,
-} from "../../api/types";
+import type { QueueSettings } from "../../api/types";
+import {
+  WEIGHT_FIELDS,
+  toFormValues,
+  parseSettingsForm,
+  differsFromSaved,
+  normalizedWeightPercent,
+  type WeightKey,
+  type FormValues,
+} from "./settingsForm";
 import Hint from "../../components/Hint";
 import SectionRule from "../../components/SectionRule";
 import { useToast } from "../../components/Toast";
 import styles from "./ScoreSettingsPage.module.css";
 
 const ELIGIBILITY_HINT =
-  "previously displayed profiles that no longer meet this limit are archived";
-
-type WeightKey = keyof PriorityWeights;
-
-interface FormValues {
-  maxTopCandidateShare: string;
-  weights: Record<WeightKey, string>;
-}
-
-type ErrorScope = "eligibility" | "weights" | "form";
-
-interface FieldError {
-  scope: ErrorScope;
-  message: string;
-}
-
-const WEIGHT_FIELDS: { key: WeightKey; label: string; term: string }[] = [
-  { key: "publication_impact", label: "publications", term: "publications" },
-  {
-    key: "fragmentation",
-    label: "fragmentation (100 − top share)",
-    term: "fragmentation",
-  },
-  { key: "cluster_ambiguity", label: "candidates", term: "candidates" },
-];
-
-function formValues(config: QueueSettings): FormValues {
-  return {
-    maxTopCandidateShare: config.max_top_candidate_share.toString(),
-    weights: {
-      publication_impact: config.weights.publication_impact.toString(),
-      fragmentation: config.weights.fragmentation.toString(),
-      cluster_ambiguity: config.weights.cluster_ambiguity.toString(),
-    },
-  };
-}
-
-function parseValue(value: string): number | null {
-  if (value.trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function getEligibilityError(values: FormValues): FieldError | null {
-  const limit = parseValue(values.maxTopCandidateShare);
-  return limit === null || limit < 0 || limit > 100
-    ? {
-        scope: "eligibility",
-        message: "Top share limit must be between 0 and 100",
-      }
-    : null;
-}
-
-function getWeightsError(values: FormValues): FieldError | null {
-  const weights = Object.values(values.weights).map(parseValue);
-  if (weights.some((weight) => weight === null)) {
-    return { scope: "weights", message: "All multipliers are required" };
-  }
-  if (weights.some((weight) => weight !== null && weight < 0)) {
-    return { scope: "weights", message: "Multipliers must be 0 or greater" };
-  }
-  if (weights.reduce<number>((sum, weight) => sum + (weight ?? 0), 0) <= 0) {
-    return {
-      scope: "weights",
-      message: "At least one multiplier must be greater than 0",
-    };
-  }
-  return null;
-}
-
-function buildUpdate(
-  values: FormValues,
-  config: QueueSettings,
-): QueueSettingsUpdate | FieldError {
-  const eligibilityError = getEligibilityError(values);
-  if (eligibilityError) return eligibilityError;
-
-  const weightsError = getWeightsError(values);
-  if (weightsError) return weightsError;
-
-  const maxTopCandidateShare = parseValue(values.maxTopCandidateShare);
-  const weights = {
-    publication_impact: parseValue(values.weights.publication_impact),
-    fragmentation: parseValue(values.weights.fragmentation),
-    cluster_ambiguity: parseValue(values.weights.cluster_ambiguity),
-  };
-  const parsedWeights = weights as PriorityWeights;
-
-  return {
-    max_top_candidate_share: maxTopCandidateShare as number,
-    weights: parsedWeights,
-    expected_version: config.version,
-  };
-}
-
-function checkErrors(
-  values: FormValues,
-  config: QueueSettings,
-): FieldError | null {
-  const result = buildUpdate(values, config);
-  return "scope" in result ? result : null;
-}
-
-function differsFromSaved(values: FormValues, config: QueueSettings): boolean {
-  return (
-    parseValue(values.maxTopCandidateShare) !==
-      config.max_top_candidate_share ||
-    WEIGHT_FIELDS.some(
-      ({ key }) => parseValue(values.weights[key]) !== config.weights[key],
-    )
-  );
-}
-
-function weightValue(values: FormValues, key: WeightKey): string {
-  const weights = WEIGHT_FIELDS.map(({ key: weightKey }) =>
-    parseValue(values.weights[weightKey]),
-  );
-  if (weights.some((weight) => weight === null || weight < 0)) return "";
-  const total = weights.reduce<number>((sum, weight) => sum + (weight ?? 0), 0);
-  if (total === 0) return "";
-  const weight = parseValue(values.weights[key]) ?? 0;
-  return ((weight / total) * 100).toFixed(1);
-}
+  "Previously queued profiles above this limit are archived";
 
 export default function ScoreSettingsPage() {
   const navigate = useNavigate();
@@ -152,17 +35,19 @@ export default function ScoreSettingsPage() {
   const [config, setConfig] = useState<QueueSettings | null>(null);
   const [values, setValues] = useState<FormValues | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [actionError, setActionError] = useState<FieldError | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [savedForRebuild, setSavedForRebuild] = useState(true);
+  const [rebuildPending, setRebuildPending] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setLoadError(false);
     getQueueSettings()
       .then((loaded) => {
         if (!active) return;
         setConfig(loaded);
-        setValues(formValues(loaded));
+        setValues(toFormValues(loaded));
       })
       .catch(() => {
         if (active) setLoadError(true);
@@ -170,55 +55,54 @@ export default function ScoreSettingsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAttempt]);
 
   function updateWeight(key: WeightKey, value: string) {
     if (!values || !config) return;
     const next = { ...values, weights: { ...values.weights, [key]: value } };
     setValues(next);
-    setSavedForRebuild(false);
     setActionError(null);
   }
 
   async function saveAndRebuildQueue() {
     if (!config || !values || busy) return;
-    const update = buildUpdate(values, config);
-    if ("scope" in update) {
-      setActionError(update);
+    const parsed = parseSettingsForm(values);
+    if (
+      parsed.eligibilityError ||
+      !parsed.weights ||
+      parsed.maxTopCandidateShare === null
+    )
       return;
-    }
+    const dirty = differsFromSaved(values, config);
+    if (!dirty && !rebuildPending) return;
 
     setBusy(true);
     setActionError(null);
-    let settingsSaved = savedForRebuild;
+    let settingsSaved = !dirty && rebuildPending;
     try {
-      if (!savedForRebuild) {
-        const saved = await updateQueueSettings(update);
+      if (dirty) {
+        const saved = await updateQueueSettings({
+          max_top_candidate_share: parsed.maxTopCandidateShare,
+          weights: parsed.weights,
+          expected_version: config.version,
+        });
         setConfig(saved);
-        setValues(formValues(saved));
-        setSavedForRebuild(true);
+        setValues(toFormValues(saved));
+        setRebuildPending(true);
         settingsSaved = true;
       }
       await rebuildQueue();
-      showToast("Queue settings saved and queue rebuilt.");
+      setRebuildPending(false);
+      showToast("Settings saved and queue rebuilt");
       navigate(returnTo, { replace: true });
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
-        setActionError({
-          scope: "form",
-          message: "Queue settings changed elsewhere — reload and try again",
-        });
-      } else if (settingsSaved) {
-        setActionError({
-          scope: "form",
-          message: "Settings are saved, but the queue could not be rebuilt",
-        });
-      } else {
-        setActionError({
-          scope: "form",
-          message: "Queue settings could not be saved",
-        });
-      }
+      setActionError(
+        error instanceof ApiError && error.status === 409
+          ? "Queue settings changed elsewhere. Reload and try again"
+          : settingsSaved
+            ? "Settings saved. Could not rebuild the queue"
+            : "Could not save queue settings",
+      );
     } finally {
       setBusy(false);
     }
@@ -226,7 +110,15 @@ export default function ScoreSettingsPage() {
 
   if (loadError) {
     return (
-      <p className={styles.pageState}>Queue settings could not be loaded</p>
+      <p className={styles.pageState} role="alert">
+        Could not load queue settings{" "}
+        <button
+          type="button"
+          onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+        >
+          retry
+        </button>
+      </p>
     );
   }
   if (!config || !values) {
@@ -234,9 +126,8 @@ export default function ScoreSettingsPage() {
   }
 
   const dirty = differsFromSaved(values, config);
-  const eligibilityError = getEligibilityError(values);
-  const weightsError = getWeightsError(values);
-  const valid = checkErrors(values, config) === null;
+  const { eligibilityError, weightsError, weights } = parseSettingsForm(values);
+  const valid = !eligibilityError && !weightsError;
 
   return (
     <section className={styles.page}>
@@ -264,7 +155,7 @@ export default function ScoreSettingsPage() {
               </label>
               <span className={styles.inlineHint}>
                 <span className={styles.rowNote}>
-                  profiles at or below this enter the queue
+                  profiles at or below this limit enter the queue
                 </span>
                 <Hint text={ELIGIBILITY_HINT} />
               </span>
@@ -277,6 +168,10 @@ export default function ScoreSettingsPage() {
                 min="0"
                 max="100"
                 step="0.1"
+                aria-invalid={!!eligibilityError}
+                aria-describedby={
+                  eligibilityError ? "eligibility-error" : undefined
+                }
                 value={values.maxTopCandidateShare}
                 onChange={(event) => {
                   const next = {
@@ -284,7 +179,6 @@ export default function ScoreSettingsPage() {
                     maxTopCandidateShare: event.target.value,
                   };
                   setValues(next);
-                  setSavedForRebuild(false);
                   setActionError(null);
                 }}
               />
@@ -292,8 +186,8 @@ export default function ScoreSettingsPage() {
             </span>
           </div>
           {eligibilityError && (
-            <p className={styles.rowError} role="alert">
-              {eligibilityError.message}
+            <p id="eligibility-error" className={styles.rowError} role="alert">
+              {eligibilityError}
             </p>
           )}
         </fieldset>
@@ -314,6 +208,8 @@ export default function ScoreSettingsPage() {
                   type="number"
                   min="0"
                   step="0.1"
+                  aria-invalid={!!weightsError}
+                  aria-describedby={weightsError ? "weights-error" : undefined}
                   value={values.weights[key]}
                   onChange={(event) => updateWeight(key, event.target.value)}
                 />
@@ -323,7 +219,7 @@ export default function ScoreSettingsPage() {
                   {index === 0 ? "" : "+"}
                 </span>
                 <span className={styles.termShare}>
-                  {weightValue(values, key)}
+                  {normalizedWeightPercent(weights, key)}
                 </span>
                 <span className={styles.formulaText}>
                   <span className={styles.multiply}>×</span>
@@ -335,24 +231,27 @@ export default function ScoreSettingsPage() {
             </label>
           ))}
           <p className={styles.scoreNote}>
-            max is computed across all authors currently in the queue
+            max is the highest value among authors in the current queue
           </p>
-          {(weightsError || actionError?.scope === "form") && (
-            <p className={styles.rowError} role="alert">
-              {weightsError?.message ?? actionError?.message}
+          {weightsError && (
+            <p id="weights-error" className={styles.rowError} role="alert">
+              {weightsError}
             </p>
           )}
         </fieldset>
 
+        {actionError && (
+          <p className={styles.rowError} role="alert">
+            {actionError}
+          </p>
+        )}
         <div className={styles.actions}>
           {dirty && (
             <button
               type="button"
-              className={styles.reset}
               disabled={busy}
               onClick={() => {
-                setValues(formValues(config));
-                setSavedForRebuild(true);
+                setValues(toFormValues(config));
                 setActionError(null);
               }}
             >
@@ -361,7 +260,6 @@ export default function ScoreSettingsPage() {
           )}
           <button
             type="button"
-            className={styles.cancel}
             disabled={busy}
             onClick={() => navigate(returnTo)}
           >
@@ -370,9 +268,11 @@ export default function ScoreSettingsPage() {
           <button
             type="submit"
             className={styles.primary}
-            disabled={busy || !dirty || !valid}
+            disabled={busy || (!dirty && !rebuildPending) || !valid}
           >
-            save and rebuild queue
+            {rebuildPending && !dirty
+              ? "retry rebuild"
+              : "save and rebuild queue"}
           </button>
         </div>
       </form>

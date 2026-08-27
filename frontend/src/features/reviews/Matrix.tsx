@@ -29,11 +29,6 @@ const fieldNames: Record<string, string> = {
   publications: "publications",
 };
 
-/**
- * The dataset's own values, by the evidence field they are checked against. This is the
- * baseline the sources are compared to rather than a source of its own, so it carries no
- * fetch state, no timestamp, and no supports/conflict styling.
- */
 function datasetValues(target: ReviewTarget): Record<string, string | null> {
   return {
     canonical_name: target.author_name,
@@ -106,16 +101,16 @@ export default function Matrix({
   refreshing: RefreshSource | "all" | null;
   onRefreshSource: (source: RefreshSource) => void;
 }) {
-  const provided = datasetValues(target);
+  const datasetByField = datasetValues(target);
   const sources = [...new Set(evidence.map((record) => record.source))];
   const fields = [...new Set(evidence.map((record) => record.field))];
 
-  const at = (field: string, source: string) =>
+  const recordFor = (field: string, source: string) =>
     evidence.find(
       (record) => record.field === field && record.source === source,
     );
 
-  const columnState = (source: string): SourceFetchStatus | null => {
+  const columnFetchState = (source: string): SourceFetchStatus | null => {
     const cells = evidence.filter((record) => record.source === source);
     if (cells.length === 0) return null;
 
@@ -124,21 +119,24 @@ export default function Matrix({
     return uniform && first !== "success" ? first : null;
   };
 
-  const deadColumns = new Map(
-    sources.map((source) => [source, columnState(source)]),
+  const unavailableColumnStates = new Map(
+    sources.map((source) => [source, columnFetchState(source)]),
   );
 
-  const echoRows = new Map(
+  const statusDisplayRowBySource = new Map(
     sources.map((source) => [
       source,
-      fields.find((field) => at(field, source) !== undefined),
+      fields.find((field) => recordFor(field, source) !== undefined),
     ]),
   );
 
   const conflicted = new Set(
     fields.filter((field) =>
       evidence.some(
-        (record) => record.field === field && record.value_state === "conflict",
+        (record) =>
+          record.field === field &&
+          record.fetch_status === "success" &&
+          record.value_state === "conflict",
       ),
     ),
   );
@@ -168,8 +166,6 @@ export default function Matrix({
               <span className={styles.sourceTitle}>
                 <span className={styles.sourceName}>Dataset</span>
               </span>
-              {/* Two lines like the source columns: the label where they print an
-                  identifier, the date where they print their fetch time. */}
               <span className={styles.provenance} title="">
                 imported
               </span>
@@ -178,12 +174,13 @@ export default function Matrix({
               </span>
             </div>
             {sources.map((source) => {
-              const state = deadColumns.get(source);
-              const sample = evidence.find(
+              const state = unavailableColumnStates.get(source);
+              const sourceRecord = evidence.find(
                 (record) => record.source === source,
               );
               const refreshable = isRefreshSource(source);
-              const applicable = sample?.fetch_status !== "not_applicable";
+              const applicable =
+                sourceRecord?.fetch_status !== "not_applicable";
 
               return (
                 <div
@@ -208,11 +205,11 @@ export default function Matrix({
                     )}
                   </span>
                   <span className={styles.provenance} title="">
-                    {sample ? recordLabel(sample, shares) : "—"}
+                    {sourceRecord ? recordLabel(sourceRecord, shares) : "—"}
                   </span>
-                  {sample?.fetch_status !== "not_applicable" && (
+                  {sourceRecord?.fetch_status !== "not_applicable" && (
                     <span className={styles.provenance} title="">
-                      {fetchedLabel(sample?.fetched_at ?? null)}
+                      {fetchedLabel(sourceRecord?.fetched_at ?? null)}
                     </span>
                   )}
                 </div>
@@ -234,20 +231,22 @@ export default function Matrix({
                 )}
               </div>
               <div role="cell" className={styles.cell}>
-                {provided[field] && (
+                {datasetByField[field] && (
                   <span className={`${styles.cellLine} ${styles.value}`}>
-                    {provided[field]}
+                    {datasetByField[field]}
                   </span>
                 )}
               </div>
               {sources.map((source) => (
                 <Cell
                   key={source}
-                  record={at(field, source)}
+                  record={recordFor(field, source)}
                   source={source}
                   field={field}
-                  columnState={deadColumns.get(source) ?? null}
-                  echoes={echoRows.get(source) === field}
+                  columnFetchState={unavailableColumnStates.get(source) ?? null}
+                  showColumnStatus={
+                    statusDisplayRowBySource.get(source) === field
+                  }
                 />
               ))}
             </div>
@@ -262,33 +261,36 @@ function Cell({
   record,
   source,
   field,
-  columnState,
-  echoes,
+  columnFetchState,
+  showColumnStatus,
 }: {
   record: EvidenceRecord | undefined;
   source: string;
   field: string;
-  columnState: SourceFetchStatus | null;
-  echoes: boolean;
+  columnFetchState: SourceFetchStatus | null;
+  showColumnStatus: boolean;
 }) {
-  if (columnState) {
-    const broken = brokenFetches.includes(columnState);
+  const fetchState =
+    columnFetchState ??
+    (record?.fetch_status !== "success" ? record?.fetch_status : null);
+  if (fetchState) {
+    const broken = brokenFetches.includes(fetchState);
 
     return (
       <div
         role="cell"
         className={`${styles.cell} ${broken ? styles.cellBroken : styles.cellNever}`}
       >
-        {echoes ? (
+        {!columnFetchState || showColumnStatus ? (
           <>
-            <span className={styles.absence}>{fetchNotes[columnState]}</span>
-            {columnState !== "not_applicable" && (
-              <span className={styles.reason}>no answer received</span>
+            <span className={styles.absence}>{fetchNotes[fetchState]}</span>
+            {broken && (
+              <span className={styles.reason}>no evidence returned</span>
             )}
           </>
         ) : (
           <span className={styles.srOnly}>
-            {sourceLabel(source)} {fetchNotes[columnState]}, {fieldName(field)}{" "}
+            {sourceLabel(source)} {fetchNotes[fetchState]}, {fieldName(field)}{" "}
             unknown
           </span>
         )}
@@ -306,15 +308,15 @@ function Cell({
     );
   }
 
-  const word =
+  const absenceLabel =
     record.value_state === "missing" && field === "affiliation"
       ? "no affiliations found"
       : emptyWords[record.value_state];
-  if (word || record.value === null) {
+  if (absenceLabel || record.value === null) {
     return (
       <div role="cell" className={styles.cell}>
         <span className={styles.cellLine}>
-          <span className={styles.absence}>{word ?? "absent"}</span>
+          <span className={styles.absence}>{absenceLabel ?? "absent"}</span>
         </span>
       </div>
     );

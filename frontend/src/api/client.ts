@@ -28,10 +28,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Reads are public and writes are not, so a 401 means the reviewer needs to sign
- * in before this exact call can proceed. The handler resolves true once they have.
- */
 let onUnauthorized: (() => Promise<boolean>) | null = null;
 
 export function setUnauthorizedHandler(
@@ -60,7 +56,7 @@ function errorDetail(value: unknown): string | null {
   return null;
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   let response = await send(path, init);
   if (
     response.status === 401 &&
@@ -77,6 +73,11 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {}
     throw new ApiError(response.status, detail);
   }
+  return response;
+}
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await request(path, init);
   return (await response.json()) as T;
 }
 
@@ -103,11 +104,6 @@ export function listCases(
   return requestJson(`/api/cases${queryString ? `?${queryString}` : ""}`);
 }
 
-/**
- * Export is a file download, not JSON for the app to render, so these build URLs for a
- * plain anchor instead of going through requestJson. Both endpoints are GETs, and reads
- * are open, so no session handling is involved.
- */
 export function caseExportUrl(caseId: string): string {
   return `${API_BASE_URL}/api/cases/${encodeURIComponent(caseId)}/export`;
 }
@@ -208,5 +204,5 @@ export function createAccount(registration: Registration): Promise<User> {
 }
 
 export async function signOut(): Promise<void> {
-  await send("/api/auth/logout", { method: "POST" });
+  await request("/api/auth/logout", { method: "POST" });
 }

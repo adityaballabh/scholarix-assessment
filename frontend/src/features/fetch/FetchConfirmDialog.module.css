@@ -58,7 +58,6 @@
 }
 
 .actions button:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 

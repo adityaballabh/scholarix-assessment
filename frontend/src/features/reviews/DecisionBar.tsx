@@ -9,39 +9,38 @@ import { formatFetchedAt } from "../../lib/datetime";
 import { statusText } from "../../lib/decisions";
 import styles from "./DecisionBar.module.css";
 
-interface Judgement {
+interface DecisionOption {
   action: DecisionAction;
   label: string;
-  /** The status this lands on, hidden when the case is already there */
-  status?: ReviewStatus;
+  resultingStatus?: ReviewStatus;
   noteRequired?: boolean;
 }
 
-const judgements: Judgement[] = [
+const decisionOptions: DecisionOption[] = [
   {
     action: "reopen",
     label: "pending",
-    status: "pending",
+    resultingStatus: "pending",
   },
   {
     action: "confirm_one_author",
     label: "one author",
-    status: "one_author",
+    resultingStatus: "one_author",
   },
   {
     action: "flag_for_split",
     label: "needs split",
-    status: "needs_split",
+    resultingStatus: "needs_split",
   },
   {
     action: "mark_uncertain",
     label: "uncertain",
-    status: "uncertain",
+    resultingStatus: "uncertain",
   },
   {
     action: "defer",
     label: "defer",
-    status: "deferred",
+    resultingStatus: "deferred",
   },
   {
     action: "note",
@@ -67,11 +66,12 @@ export default function DecisionBar({
   onDecide: (action: DecisionAction, note: string) => Promise<void>;
   onFetchAll: () => void;
 }) {
-  const [pending, setPending] = useState<Judgement | null>(null);
+  const [selectedDecision, setSelectedDecision] =
+    useState<DecisionOption | null>(null);
   const [viewingNotes, setViewingNotes] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  const available = judgements.filter(
-    (judgement) => judgement.status !== status,
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const available = decisionOptions.filter(
+    (decision) => decision.resultingStatus !== status,
   );
   const [note, setNote] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -80,37 +80,38 @@ export default function DecisionBar({
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    const open = pending !== null || viewingNotes;
+    const open = selectedDecision !== null || viewingNotes;
     if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
-  }, [pending, viewingNotes]);
+  }, [selectedDecision, viewingNotes]);
 
-  function open(judgement: Judgement, trigger: HTMLButtonElement) {
+  function open(decision: DecisionOption, trigger: HTMLButtonElement) {
     triggerRef.current = trigger;
     setNote("");
-    setPending(judgement);
+    setSelectedDecision(decision);
   }
 
-  const blocked = pending?.noteRequired === true && note.trim() === "";
+  const noteRequiredAndEmpty =
+    selectedDecision?.noteRequired === true && note.trim() === "";
 
   function close() {
     if (busy) return;
-    setPending(null);
+    setSelectedDecision(null);
     setViewingNotes(false);
-    setFailure(null);
+    setSubmitError(null);
     triggerRef.current?.focus();
   }
 
   function confirm() {
-    if (!pending || busy) return;
-    setFailure(null);
-    void onDecide(pending.action, note)
+    if (!selectedDecision || busy || noteRequiredAndEmpty) return;
+    setSubmitError(null);
+    void onDecide(selectedDecision.action, note)
       .then(close)
       .catch((cause) => {
-        setFailure(
+        setSubmitError(
           cause instanceof ApiError && cause.status === 401
-            ? "Sign in to record this decision."
-            : "The decision was not recorded. Reload the case and try again.",
+            ? "Sign in to record this decision"
+            : "Could not record the decision. Reload the case and try again",
         );
       });
   }
@@ -118,15 +119,15 @@ export default function DecisionBar({
   return (
     <div className={styles.bar}>
       <div className={styles.actions}>
-        {available.map((judgement) => (
+        {available.map((decision) => (
           <button
-            key={judgement.action}
+            key={decision.action}
             type="button"
             className={styles.action}
             disabled={busy}
-            onClick={(event) => open(judgement, event.currentTarget)}
+            onClick={(event) => open(decision, event.currentTarget)}
           >
-            {judgement.label}
+            {decision.label}
           </button>
         ))}
         {notes.length > 0 && (
@@ -161,7 +162,9 @@ export default function DecisionBar({
       <dialog
         ref={dialogRef}
         className={styles.dialog}
-        aria-label={pending?.label ?? (viewingNotes ? "notes" : undefined)}
+        aria-label={
+          selectedDecision?.label ?? (viewingNotes ? "notes" : undefined)
+        }
         onCancel={(event) => {
           event.preventDefault();
           close();
@@ -194,27 +197,32 @@ export default function DecisionBar({
           </div>
         )}
 
-        {pending && (
+        {selectedDecision && (
           <div className={styles.dialogBody}>
-            <p className={styles.dialogTitle}>{pending.label}</p>
+            <p className={styles.dialogTitle}>{selectedDecision.label}</p>
             <textarea
               autoFocus
+              aria-label={
+                selectedDecision.noteRequired ? "note" : "optional note"
+              }
               className={styles.noteField}
               value={note}
               rows={4}
-              placeholder={pending.noteRequired ? "note" : "optional note"}
+              placeholder={
+                selectedDecision.noteRequired ? "note" : "optional note"
+              }
               onChange={(event) => setNote(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || event.shiftKey) return;
                 event.preventDefault();
-                if (!blocked) confirm();
+                if (!noteRequiredAndEmpty) confirm();
               }}
             />
             <div className={styles.dialogActions}>
               <span
-                className={failure ? styles.submitError : styles.submitHint}
+                className={submitError ? styles.submitError : styles.submitHint}
               >
-                {failure ?? (blocked ? "" : "enter to submit")}
+                {submitError ?? (noteRequiredAndEmpty ? "" : "enter to submit")}
               </span>
               <button
                 type="button"
@@ -226,15 +234,17 @@ export default function DecisionBar({
               </button>
               <span
                 className={styles.guard}
-                data-hint={blocked ? "A note is required" : undefined}
+                data-hint={
+                  noteRequiredAndEmpty ? "A note is required" : undefined
+                }
               >
                 <button
                   type="button"
                   className={`${styles.action} ${styles.primary}`}
-                  disabled={blocked || busy}
+                  disabled={noteRequiredAndEmpty || busy}
                   onClick={confirm}
                 >
-                  {pending.label}
+                  {selectedDecision.label}
                 </button>
               </span>
             </div>

@@ -5,9 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from merge_review.api.common import (
-    ensure_fetch_idle,
     latest_completed_fetch,
-    latest_snapshot,
+    lock_current_snapshot_for_read,
     utc_datetime,
 )
 from merge_review.database import get_session
@@ -83,7 +82,7 @@ def fetch_source_statuses(fetch: FetchRun | None) -> list[SourceStatus]:
 
 @router.get("/overview", response_model=ReviewOverview)
 def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
-    snapshot = latest_snapshot(session)
+    snapshot = lock_current_snapshot_for_read(session)
     if snapshot is None:
         return ReviewOverview(
             flagged_authors=0,
@@ -93,8 +92,6 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
             queue_updated_at=None,
             sources=[],
         )
-    ensure_fetch_idle(session)
-
     review_cases = list(
         session.scalars(
             select(ValidationCase).where(
@@ -106,10 +103,27 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
     total_authors = session.scalar(
         select(func.count(Author.id)).where(Author.dataset_snapshot_id == snapshot.id)
     )
-    total_publications = session.scalar(
-        select(func.count(PublicationRecord.id))
+    doi_works = (
+        select(PublicationRecord.author_id, PublicationRecord.normalized_doi)
         .join(Author)
-        .where(Author.dataset_snapshot_id == snapshot.id)
+        .where(
+            Author.dataset_snapshot_id == snapshot.id,
+            PublicationRecord.normalized_doi.is_not(None),
+        )
+        .distinct()
+        .subquery()
+    )
+    total_doi_works = session.scalar(select(func.count()).select_from(doi_works)) or 0
+    total_no_doi_works = (
+        session.scalar(
+            select(func.count(PublicationRecord.id))
+            .join(Author)
+            .where(
+                Author.dataset_snapshot_id == snapshot.id,
+                PublicationRecord.normalized_doi.is_(None),
+            )
+        )
+        or 0
     )
     completed_fetch = latest_completed_fetch(session, snapshot.id)
     settings = session.get(ReviewSettings, snapshot.id)
@@ -118,7 +132,7 @@ def get_overview(session: Session = Depends(get_session)) -> ReviewOverview:
         flagged_authors=len(review_cases),
         affected_publications=sum(review_case.affected_count for review_case in review_cases),
         total_authors=total_authors or 0,
-        total_publications=total_publications or 0,
+        total_publications=total_doi_works + total_no_doi_works,
         queue_updated_at=utc_datetime(settings.queue_updated_at) if settings else None,
         sources=fetch_source_statuses(completed_fetch),
     )

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from merge_review.api.common import (
     current_fetch,
     ensure_fetch_idle,
-    last_completed_at,
+    last_successful_fetch_at,
     utc_datetime,
 )
 from merge_review.database import get_session
@@ -31,7 +31,7 @@ def authenticate_fetch(
     if request.method in READ_METHODS:
         return None
     reject_foreign_origin(request)
-    if last_completed_at(session) is None:
+    if last_successful_fetch_at(session) is None:
         return None
     return resolve_user(token, session)
 
@@ -42,11 +42,11 @@ def authenticate_abandon(request: Request) -> None:
 
 router = APIRouter(dependencies=[Depends(authenticate_fetch)])
 
-# Gating the way out would lock a signed-out reviewer off every open read
+# Signed-out reviewers need a way past the failed-fetch screen
 abandon_router = APIRouter(dependencies=[Depends(authenticate_abandon)])
 
 
-def fetch_response(fetch: FetchRun, completed_at: datetime | None) -> FetchRunResponse:
+def fetch_response(fetch: FetchRun, last_successful_at: datetime | None) -> FetchRunResponse:
     return FetchRunResponse(
         id=str(fetch.id),
         status=fetch.status,
@@ -57,7 +57,7 @@ def fetch_response(fetch: FetchRun, completed_at: datetime | None) -> FetchRunRe
         },
         started_at=utc_datetime(fetch.started_at),
         finished_at=utc_datetime(fetch.finished_at),
-        last_completed_at=utc_datetime(completed_at),
+        last_completed_at=utc_datetime(last_successful_at),
         error=fetch.error,
     )
 
@@ -65,7 +65,7 @@ def fetch_response(fetch: FetchRun, completed_at: datetime | None) -> FetchRunRe
 @router.get("/fetches/current", response_model=FetchRunResponse | None)
 def get_fetch(session: Session = Depends(get_session)) -> FetchRunResponse | None:
     fetch = current_fetch(session)
-    return fetch_response(fetch, last_completed_at(session)) if fetch else None
+    return fetch_response(fetch, last_successful_fetch_at(session)) if fetch else None
 
 
 @router.post("/fetches", response_model=FetchRunResponse, status_code=202)
@@ -75,7 +75,7 @@ def start_fetch(
 ) -> FetchRunResponse:
     snapshot = session.scalar(
         select(DatasetSnapshot)
-        .order_by(DatasetSnapshot.imported_at.desc())
+        .order_by(DatasetSnapshot.imported_at.desc(), DatasetSnapshot.id.desc())
         .limit(1)
         .with_for_update()
     )
@@ -90,7 +90,7 @@ def start_fetch(
     session.add(fetch)
     session.flush()
     session.refresh(fetch)
-    response = fetch_response(fetch, last_completed_at(session))
+    response = fetch_response(fetch, last_successful_fetch_at(session))
     session.commit()
     background_tasks.add_task(run_fetch, fetch.id, snapshot.id)
     return response
@@ -121,4 +121,4 @@ def abandon_fetch(
     fetch.status = "abandoned"
     session.commit()
     session.refresh(fetch)
-    return fetch_response(fetch, last_completed_at(session))
+    return fetch_response(fetch, last_successful_fetch_at(session))

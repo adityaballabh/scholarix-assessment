@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from conftest import build_client
+from support import build_client
 
 
 def test_queue_settings_are_versioned_and_rebuild_recomputes_cases() -> None:

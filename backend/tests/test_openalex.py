@@ -2,7 +2,6 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
-from conftest import make_response
 from merge_review.models import Author, Base, DatasetSnapshot, SourceRecord
 from merge_review.sources.common import FetchStatus
 from merge_review.sources.openalex import (
@@ -13,6 +12,7 @@ from merge_review.sources.openalex import (
 from requests.exceptions import Timeout
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
+from support import make_response
 
 DUMMY_AUTHOR_ID = "dummy"
 DUMMY_AUTHOR_NAME = "Dummy Author"

@@ -1,12 +1,12 @@
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
-from conftest import make_response
 from merge_review.models import Base, DatasetSnapshot, SourceRecord
 from merge_review.sources.common import FetchStatus
 from merge_review.sources.semantic_scholar import sync_semantic_scholar_records
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
+from support import make_response
 
 DUMMY_FOUND_DOI = "10.123/found"
 DUMMY_MISSING_DOI = "10.123/missing"

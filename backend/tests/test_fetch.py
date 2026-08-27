@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-def test_failed_fetch_rolls_back_source_transaction(tmp_path, monkeypatch) -> None:
+def test_failed_fetch_rolls_back_source_transaction(tmp_path, monkeypatch, caplog) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'fetch.db'}")
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
@@ -64,6 +64,7 @@ def test_failed_fetch_rolls_back_source_transaction(tmp_path, monkeypatch) -> No
     assert fetch.started_at is not None
     assert fetch.finished_at is not None
     assert author.name == "Dummy Author"
+    assert f"Fetch {fetch_id} failed" in caplog.text
 
 
 def test_fetch_completes_and_records_progress(tmp_path, monkeypatch) -> None:

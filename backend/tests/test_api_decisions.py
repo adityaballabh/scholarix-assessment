@@ -1,6 +1,6 @@
-from conftest import build_client
 from merge_review.models import ReviewDecision
 from sqlalchemy import select
+from support import build_client
 
 
 def test_decisions_are_versioned_and_append_activity() -> None:

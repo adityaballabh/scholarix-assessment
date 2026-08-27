@@ -111,3 +111,38 @@ it("requests a source refresh and disables refresh actions while fetching", asyn
   ).toBeDisabled();
   expect(screen.getByText("fetching")).toBeInTheDocument();
 });
+
+it.each([
+  ["rate_limited", "429 rate limited"],
+  ["timeout", "timed out"],
+  ["error", "request failed"],
+  ["empty", "empty response"],
+] as const)(
+  "prioritizes %s fetch state in a mixed source column",
+  (fetchStatus, label) => {
+    const { rerenderWith } = renderMatrix();
+    rerenderWith({
+      evidence: [
+        evidence[0],
+        {
+          ...evidence[0],
+          field: "affiliation",
+          fetch_status: fetchStatus,
+          value: null,
+          value_state: "conflict",
+        },
+      ],
+    });
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText("absent")).toBeNull();
+    expect(screen.queryByText("unverifiable")).toBeNull();
+    expect(screen.queryByText("conflict")).toBeNull();
+  },
+);
+
+it("renders missing data after a successful empty response", () => {
+  const { rerenderWith } = renderMatrix();
+  rerenderWith({ evidence: [evidence[2]] });
+  expect(screen.getByText("missing")).toBeInTheDocument();
+  expect(screen.queryByText("request failed")).toBeNull();
+});

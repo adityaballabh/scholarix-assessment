@@ -12,7 +12,9 @@ ACTIVE_FETCH_STATUSES = {"queued", "running"}
 
 def latest_snapshot(session: Session) -> DatasetSnapshot | None:
     return session.scalar(
-        select(DatasetSnapshot).order_by(DatasetSnapshot.imported_at.desc()).limit(1)
+        select(DatasetSnapshot)
+        .order_by(DatasetSnapshot.imported_at.desc(), DatasetSnapshot.id.desc())
+        .limit(1)
     )
 
 
@@ -22,7 +24,7 @@ def current_fetch(session: Session) -> FetchRun | None:
     )
 
 
-def last_completed_at(session: Session) -> datetime | None:
+def last_successful_fetch_at(session: Session) -> datetime | None:
     return session.scalar(
         select(func.max(FetchRun.finished_at)).where(FetchRun.status == "complete")
     )
@@ -49,6 +51,18 @@ def ensure_fetch_idle(session: Session) -> None:
     )
     if fetch is not None:
         raise HTTPException(423, detail="Fetch in progress")
+
+
+def lock_current_snapshot_for_read(session: Session) -> DatasetSnapshot | None:
+    # Lock before checking fetch state so a rebuild cannot start during response assembly
+    snapshot = session.scalar(
+        select(DatasetSnapshot)
+        .order_by(DatasetSnapshot.imported_at.desc(), DatasetSnapshot.id.desc())
+        .limit(1)
+        .with_for_update(read=True)
+    )
+    ensure_fetch_idle(session)
+    return snapshot
 
 
 def lock_snapshot_cases(session: Session, snapshot_id: UUID) -> None:

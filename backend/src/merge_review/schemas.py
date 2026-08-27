@@ -120,11 +120,6 @@ class PriorityComponents(BaseModel):
     cluster_ambiguity: PriorityComponent
 
 
-class PriorityConfig(BaseModel):
-    weights: dict[str, float]
-    max_top_candidate_share: float
-
-
 class PriorityWeights(BaseModel):
     publication_impact: float = Field(ge=0)
     fragmentation: float = Field(ge=0)
@@ -135,6 +130,11 @@ class PriorityWeights(BaseModel):
         if sum(self.model_dump().values()) <= 0:
             raise ValueError("At least one priority weight must be positive")
         return self
+
+
+class PriorityConfig(BaseModel):
+    weights: PriorityWeights
+    max_top_candidate_share: float
 
 
 class QueueSettingsUpdate(BaseModel):

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { getCase } from "../../api/client";
+import { ApiError, getCase } from "../../api/client";
 import type { ValidationCase } from "../../api/types";
 import CaseMeta from "./CaseMeta";
 import { pluralNoun } from "./labels";
@@ -12,44 +12,63 @@ export default function ClustersPage() {
   const [searchParams] = useSearchParams();
   const [reviewCase, setReviewCase] = useState<ValidationCase | null>(null);
   const [missing, setMissing] = useState(false);
-  const [open, setOpen] = useState<string[]>([]);
+  const [openCandidateIds, setOpenCandidateIds] = useState<string[]>([]);
   const search = searchParams.toString();
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
     setReviewCase(null);
     setMissing(false);
+    setLoadError(false);
+    setOpenCandidateIds([]);
 
     getCase(caseId!)
       .then((found) => {
         if (active) setReviewCase(found);
       })
-      .catch(() => {
-        if (active) setMissing(true);
+      .catch((cause: unknown) => {
+        if (!active) return;
+        if (cause instanceof ApiError && cause.status === 404) setMissing(true);
+        else setLoadError(true);
       });
 
     return () => {
       active = false;
     };
-  }, [caseId]);
+  }, [caseId, loadAttempt]);
 
   if (missing) {
     return (
       <p className={styles.pageState} role="alert">
-        No case with id {caseId}
+        Case not found: {caseId}
         {" · "}
         <Link to="/reviews" className={styles.stateLink}>
-          back to the queue
+          back to queue
         </Link>
       </p>
     );
   }
 
+  if (loadError)
+    return (
+      <p className={styles.pageState} role="alert">
+        Could not load the case{" "}
+        <button
+          type="button"
+          onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+        >
+          retry
+        </button>
+      </p>
+    );
+
   if (!reviewCase) return <p className={styles.pageState}>Loading case…</p>;
 
   const candidates = reviewCase.detail.candidate_ids;
-  function toggle(id: string) {
-    setOpen((current) =>
+  function toggleCandidate(id: string) {
+    setOpenCandidateIds((current) =>
       current.includes(id)
         ? current.filter((openId) => openId !== id)
         : [...current, id],
@@ -72,9 +91,9 @@ export default function ClustersPage() {
 
       <ol className={styles.clusters}>
         {candidates.map((candidate, index) => {
-          const expanded = open.includes(candidate.id);
+          const expanded = openCandidateIds.includes(candidate.id);
           const panelId = `cluster-${candidate.id}`;
-          const span = yearSpan(candidate);
+          const candidateYears = yearSpan(candidate);
 
           return (
             <li className={styles.cluster} key={candidate.id}>
@@ -83,7 +102,7 @@ export default function ClustersPage() {
                 className={styles.clusterRow}
                 aria-expanded={expanded}
                 aria-controls={panelId}
-                onClick={() => toggle(candidate.id)}
+                onClick={() => toggleCandidate(candidate.id)}
               >
                 <span className={styles.rail}>
                   <span className={styles.caret} aria-hidden="true">
@@ -95,7 +114,7 @@ export default function ClustersPage() {
                 <span className={styles.share}>
                   {candidate.share.toFixed(1)}%
                 </span>
-                <span className={styles.span}>{span ?? "—"}</span>
+                <span className={styles.span}>{candidateYears ?? "—"}</span>
                 <span className={styles.title} title="">
                   {leadTitle(candidate)}
                 </span>

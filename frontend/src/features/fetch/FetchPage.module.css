@@ -39,11 +39,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/*
- * appearance: none first, or the UA draws its own rounded blue bar and ignores
- * background, border-radius and accent-color. The pseudo-elements below are the
- * only way to reach the track and the fill.
- */
+/* Clear native progress styling before setting the track and fill */
 .progress {
   width: 100%;
   height: 4px;

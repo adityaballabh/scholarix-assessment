@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-
+import { useEffect, useId, useRef, useState } from "react";
 import type { User } from "../../api/types";
 import styles from "./SessionMenu.module.css";
 
@@ -8,57 +7,85 @@ export function SessionMenu({
   onSignOut,
 }: {
   user: User;
-  onSignOut: () => void;
+  onSignOut: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
 
   useEffect(() => {
     if (!open) return;
-
     function dismissOutside(event: PointerEvent) {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     }
-    function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
     document.addEventListener("pointerdown", dismissOutside);
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", dismissOutside);
-      document.removeEventListener("keydown", dismissOnEscape);
-    };
+    return () => document.removeEventListener("pointerdown", dismissOutside);
   }, [open]);
 
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setError(null);
+    try {
+      await onSignOut();
+      setOpen(false);
+    } catch {
+      setError("Could not sign out. Try again");
+      triggerRef.current?.focus();
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return (
-    <div className={styles.root} ref={root}>
+    <div
+      className={styles.root}
+      ref={rootRef}
+      onBlur={(event) => {
+        if (!signingOut && !event.currentTarget.contains(event.relatedTarget))
+          setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(false);
+          triggerRef.current?.focus();
+        }
+      }}
+    >
       <button
         type="button"
+        ref={triggerRef}
         className={styles.trigger}
         title={user.display_name}
-        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((showing) => !showing)}
       >
         {user.display_name}
       </button>
-      {open ? (
-        <div className={styles.menu} role="menu">
+      {open && (
+        <div className={styles.menu} id={panelId}>
           <p className={styles.name}>{user.display_name}</p>
           <button
             type="button"
-            role="menuitem"
             className={styles.item}
-            onClick={() => {
-              setOpen(false);
-              onSignOut();
-            }}
+            disabled={signingOut}
+            onClick={() => void handleSignOut()}
           >
-            sign out
+            {signingOut ? "signing out…" : "sign out"}
           </button>
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
