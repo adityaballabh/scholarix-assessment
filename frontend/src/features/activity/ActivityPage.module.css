@@ -152,6 +152,7 @@
   background: transparent;
   border: 0;
   font: var(--text-cell);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
@@ -163,11 +164,6 @@
 
 .note:hover:not(:disabled) {
   color: var(--ink);
-}
-
-.note:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .noteOpen {

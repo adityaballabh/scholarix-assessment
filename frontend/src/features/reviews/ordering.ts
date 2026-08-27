@@ -46,10 +46,15 @@ export function orderCases(
   }
 
   return [...cases].sort((left, right) => {
-    const deferredOrder =
-      Number(left.status === "deferred") - Number(right.status === "deferred");
-    if (deferredOrder) return deferredOrder;
     const difference = sortValue(left) - sortValue(right);
-    return direction === "asc" ? difference : -difference;
+    if (difference) return direction === "asc" ? difference : -difference;
+    return (
+      right.priority_score - left.priority_score ||
+      (right.detail.top_share ?? 0) - (left.detail.top_share ?? 0) ||
+      right.detail.candidate_ids.length - left.detail.candidate_ids.length ||
+      right.affected_count - left.affected_count ||
+      statusOrder.indexOf(left.status) - statusOrder.indexOf(right.status) ||
+      (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+    );
   });
 }

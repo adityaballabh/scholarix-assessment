@@ -71,11 +71,6 @@
   background: var(--row-hover);
 }
 
-.clusterRow:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
 .rail {
   display: inline-flex;
   align-items: center;

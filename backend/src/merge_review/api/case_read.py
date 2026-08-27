@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import case as sql_case
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from merge_review.api.common import utc_datetime
@@ -34,6 +34,7 @@ from merge_review.schemas import (
 )
 
 VALID_STATUSES = set(get_args(ReviewStatus))
+STATUS_ORDER = ("pending", "one_author", "needs_split", "uncertain", "deferred")
 
 
 def matches_author_name(author_name: str, query: str) -> bool:
@@ -204,6 +205,16 @@ def filtered_case_rows(
     offset: int,
 ) -> list[tuple[ValidationCase, Author]]:
     statuses = parse_statuses(status)
+    top_share = (
+        select(IdentityCandidate.share)
+        .where(IdentityCandidate.case_id == ValidationCase.id, IdentityCandidate.position == 0)
+        .scalar_subquery()
+    )
+    candidate_count = (
+        select(func.count(IdentityCandidate.id))
+        .where(IdentityCandidate.case_id == ValidationCase.id)
+        .scalar_subquery()
+    )
     statement = (
         select(ValidationCase, Author)
         .join(Author)
@@ -212,9 +223,14 @@ def filtered_case_rows(
             ValidationCase.queue_eligible == (scope == "active"),
         )
         .order_by(
-            sql_case((ValidationCase.status == "deferred", 1), else_=0),
             desc(ValidationCase.priority_score),
+            desc(func.coalesce(top_share, 0)),
+            desc(candidate_count),
             desc(ValidationCase.affected_count),
+            sql_case(
+                {status: index for index, status in enumerate(STATUS_ORDER)},
+                value=ValidationCase.status,
+            ),
             ValidationCase.id,
         )
     )

@@ -40,6 +40,7 @@ beforeEach(() => {
   const reviewCase = buildReviewCase();
   const secondCase = buildReviewCase({
     id: SECOND_CASE_ID,
+    priority_score: 40,
     target: {
       author_slug: "Boxuan_Zhao",
       author_name: "Boxuan Zhao",

@@ -24,10 +24,11 @@ from merge_review.sources.common import FetchStatus
 
 CASE_TYPE = "author_identity"
 MAX_TOP_CANDIDATE_SHARE = 75.0
+# Publication counts for this dataset are capped at 100, so identity signals get more weight
 PRIORITY_WEIGHTS = {
     "publication_impact": 1.0,
-    "fragmentation": 1.0,
-    "cluster_ambiguity": 1.0,
+    "fragmentation": 2.0,
+    "cluster_ambiguity": 2.0,
 }
 
 
