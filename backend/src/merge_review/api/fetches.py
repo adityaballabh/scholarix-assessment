@@ -36,7 +36,14 @@ def authenticate_fetch(
     return resolve_user(token, session)
 
 
+def authenticate_abandon(request: Request) -> None:
+    reject_foreign_origin(request)
+
+
 router = APIRouter(dependencies=[Depends(authenticate_fetch)])
+
+# Gating the way out would lock a signed-out reviewer off every open read
+abandon_router = APIRouter(dependencies=[Depends(authenticate_abandon)])
 
 
 def fetch_response(fetch: FetchRun, last_successful_at: datetime | None) -> FetchRunResponse:
@@ -89,7 +96,7 @@ def start_fetch(
     return response
 
 
-@router.post("/fetches/{fetch_id}/abandon", response_model=FetchRunResponse)
+@abandon_router.post("/fetches/{fetch_id}/abandon", response_model=FetchRunResponse)
 def abandon_fetch(
     fetch_id: UUID,
     session: Session = Depends(get_session),

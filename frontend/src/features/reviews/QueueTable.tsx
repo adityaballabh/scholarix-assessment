@@ -31,6 +31,13 @@ export default function QueueTable({
   direction: SortDirection;
   onSort: (column: QueueSortColumn, direction: SortDirection | null) => void;
 }) {
+  const sortState = (column: QueueSortColumn) =>
+    sort === column
+      ? direction === "asc"
+        ? "ascending"
+        : "descending"
+      : "none";
+
   return (
     <div className={styles.tableScroll}>
       <table
@@ -46,7 +53,12 @@ export default function QueueTable({
             <th role="columnheader" scope="col">
               author
             </th>
-            <th role="columnheader" scope="col" className={styles.hintHeader}>
+            <th
+              role="columnheader"
+              scope="col"
+              className={styles.hintHeader}
+              aria-sort={sortState("score")}
+            >
               <SortHeader
                 label="score"
                 active={sort === "score"}
@@ -56,7 +68,12 @@ export default function QueueTable({
               />
               <Hint text={SCORE_HINT} />
             </th>
-            <th role="columnheader" scope="col" className={styles.hintHeader}>
+            <th
+              role="columnheader"
+              scope="col"
+              className={styles.hintHeader}
+              aria-sort={sortState("share")}
+            >
               <SortHeader
                 label="top share"
                 active={sort === "share"}
@@ -68,7 +85,12 @@ export default function QueueTable({
               </SortHeader>
               <Hint text={SHARE_HINT} />
             </th>
-            <th role="columnheader" scope="col" className={styles.hintHeader}>
+            <th
+              role="columnheader"
+              scope="col"
+              className={styles.hintHeader}
+              aria-sort={sortState("candidates")}
+            >
               <SortHeader
                 label="candidates"
                 active={sort === "candidates"}
@@ -78,7 +100,11 @@ export default function QueueTable({
               />
               <Hint text={CANDIDATES_HINT} />
             </th>
-            <th role="columnheader" scope="col">
+            <th
+              role="columnheader"
+              scope="col"
+              aria-sort={sortState("publications")}
+            >
               <SortHeader
                 label="publications"
                 active={sort === "publications"}
@@ -87,7 +113,7 @@ export default function QueueTable({
                 onSort={(next) => onSort("publications", next)}
               />
             </th>
-            <th role="columnheader" scope="col">
+            <th role="columnheader" scope="col" aria-sort={sortState("status")}>
               <SortHeader
                 label="status"
                 active={sort === "status"}

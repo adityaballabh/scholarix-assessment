@@ -85,7 +85,7 @@
 .position {
   display: flex;
   align-items: center;
-  height: var(--matrix-row-height);
+  min-height: var(--matrix-row-height);
   padding: 8px 12px;
   color: var(--ink-faint);
   font: var(--text-micro);
@@ -97,7 +97,7 @@
   flex-direction: column;
   justify-content: center;
   gap: 3px;
-  height: var(--matrix-row-height);
+  min-height: var(--matrix-row-height);
   padding: 8px 12px;
 }
 
@@ -116,7 +116,7 @@
   flex-direction: column;
   justify-content: center;
   gap: 3px;
-  height: var(--matrix-row-height);
+  min-height: var(--matrix-row-height);
   padding: 8px 12px;
 }
 
@@ -194,5 +194,21 @@
   .provenance {
     overflow: visible;
     white-space: normal;
+  }
+
+  .row > :nth-child(1),
+  .row > :nth-child(2) {
+    position: sticky;
+    z-index: 1;
+    background: var(--canvas);
+  }
+
+  .row > :nth-child(1) {
+    left: 0;
+  }
+
+  .row > :nth-child(2) {
+    left: var(--matrix-rail);
+    box-shadow: 1px 0 0 var(--rule);
   }
 }

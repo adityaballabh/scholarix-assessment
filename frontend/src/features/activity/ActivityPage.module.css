@@ -139,6 +139,7 @@
   color: var(--ink-secondary);
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+  box-shadow: var(--shadow-pop);
   font: var(--text-micro);
 }
 
@@ -152,6 +153,7 @@
   background: transparent;
   border: 0;
   font: var(--text-cell);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
@@ -224,17 +226,6 @@
   .resetFilters:focus-visible {
     outline: none;
     border-color: var(--accent);
-  }
-
-  .search {
-    width: 240px;
-    height: 28px;
-    padding: 0 8px;
-    color: var(--ink-secondary);
-    background: transparent;
-    border: var(--hairline) solid var(--rule-strong);
-    border-radius: 0;
-    font: var(--text-micro);
   }
 
   .search::placeholder {

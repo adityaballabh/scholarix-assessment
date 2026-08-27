@@ -46,7 +46,7 @@ def set_session_cookie(response: Response, user_id: UUID) -> None:
     settings = get_settings()
     max_age = settings.auth_token_hours * 60 * 60
     # Cross-site SameSite=None cookies require Secure
-    cross_site = settings.environment == "production"
+    cross_site = settings.frontend_hosting == "separate_origin"
     response.set_cookie(
         key=COOKIE_NAME,
         value=create_session_token(user_id),

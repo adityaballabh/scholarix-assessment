@@ -130,12 +130,14 @@ it("returns to the application after abandoning a failed fetch", async () => {
   ).toBeInTheDocument();
 });
 
-it("blocks the application when fetch status cannot be loaded", async () => {
+it("blocks the application when the server cannot be reached", async () => {
   vi.mocked(getFetch).mockRejectedValue(new Error("unavailable"));
   renderApp();
 
   expect(
-    await screen.findByText("Fetch status could not be loaded"),
+    await screen.findByRole("heading", { name: "Cannot reach the server" }),
   ).toBeInTheDocument();
-  await waitFor(() => expect(getFetch).toHaveBeenCalledOnce());
+  await waitFor(() =>
+    expect(vi.mocked(getFetch).mock.calls.length).toBeGreaterThan(1),
+  );
 });

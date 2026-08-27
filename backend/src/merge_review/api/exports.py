@@ -1,5 +1,4 @@
 import json
-import re
 from collections import defaultdict
 from datetime import UTC, datetime
 
@@ -12,6 +11,7 @@ from merge_review.api.case_read import case_responses, filtered_case_rows
 from merge_review.api.common import lock_current_snapshot_for_read, utc_datetime
 from merge_review.api.queue import queue_settings_response
 from merge_review.cases.generate import default_review_settings
+from merge_review.cases.naming import normalized_words
 from merge_review.database import get_session
 from merge_review.models import (
     ActivityEvent,
@@ -31,12 +31,11 @@ from merge_review.schemas import (
 
 router = APIRouter()
 
-FILENAME_STEM = "merge-review-evidence"
+FILENAME_STEM = "evidence"
 
 
 def filename_slug(value: str) -> str:
-    slug = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-").lower()
-    return slug or "case"
+    return "-".join(normalized_words(value)) or "case"
 
 
 def with_history(
@@ -108,7 +107,7 @@ def export_case(case_id: str, session: Session = Depends(get_session)) -> Respon
         raise HTTPException(404, detail="Case not found")
     cases = case_responses(session, [(row[0], row[1])])
     document = export_document(session, snapshot, cases, filters=None)
-    return download(document, f"{FILENAME_STEM}-{filename_slug(cases[0].target.author_slug)}.json")
+    return download(document, f"{FILENAME_STEM}-{filename_slug(cases[0].target.author_name)}.json")
 
 
 @router.get("/export", response_model=EvidenceExport)

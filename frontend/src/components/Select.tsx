@@ -137,7 +137,7 @@ export default function Select<T extends string>({
         aria-label={`${label}: ${selected.label}`}
         onClick={() => setOpen((isOpen) => !isOpen)}
       >
-        <span className={styles.triggerLabel} title="">
+        <span className={styles.triggerLabel} title={selected.label}>
           {prefix ? `${prefix} ${selected.label}` : selected.label}
         </span>
         <span className={styles.caret} aria-hidden="true" />

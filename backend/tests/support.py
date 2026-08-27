@@ -350,7 +350,6 @@ def seed_case_details(session: Session, source_record_id: UUID) -> None:
             field="author_identity",
             value="2 S2 IDs for publications matching this name",
             value_state="conflict",
-            interpretation="Review signal",
         )
     )
     session.add(

@@ -59,6 +59,7 @@ def test_case_detail_and_errors() -> None:
     assert response.json()["detail"]["candidate_ids"][0]["publications"] == [
         {"year": 2020, "title": "Dummy Publication"}
     ]
+    assert "interpretation" not in response.json()["evidence"][0]
     assert client.get("/api/cases/missing").status_code == 404
     assert client.get("/api/cases", params={"status": "invalid"}).status_code == 422
 

@@ -23,6 +23,13 @@ export default function ActivityTable({
   revealNotes: boolean;
   onSort: (column: ActivitySort, direction: SortDirection | null) => void;
 }) {
+  const sortState = (column: ActivitySort) =>
+    sort === column
+      ? direction === "asc"
+        ? "ascending"
+        : "descending"
+      : "none";
+
   return (
     <div role="table" aria-label="Recorded decisions" className={styles.table}>
       <div role="rowgroup">
@@ -30,7 +37,7 @@ export default function ActivityTable({
           <span role="columnheader">
             <span className={styles.srOnly}>position</span>
           </span>
-          <span role="columnheader">
+          <span role="columnheader" aria-sort={sortState("author")}>
             <SortHeader
               label="author"
               active={sort === "author"}
@@ -44,7 +51,7 @@ export default function ActivityTable({
             action
             <Hint text="Matching from and to values mean a note was added without changing the state" />
           </span>
-          <span role="columnheader">
+          <span role="columnheader" aria-sort={sortState("reviewer")}>
             <SortHeader
               label="reviewer"
               active={sort === "reviewer"}
@@ -53,7 +60,7 @@ export default function ActivityTable({
               onSort={(next) => onSort("reviewer", next)}
             />
           </span>
-          <span role="columnheader">
+          <span role="columnheader" aria-sort={sortState("time")}>
             <SortHeader
               label="time"
               active={sort === "time"}

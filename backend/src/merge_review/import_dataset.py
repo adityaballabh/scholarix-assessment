@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID, uuid4
-from zipfile import ZipFile
+from zipfile import ZipFile, ZipInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -57,10 +57,20 @@ def read_json(archive: ZipFile, member: str) -> object:
     return json.loads(archive.read(member))
 
 
+def member_name(entry: ZipInfo) -> str:
+    # The archive's unflagged UTF-8 filenames are decoded as CP437 by zipfile.
+    if entry.flag_bits & 0x800:
+        return entry.filename
+    try:
+        return entry.filename.encode("cp437").decode("utf-8")
+    except UnicodeError:
+        return entry.filename
+
+
 def dataset_members(archive: ZipFile) -> dict[str, dict[str, str]]:
     members: dict[str, dict[str, str]] = {}
     for entry in archive.infolist():
-        parts = PurePosixPath(entry.filename).parts
+        parts = PurePosixPath(member_name(entry)).parts
         if entry.is_dir() or len(parts) != 3 or parts[0] != "authors":
             continue
         slug, filename = parts[1], parts[2]

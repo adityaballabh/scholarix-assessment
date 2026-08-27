@@ -88,10 +88,6 @@ def semantic_scholar_evidence(
         "field": "author_identity",
         "value": f"{len(candidates)} S2 IDs for publications matching this name",
         "value_state": "conflict",
-        "interpretation": (
-            "Publications under the stored name map to multiple Semantic Scholar author "
-            "IDs. This is a review signal, not a merge determination."
-        ),
     }
 
 
@@ -209,5 +205,4 @@ def source_evidence(
         "field": field,
         "value": value,
         "value_state": value_state,
-        "interpretation": "",
     }
