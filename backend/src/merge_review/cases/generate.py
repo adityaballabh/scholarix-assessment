@@ -274,7 +274,7 @@ def case_signature(
             }
             for candidate in data.candidates
         ],
-        # Fetch time alone does not change the evidence a reviewer saw
+        # Ignore fetch timestamps when comparing evidence versions
         "evidence": [
             {key: value for key, value in row.items() if key != "fetched_at"} for row in evidence
         ],

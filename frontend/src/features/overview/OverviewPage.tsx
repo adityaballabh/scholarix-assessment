@@ -27,51 +27,78 @@ const sourceStateLabels: Record<SourceHealthState, string> = {
 
 const ACTIVITY_PREVIEW = 4;
 
-interface OverviewData {
-  overview: ReviewOverview;
-  cases: ValidationCase[];
-  activity: ActivityEvent[];
-}
-
 export default function OverviewPage() {
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [error, setError] = useState(false);
+  const [overview, setOverview] = useState<ReviewOverview | null>(null);
+  const [cases, setCases] = useState<ValidationCase[]>([]);
+  const [activity, setActivity] = useState<ActivityEvent[] | null>(null);
+  const [overviewError, setOverviewError] = useState(false);
+  const [casesError, setCasesError] = useState(false);
+  const [activityError, setActivityError] = useState(false);
+  const [overviewAttempt, setOverviewAttempt] = useState(0);
+  const [casesAttempt, setCasesAttempt] = useState(0);
+  const [activityAttempt, setActivityAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
-
-    Promise.all([
-      getOverview(),
-      listCases({ status: "pending" }),
-      listActivity(),
-    ])
-      .then(([overview, cases, activity]) => {
-        if (active) setData({ overview, cases, activity });
+    setOverviewError(false);
+    getOverview()
+      .then((result) => {
+        if (active) setOverview(result);
       })
       .catch(() => {
-        if (active) setError(true);
+        if (active) setOverviewError(true);
       });
-
     return () => {
       active = false;
     };
-  }, []);
+  }, [overviewAttempt]);
 
-  if (error) {
+  useEffect(() => {
+    let active = true;
+    setCasesError(false);
+    listCases({ status: "pending" })
+      .then((result) => {
+        if (active) setCases(result);
+      })
+      .catch(() => {
+        if (active) setCasesError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [casesAttempt]);
+
+  useEffect(() => {
+    let active = true;
+    setActivityError(false);
+    listActivity()
+      .then((result) => {
+        if (active) setActivity(result);
+      })
+      .catch(() => {
+        if (active) setActivityError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activityAttempt]);
+
+  if (overviewError)
     return (
       <p className={styles.pageState} role="alert">
-        The review overview could not be loaded.
+        Could not load the overview{" "}
+        <button
+          type="button"
+          onClick={() => setOverviewAttempt((attempt) => attempt + 1)}
+        >
+          retry overview
+        </button>
       </p>
     );
-  }
 
-  // The page keeps its structure while the three requests are outstanding, so
-  // section rules and table heads hold their place and only values swap in.
-  const loading = data === null;
-  const pending = "\u2014";
-  const cases = data?.cases ?? [];
-  const activity = data?.activity ?? [];
-  const sources = data?.overview.sources ?? [];
+  const loading = overview === null;
+  const loadingPlaceholder = "—";
+  const sources = overview?.sources ?? [];
 
   return (
     <div className={styles.sections}>
@@ -79,31 +106,35 @@ export default function OverviewPage() {
       <div className={styles.summaryStrip}>
         <Stat
           value={
-            loading ? pending : data.overview.total_authors.toLocaleString()
+            loading
+              ? loadingPlaceholder
+              : overview.total_authors.toLocaleString()
           }
           label="profiles assessed"
         />
         <Stat
           value={
-            loading ? pending : data.overview.flagged_authors.toLocaleString()
+            loading
+              ? loadingPlaceholder
+              : overview.flagged_authors.toLocaleString()
           }
           label="flagged"
         />
         <Stat
           value={
             loading
-              ? pending
-              : data.overview.affected_publications.toLocaleString()
+              ? loadingPlaceholder
+              : overview.affected_publications.toLocaleString()
           }
-          label={`of ${loading ? pending : data.overview.total_publications.toLocaleString()} publications affected`}
+          label={`of ${loading ? loadingPlaceholder : overview.total_publications.toLocaleString()} publications affected`}
         />
         <Stat
-          value={<CompactAge iso={data?.overview.queue_updated_at ?? null} />}
+          value={<CompactAge iso={overview?.queue_updated_at ?? null} />}
           label={
             <>
               since last queue update
               <Hint
-                text="Fetching all data, changing queue settings, or fetching evidence for a specific case rebuilds the queue"
+                text="This time resets after a full fetch, case evidence fetch, or queue rebuild"
                 align="end"
               />
             </>
@@ -119,6 +150,17 @@ export default function OverviewPage() {
           </Link>
         }
       />
+      {casesError && (
+        <p className={styles.pageState} role="alert">
+          Could not load pending cases{" "}
+          <button
+            type="button"
+            onClick={() => setCasesAttempt((attempt) => attempt + 1)}
+          >
+            retry pending cases
+          </button>
+        </p>
+      )}
       <div className={styles.caseList}>
         <table role="table" className={styles.table}>
           <thead role="rowgroup" className={styles.caseHead}>
@@ -217,7 +259,17 @@ export default function OverviewPage() {
           </Link>
         }
       />
-      {loading ? null : activity.length === 0 ? (
+      {activityError ? (
+        <p className={styles.pageState} role="alert">
+          Could not load recent activity{" "}
+          <button
+            type="button"
+            onClick={() => setActivityAttempt((attempt) => attempt + 1)}
+          >
+            retry recent activity
+          </button>
+        </p>
+      ) : activity === null ? null : activity.length === 0 ? (
         <p className={styles.emptyState}>No activity yet</p>
       ) : (
         <div className={styles.activityList}>
@@ -299,8 +351,7 @@ function SourceNote({ note }: { note: string }) {
       className={styles.sourceNoteWrap}
       data-hint={clipped ? note : undefined}
     >
-      {/* Safari shows its own tooltip over any ellipsis-truncated text, with no
-          title attribute involved. An empty title is what suppresses it. */}
+      {/* An empty title suppresses Safari's automatic tooltip on truncated text */}
       <span ref={ref} className={styles.sourceNote} title="">
         {note}
       </span>

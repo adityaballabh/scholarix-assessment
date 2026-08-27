@@ -1,4 +1,4 @@
-import type { DecisionAction } from "../api/types";
+import type { DecisionAction, ReviewStatus } from "../api/types";
 
 export const actionLabels: Record<DecisionAction, string> = {
   reopen: "returned to pending",
@@ -9,6 +9,6 @@ export const actionLabels: Record<DecisionAction, string> = {
   note: "note added",
 };
 
-export function statusText(status: string | null) {
+export function statusText(status: ReviewStatus | null) {
   return status ? status.replace(/_/g, " ") : "—";
 }

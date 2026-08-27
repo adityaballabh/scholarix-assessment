@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -22,6 +22,7 @@ import type {
   ValidationCase,
 } from "../../api/types";
 import { readCaseFilters } from "./filters";
+import { orderCases, readQueueSort } from "./ordering";
 import { useToast } from "../../components/Toast";
 import { actionLabels } from "../../lib/decisions";
 import { sourceLabel } from "../../lib/sources";
@@ -36,7 +37,7 @@ interface CaseData {
   queue: ValidationCase[];
   notes: ActivityEvent[];
   queueSearch: string;
-  relatedError: boolean;
+  relatedDataError: boolean;
 }
 
 type RefreshTarget = RefreshSource | "all";
@@ -52,12 +53,17 @@ async function loadCaseData(caseId: string, search: string): Promise<CaseData> {
   ) {
     queueParams.delete("scope");
   }
+  // Keep the case available when navigation or notes fail
   const [queueResult, activityResult] = await Promise.allSettled([
     listCases(readCaseFilters(queueParams)),
     listActivity(),
   ]);
-  const queue =
-    queueResult.status === "fulfilled" ? queueResult.value : [reviewCase];
+  const { column, direction } = readQueueSort(queueParams);
+  const queue = orderCases(
+    queueResult.status === "fulfilled" ? queueResult.value : [reviewCase],
+    column,
+    direction,
+  );
   const activity =
     activityResult.status === "fulfilled" ? activityResult.value : [];
   return {
@@ -67,7 +73,7 @@ async function loadCaseData(caseId: string, search: string): Promise<CaseData> {
       (event) => event.case_id === reviewCase.id && event.note,
     ),
     queueSearch: queueParams.toString(),
-    relatedError:
+    relatedDataError:
       queueResult.status === "rejected" || activityResult.status === "rejected",
   };
 }
@@ -84,19 +90,24 @@ export default function CasePage() {
   const [refreshing, setRefreshing] = useState<RefreshTarget | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const search = searchParams.toString();
+  const requestVersion = useRef(0);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
-    let active = true;
+    const request = ++requestVersion.current;
     setData(null);
     setMissing(false);
     setLoadError(false);
+    setRefreshing(null);
+    setRefreshError(null);
+    setDeciding(false);
 
     loadCaseData(caseId!, search)
       .then((loaded) => {
-        if (active) setData(loaded);
+        if (request === requestVersion.current) setData(loaded);
       })
       .catch((error: unknown) => {
-        if (!active) return;
+        if (request !== requestVersion.current) return;
         if (error instanceof ApiError && error.status === 404) {
           setMissing(true);
         } else {
@@ -105,17 +116,17 @@ export default function CasePage() {
       });
 
     return () => {
-      active = false;
+      requestVersion.current += 1;
     };
-  }, [caseId, search]);
+  }, [caseId, search, loadAttempt]);
 
   if (missing) {
     return (
       <p className={styles.pageState} role="alert">
-        No case with id {caseId}
+        Case not found: {caseId}
         {" · "}
         <Link to="/reviews" className={styles.stateLink}>
-          back to the queue
+          back to queue
         </Link>
       </p>
     );
@@ -124,14 +135,20 @@ export default function CasePage() {
   if (loadError) {
     return (
       <p className={styles.pageState} role="alert">
-        The case could not be loaded.
+        Could not load the case{" "}
+        <button
+          type="button"
+          onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+        >
+          retry
+        </button>
       </p>
     );
   }
 
   if (!data) return <p className={styles.pageState}>Loading case…</p>;
 
-  const { reviewCase, queue, notes, queueSearch, relatedError } = data;
+  const { reviewCase, queue, notes, queueSearch, relatedDataError } = data;
 
   const position = queue.findIndex((entry) => entry.id === reviewCase.id);
   const previous = position > 0 ? queue[position - 1] : null;
@@ -139,6 +156,7 @@ export default function CasePage() {
     position >= 0 && position < queue.length - 1 ? queue[position + 1] : null;
 
   function decide(action: DecisionAction, note: string) {
+    const request = requestVersion.current;
     setDeciding(true);
 
     return postDecision({
@@ -148,6 +166,7 @@ export default function CasePage() {
       expected_version: reviewCase.version,
     })
       .then((event) => {
+        if (request !== requestVersion.current) return;
         showToast(`${actionLabels[event.action_type]}: ${event.target_name}`);
         navigate(
           next
@@ -156,18 +175,23 @@ export default function CasePage() {
         );
       })
       .catch((error: unknown) => {
-        showToast(
-          error instanceof ApiError && error.status === 409
-            ? "case changed, reload and try again"
-            : "save failed, try again",
-        );
+        if (request === requestVersion.current)
+          showToast(
+            error instanceof ApiError && error.status === 409
+              ? "Case changed. Reload and try again"
+              : "Could not save the decision. Try again",
+          );
         throw error;
       })
-      .finally(() => setDeciding(false));
+      .finally(() => {
+        if (request === requestVersion.current) setDeciding(false);
+      });
   }
 
   async function refreshEvidence(source?: RefreshSource) {
-    if (refreshing) return;
+    if (refreshing || deciding) return;
+    const request = requestVersion.current;
+    let evidenceFetched = false;
     const target: RefreshTarget = source ?? "all";
     setRefreshing(target);
     setRefreshError(null);
@@ -177,20 +201,27 @@ export default function CasePage() {
       } else {
         await refreshAuthorEvidence(reviewCase.target.author_slug);
       }
-      setData(await loadCaseData(reviewCase.id, search));
+      evidenceFetched = true;
+      if (request !== requestVersion.current) return;
+      const loaded = await loadCaseData(reviewCase.id, search);
+      if (request !== requestVersion.current) return;
+      setData(loaded);
       showToast(
         source
-          ? `${sourceLabel(source)} evidence fetched.`
-          : "All evidence fetched.",
+          ? `${sourceLabel(source)} evidence fetched`
+          : "All evidence fetched",
       );
     } catch {
+      if (request !== requestVersion.current) return;
       setRefreshError(
-        source
-          ? `${sourceLabel(source)} evidence could not be fetched.`
-          : "Evidence could not be fetched.",
+        evidenceFetched
+          ? "Evidence fetched. Could not reload the case"
+          : source
+            ? `Could not fetch ${sourceLabel(source)} evidence`
+            : "Could not fetch evidence",
       );
     } finally {
-      setRefreshing(null);
+      if (request === requestVersion.current) setRefreshing(null);
     }
   }
 
@@ -203,9 +234,16 @@ export default function CasePage() {
         ← back to queue
       </Link>
 
-      {relatedError && (
-        <p className={styles.relatedError} role="alert">
-          Queue navigation or notes could not be loaded.
+      {relatedDataError && (
+        <p className={styles.relatedDataError} role="alert">
+          Could not load queue navigation or notes{" "}
+          <button
+            type="button"
+            disabled={deciding || refreshing !== null}
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+          >
+            retry
+          </button>
         </p>
       )}
 
@@ -218,7 +256,7 @@ export default function CasePage() {
         <nav className={styles.queueNav} aria-label="Queue">
           <div className={styles.step}>
             <StepLink
-              to={previous}
+              targetCase={previous}
               search={queueSearch}
               direction="previous"
               label="‹ prev"
@@ -229,7 +267,7 @@ export default function CasePage() {
               </span>
             )}
             <StepLink
-              to={next}
+              targetCase={next}
               search={queueSearch}
               direction="next"
               label="next ›"
@@ -240,7 +278,13 @@ export default function CasePage() {
 
       {refreshError && (
         <p className={styles.refreshError} role="alert">
-          {refreshError}
+          {refreshError}{" "}
+          <button
+            type="button"
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+          >
+            reload case
+          </button>
         </p>
       )}
 
@@ -279,17 +323,17 @@ export default function CasePage() {
 }
 
 function StepLink({
-  to,
+  targetCase,
   search,
   direction,
   label,
 }: {
-  to: ValidationCase | null;
+  targetCase: ValidationCase | null;
   search: string;
   direction: string;
   label: string;
 }) {
-  if (!to) {
+  if (!targetCase) {
     return (
       <span
         className={`${styles.stepLink} ${styles.stepLinkOff}`}
@@ -302,9 +346,9 @@ function StepLink({
 
   return (
     <Link
-      to={{ pathname: `/reviews/${to.id}`, search }}
+      to={{ pathname: `/reviews/${targetCase.id}`, search }}
       className={styles.stepLink}
-      aria-label={`${direction} case, ${to.target.author_name}`}
+      aria-label={`${direction} case, ${targetCase.target.author_name}`}
     >
       {label}
     </Link>

@@ -62,7 +62,7 @@ it("shows a queue load error", async () => {
   renderRoute(<QueuePage />, "/reviews", "/reviews");
 
   expect(
-    await screen.findByText("The review queue could not be loaded."),
+    await screen.findByText("Could not load the review queue"),
   ).toHaveAttribute("role", "alert");
 });
 

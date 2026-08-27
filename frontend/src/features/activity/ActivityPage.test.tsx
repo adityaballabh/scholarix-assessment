@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getOverview, listActivity } from "../../api/client";
 import { buildActivityEvent, buildOverview } from "../../test/data";
@@ -53,7 +53,7 @@ it("explains when the last queue update filter is unavailable", async () => {
   renderRoute(<ActivityPage />, "/activity?since=run", "/activity");
 
   expect(
-    await screen.findByText("The last queue update time could not be loaded."),
+    await screen.findByText("Could not load the last queue update time"),
   ).toHaveAttribute("role", "alert");
 });
 
@@ -61,7 +61,39 @@ it("shows an activity load error", async () => {
   vi.mocked(listActivity).mockRejectedValue(new Error("unavailable"));
   renderRoute(<ActivityPage />, "/activity", "/activity");
 
+  expect(await screen.findByText("Could not load activity")).toHaveAttribute(
+    "role",
+    "alert",
+  );
+});
+
+it("removes an unknown reviewer without applying an invisible filter", async () => {
+  renderRoute(<ActivityPage />, "/activity?reviewer=Ghost", "/activity");
+  await screen.findByRole("table", { name: "Recorded decisions" });
+  expect(screen.getByText("Eric R. Larson")).toBeInTheDocument();
+  expect(screen.getByText("Boxuan Zhao")).toBeInTheDocument();
+  await waitFor(() =>
+    expect(screen.getByTestId("location").textContent).toBe("/activity"),
+  );
   expect(
-    await screen.findByText("Activity could not be loaded."),
-  ).toHaveAttribute("role", "alert");
+    screen.getByRole("button", { name: "reviewer: all reviewers" }),
+  ).toBeInTheDocument();
+});
+
+it("ignores orphan direction and announces effective default sorting", async () => {
+  const user = userEvent.setup();
+  renderRoute(<ActivityPage />, "/activity?dir=asc", "/activity");
+  await screen.findByRole("table", { name: "Recorded decisions" });
+  await waitFor(() =>
+    expect(screen.getByTestId("location").textContent).toBe("/activity"),
+  );
+  const timeHeader = screen
+    .getByRole("button", { name: "Sort by time, ascending" })
+    .closest('[role="columnheader"]');
+  expect(timeHeader).toHaveAttribute("aria-sort", "descending");
+  await user.click(
+    screen.getByRole("button", { name: "Sort by time, ascending" }),
+  );
+  expect(screen.getByTestId("location")).toHaveTextContent("sort=time&dir=asc");
+  expect(timeHeader).toHaveAttribute("aria-sort", "ascending");
 });

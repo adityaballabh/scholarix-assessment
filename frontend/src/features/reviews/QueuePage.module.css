@@ -23,7 +23,6 @@
   font: var(--text-micro);
 }
 
-/* An anchor wearing the reset button's style: it is a download, so it stays a real link. */
 .exportFilters {
   display: inline-flex;
   align-items: center;
@@ -69,7 +68,6 @@
 
 .search:focus-visible,
 .resetFilters:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -186,13 +184,6 @@
 
   .search {
     width: 100%;
-  }
-
-  /* An anchor wearing the reset button's style: it is a download, so it stays a real link. */
-  .exportFilters {
-    display: inline-flex;
-    align-items: center;
-    text-decoration: none;
   }
 
   .queueLinks {

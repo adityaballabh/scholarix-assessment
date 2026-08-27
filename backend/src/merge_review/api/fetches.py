@@ -42,7 +42,7 @@ def authenticate_abandon(request: Request) -> None:
 
 router = APIRouter(dependencies=[Depends(authenticate_fetch)])
 
-# Gating the way out would lock a signed-out reviewer off every open read
+# Signed-out reviewers need a way past the failed-fetch screen
 abandon_router = APIRouter(dependencies=[Depends(authenticate_abandon)])
 
 

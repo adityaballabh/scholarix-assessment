@@ -13,7 +13,7 @@
   color: var(--accent);
 }
 
-.relatedError {
+.relatedDataError {
   margin: 0;
   padding: 4px 0 10px;
   color: var(--ink-muted);
@@ -67,7 +67,6 @@
 }
 
 .backLink:focus-visible {
-  outline: none;
   color: var(--accent);
 }
 
@@ -94,7 +93,6 @@
 }
 
 .stepLink:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -127,8 +125,16 @@
   .queueNav {
     align-items: flex-start;
   }
+}
 
-  .meta {
-    gap: 14px;
-  }
+.pageState button,
+.relatedDataError button,
+.refreshError button {
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }

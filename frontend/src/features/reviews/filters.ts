@@ -31,7 +31,7 @@ export function readOption<T extends string>(
   options: SelectOption<T>[],
   fallback: T,
 ): T {
-  return options.some((option) => option.value === raw) ? (raw as T) : fallback;
+  return options.find((option) => option.value === raw)?.value ?? fallback;
 }
 
 export function getStatusFilter(

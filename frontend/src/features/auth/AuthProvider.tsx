@@ -38,34 +38,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [prompting, setPrompting] = useState(false);
-  // Every refused write waiting on the reviewer to sign in or dismiss. A list rather than a
-  // single resolver: two writes can be refused before either settles — a decision and a
-  // header fetch, say — and holding only the newest would strand the older request forever,
-  // leaving its caller's busy flag stuck on.
-  const waiting = useRef<((signedIn: boolean) => void)[]>([]);
+  // Every concurrent 401 must settle when the sign-in prompt closes
+  const unauthorizedWaiters = useRef<((signedIn: boolean) => void)[]>([]);
 
   useEffect(() => {
+    let active = true;
     getCurrentUser()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setReady(true));
+      .then((currentUser) => {
+        if (active) setUser(currentUser);
+      })
+      .catch(() => {
+        if (active) setUser(null);
+      })
+      .finally(() => {
+        if (active) setReady(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(
       () =>
         new Promise<boolean>((resolve) => {
-          waiting.current.push(resolve);
+          unauthorizedWaiters.current.push(resolve);
           setPrompting(true);
         }),
     );
-    return () => setUnauthorizedHandler(null);
+    return () => {
+      setUnauthorizedHandler(null);
+      for (const resolve of unauthorizedWaiters.current) resolve(false);
+      unauthorizedWaiters.current = [];
+    };
   }, []);
 
-  const settle = useCallback((signedIn: boolean) => {
+  const settleWaiters = useCallback((signedIn: boolean) => {
     setPrompting(false);
-    const pending = waiting.current;
-    waiting.current = [];
+    const pending = unauthorizedWaiters.current;
+    unauthorizedWaiters.current = [];
     for (const resolve of pending) resolve(signedIn);
   }, []);
 
@@ -87,10 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
       <SignInDialog
         open={prompting}
-        onDismiss={() => settle(false)}
+        onDismiss={() => settleWaiters(false)}
         onSignedIn={(signedIn) => {
           setUser(signedIn);
-          settle(true);
+          settleWaiters(true);
         }}
       />
     </SessionContext.Provider>

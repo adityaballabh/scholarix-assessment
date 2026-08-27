@@ -44,9 +44,6 @@
 }
 
 .rowError {
-  position: absolute;
-  top: 100%;
-  left: 0;
   margin: 5px 0 0;
   color: var(--alert);
   font: var(--text-micro);
@@ -128,7 +125,6 @@
 }
 
 .input:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -168,7 +164,6 @@
 }
 
 .actions button:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -278,4 +273,14 @@
   .scoreNote {
     margin-left: 0;
   }
+}
+
+.pageState button {
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }

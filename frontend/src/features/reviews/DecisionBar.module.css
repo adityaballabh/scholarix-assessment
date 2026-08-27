@@ -11,7 +11,6 @@
   margin-left: auto;
 }
 
-/* An anchor wearing the button style: it is a download, so it stays a real link. */
 .actionLink {
   display: inline-flex;
   align-items: center;
@@ -38,7 +37,6 @@
 }
 
 .action:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -120,7 +118,6 @@
 }
 
 .noteField:focus-visible {
-  outline: none;
   border-color: var(--ink-faint);
 }
 

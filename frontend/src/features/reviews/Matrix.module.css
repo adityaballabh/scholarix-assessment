@@ -36,8 +36,7 @@
 }
 
 .sourceTitle {
-  /* Matches .refreshSource so a column without a fetch button keeps the same title height
-     and its provenance lines stay on the others' baselines. */
+  /* Reserve the fetch button's height to align provenance */
   min-height: 20px;
   display: flex;
   align-items: center;
@@ -161,13 +160,12 @@
   white-space: nowrap;
 }
 
-/* Positioned so the visually-hidden cells resolve here and stay inside the
-   clip; against `main` they escape and widen the page */
+/* Contain hidden cells to prevent horizontal page overflow */
 .scroll {
   position: relative;
 }
 
-/* overflow-x forces overflow-y to auto and that clips the cell hints */
+/* Horizontal scrolling also clips vertical overflow, including hints */
 @media (max-width: 900px) {
   .scroll {
     overflow-x: auto;

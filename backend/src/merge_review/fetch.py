@@ -217,7 +217,7 @@ def run_fetch(fetch_id: UUID, snapshot_id: UUID) -> None:
                 sync_openalex_and_orcid(
                     session, http_session, snapshot_id, scope, settings.mailto, reporter
                 )
-                # Raises here if the worker failed, so the whole fetch rolls back.
+                # Propagate worker failures before the transaction commits
                 results = semantic_scholar_future.result()
 
             store_semantic_scholar(session, snapshot_id, results, reporter)

@@ -13,3 +13,14 @@
   color: var(--ink-muted);
   font: var(--text-interface);
 }
+
+.panel button {
+  margin-top: 12px;
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

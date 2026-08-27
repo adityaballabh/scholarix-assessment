@@ -3,24 +3,24 @@ import { FETCH_SOURCE_ORDER, sourceLabel } from "../../lib/sources";
 import styles from "./FetchPage.module.css";
 
 export default function FetchPage({
-  fetch,
+  fetchRun,
   busy,
   actionError,
   onRetry,
   onAbandon,
 }: {
-  fetch: FetchRun;
+  fetchRun: FetchRun;
   busy: boolean;
   actionError: string | null;
   onRetry: () => void;
   onAbandon: () => void;
 }) {
-  const progress = Object.entries(fetch.source_progress).sort(
+  const progress = Object.entries(fetchRun.source_progress).sort(
     ([left], [right]) =>
       FETCH_SOURCE_ORDER.indexOf(left) - FETCH_SOURCE_ORDER.indexOf(right),
   );
-  const currentProgress = fetch.current_source
-    ? fetch.source_progress[fetch.current_source]
+  const currentProgress = fetchRun.current_source
+    ? fetchRun.source_progress[fetchRun.current_source]
     : undefined;
   const completed = currentProgress?.completed ?? 0;
   const total = currentProgress?.total ?? 0;
@@ -30,12 +30,12 @@ export default function FetchPage({
       <div className={styles.panel}>
         <p className={styles.wordmark}>Merge Review</p>
         <h1 className={styles.title}>
-          {fetch.status === "failed" ? "Fetch failed" : "Fetch in progress"}
+          {fetchRun.status === "failed" ? "Fetch failed" : "Fetch in progress"}
         </h1>
-        {fetch.status === "failed" ? (
+        {fetchRun.status === "failed" ? (
           <>
             <p className={styles.message} role="alert">
-              The fetch could not be completed.
+              Could not complete the fetch
             </p>
             <div className={styles.actions}>
               <button type="button" disabled={busy} onClick={onRetry}>
@@ -54,14 +54,14 @@ export default function FetchPage({
         ) : (
           <>
             <p className={styles.message}>
-              External evidence is being fetched for the entire dataset. This
-              usually takes around 3 minutes. Review actions are paused.
+              Fetching evidence for the full dataset. This usually takes around
+              3 minutes. Review actions are paused
             </p>
             <div className={styles.overall}>
               <span>
-                {fetch.current_source
-                  ? sourceLabel(fetch.current_source)
-                  : fetch.status}
+                {fetchRun.current_source
+                  ? sourceLabel(fetchRun.current_source)
+                  : fetchRun.status}
               </span>
               <span>
                 {completed.toLocaleString()} / {total.toLocaleString()}

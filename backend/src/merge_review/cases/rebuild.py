@@ -12,7 +12,7 @@ def rebuild_queue(session: Session, snapshot_id: UUID) -> int:
     session.scalar(
         select(DatasetSnapshot).where(DatasetSnapshot.id == snapshot_id).with_for_update()
     )
-    # Materialize every case lock before regeneration changes their order or contents
+    # Lock all cases before regeneration changes their order
     session.scalars(
         select(ValidationCase)
         .where(ValidationCase.dataset_snapshot_id == snapshot_id)

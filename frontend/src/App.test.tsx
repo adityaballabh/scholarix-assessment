@@ -67,7 +67,7 @@ it("starts the initial fetch from its confirmation", async () => {
 it.each([
   [423, "A fetch is already running"],
   [404, "No dataset to fetch"],
-  [500, "The fetch could not be started"],
+  [500, "Could not start the fetch"],
 ])("explains a %s fetch start failure", async (status, message) => {
   const user = userEvent.setup();
   vi.mocked(getFetch).mockResolvedValue(null);
@@ -140,4 +140,37 @@ it("blocks the application when the server cannot be reached", async () => {
   await waitFor(() =>
     expect(vi.mocked(getFetch).mock.calls.length).toBeGreaterThan(1),
   );
+});
+
+it("immediately reconciles a fetch already running in another tab", async () => {
+  const user = userEvent.setup();
+  vi.mocked(getFetch)
+    .mockResolvedValueOnce(null)
+    .mockResolvedValue(buildFetchRun({ status: "running" }));
+  vi.mocked(startFetch).mockRejectedValue(new ApiError(423, "Fetch running"));
+  renderApp();
+  await screen.findByRole("heading", { name: "Initial fetch pending" });
+  await user.click(screen.getByRole("button", { name: "fetch data" }));
+  await user.click(
+    within(screen.getByRole("dialog", { name: "Fetch data" })).getByRole(
+      "button",
+      { name: "fetch data" },
+    ),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Fetch in progress" }),
+  ).toBeInTheDocument();
+  expect(getFetch).toHaveBeenCalledTimes(2);
+});
+
+it("retains the fetch icon and header separator", async () => {
+  vi.mocked(getFetch).mockResolvedValue(buildFetchRun());
+  renderApp();
+  const fetchButton = await screen.findByRole("button", { name: "fetch data" });
+  expect(fetchButton.querySelector("svg")).toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
+  expect(fetchButton.nextElementSibling).toHaveAttribute("aria-hidden", "true");
+  expect(fetchButton.nextElementSibling).toHaveClass(/headerDivider/);
 });

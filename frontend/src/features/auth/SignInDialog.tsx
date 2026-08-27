@@ -33,9 +33,7 @@ export function SignInDialog({
       }}
     >
       <div className={styles.body}>
-        <p className={styles.message}>
-          Writes are restricted to signed-in reviewers
-        </p>
+        <p className={styles.message}>Sign in to make changes</p>
         {open ? (
           <SignInForm
             autoFocus
@@ -43,7 +41,6 @@ export function SignInDialog({
             onSignedIn={onSignedIn}
           />
         ) : null}
-        {/* Last in the DOM so showModal focuses the form, not the dismiss. */}
         <button
           type="button"
           className={styles.close}

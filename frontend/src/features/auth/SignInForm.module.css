@@ -30,11 +30,7 @@
   font: var(--text-interface);
 }
 
-/*
- * Chrome paints autofilled fields yellow and ignores background-color, so the
- * canvas is painted back in with an inset shadow. Not a shadow in the design
- * sense; it is the only property that wins here.
- */
+/* Use an inset shadow to cover the browser's autofill background */
 .input:-webkit-autofill,
 .input:-webkit-autofill:hover,
 .input:-webkit-autofill:focus,
@@ -50,7 +46,6 @@
 }
 
 .input:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -106,7 +101,6 @@
 
 .switch:focus-visible,
 .submit:focus-visible {
-  outline: none;
   border-color: var(--accent);
   color: var(--accent);
 }

@@ -60,7 +60,7 @@ def fetch_semantic_scholar_records(
     dois: list[str],
     progress: ProgressCallback | None = None,
 ) -> list[SourceResult]:
-    # Fetch on the worker thread; persist later on the caller's transaction-bound session
+    # The caller saves these results in its database transaction
     results: list[SourceResult] = []
     counts: Counter[str] = Counter()
     total = len(dois)

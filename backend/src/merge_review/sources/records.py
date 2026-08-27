@@ -33,7 +33,7 @@ def store_source_result(
         session.add(record)
         records[key] = record
 
-    # A forced refresh failure must not erase successful evidence already in hand
+    # A transient error gives no new information about the stored record
     if (
         preserve_success
         and record.fetch_status == FetchStatus.SUCCESS

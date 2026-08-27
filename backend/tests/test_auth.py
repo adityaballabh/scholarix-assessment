@@ -230,8 +230,7 @@ def test_every_write_route_requires_a_signed_in_reviewer() -> None:
 
     responses = {}
     for path, operations in client.app.openapi()["paths"].items():
-        # Auth routes are public by definition; fetch routes carry their own guard and are
-        # covered by test_the_first_fetch_is_open_and_later_fetches_are_not.
+        # Auth and fetch permissions are covered in their own tests
         if path.startswith("/api/auth") or path.startswith("/api/fetches"):
             continue
         url = path
@@ -251,8 +250,7 @@ def test_every_write_route_requires_a_signed_in_reviewer() -> None:
 def test_starting_a_fetch_is_gated_once_one_has_completed_but_abandoning_never_is() -> None:
     client, factory = build_auth_client()
 
-    # 404 rather than 401: the guard let the request through and the route itself found
-    # no dataset and no fetch to act on, which is what an empty database should say.
+    # Cold-start requests pass authentication before the route checks for data
     cold_start = client.post("/api/fetches")
     cold_abandon = client.post(f"/api/fetches/{uuid4()}/abandon")
 
@@ -292,16 +290,12 @@ def test_a_write_carrying_a_foreign_origin_is_rejected() -> None:
     same_origin = client.post("/api/queue/rebuild", headers={"Origin": allowed})
     no_origin = client.post("/api/queue/rebuild")
     hostile_read = client.get("/api/overview", headers={"Origin": "https://evil.example"})
-    # "null" is what a sandboxed iframe, a redirected post, or a file:// page sends. It is a
-    # present header whose value happens to spell null, so it must not be read as absent —
-    # only a genuinely missing Origin may pass, which is what keeps curl and CLI clients
-    # working. Guard against a later rewrite to a falsy check.
+    # Opaque origins send the literal string "null"
+    # Missing Origin headers remain valid for CLI clients
     opaque = client.post("/api/queue/rebuild", headers={"Origin": "null"})
     empty = client.post("/api/queue/rebuild", headers={"Origin": ""})
 
-    # Production cookies are SameSite=None, so the browser attaches them cross-site and CORS
-    # only hides the response. These routes take no body, so a plain form POST would reach
-    # them as the signed-in reviewer.
+    # Bodyless POST routes still need Origin checks to prevent cross-site writes
     assert hostile.status_code == 403
     assert hostile_fetch.status_code == 403
     assert hostile_logout.status_code == 403

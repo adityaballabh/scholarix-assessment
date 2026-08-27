@@ -37,7 +37,6 @@
 }
 
 .resetFilters:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -62,11 +61,11 @@
 }
 
 .search:focus-visible {
-  outline: none;
   border-color: var(--accent);
 }
 
 .table {
+  position: relative;
   min-width: 1080px;
 }
 
@@ -153,7 +152,6 @@
   background: transparent;
   border: 0;
   font: var(--text-cell);
-  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
@@ -186,6 +184,10 @@
   white-space: nowrap;
 }
 
+.compactLabel {
+  display: none;
+}
+
 @media (max-width: 720px) {
   .filters {
     align-items: stretch;
@@ -203,45 +205,6 @@
 }
 
 @media (max-width: 900px) {
-  .searchLabel {
-    display: inline-flex;
-  }
-
-  .resetFilters {
-    height: 28px;
-    padding: 0 9px;
-    color: var(--ink-secondary);
-    background: transparent;
-    border: var(--hairline) solid var(--rule-strong);
-    border-radius: 0;
-    font: var(--text-micro);
-    cursor: pointer;
-  }
-
-  .resetFilters:hover {
-    color: var(--ink);
-    border-color: var(--ink-faint);
-  }
-
-  .resetFilters:focus-visible {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .search::placeholder {
-    color: var(--ink-faint);
-    opacity: 1;
-  }
-
-  .search:hover {
-    border-color: var(--ink-faint);
-  }
-
-  .search:focus-visible {
-    outline: none;
-    border-color: var(--accent);
-  }
-
   .table {
     min-width: 0;
   }
@@ -252,12 +215,36 @@
     padding: 8px 0;
   }
 
-  .row > :nth-child(n + 4) {
+  .row:not(.head) > :nth-child(n + 4) {
     grid-column: 2 / -1;
   }
 
   .head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .head:focus-within {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 8px 0;
+    clip-path: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .head:focus-within > :not([aria-sort]) {
     display: none;
+  }
+
+  .compactLabel {
+    display: inline;
+    color: var(--ink-faint);
+    font: var(--text-micro);
   }
 
   .note {

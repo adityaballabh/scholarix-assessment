@@ -10,8 +10,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Fail loudly instead of drifting to 5174 when the port is busy: the backend's
-    // frontend_origin and .claude/launch.json both pin 5173.
+    // The backend's frontend_origin and launch config are fixed to port 5173
     strictPort: true,
     proxy: {
       "/api": "http://localhost:8000",

@@ -58,7 +58,7 @@ def read_json(archive: ZipFile, member: str) -> object:
 
 
 def member_name(entry: ZipInfo) -> str:
-    # The archive's unflagged UTF-8 filenames are decoded as CP437 by zipfile.
+    # The archive omits the UTF-8 flag, so zipfile reads these names as CP437
     if entry.flag_bits & 0x800:
         return entry.filename
     try:

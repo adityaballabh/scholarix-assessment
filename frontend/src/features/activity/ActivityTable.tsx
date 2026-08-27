@@ -6,9 +6,8 @@ import SortHeader from "../../components/SortHeader";
 import type { SortDirection } from "../../components/SortHeader";
 import { formatEventTime } from "../../lib/datetime";
 import { statusText } from "../../lib/decisions";
+import type { ActivitySort } from "./filters";
 import styles from "./ActivityPage.module.css";
-
-export type ActivitySort = "time" | "author" | "reviewer";
 
 export default function ActivityTable({
   events,
@@ -18,7 +17,7 @@ export default function ActivityTable({
   onSort,
 }: {
   events: ActivityEvent[];
-  sort: ActivitySort | null;
+  sort: ActivitySort;
   direction: SortDirection;
   revealNotes: boolean;
   onSort: (column: ActivitySort, direction: SortDirection | null) => void;
@@ -29,7 +28,6 @@ export default function ActivityTable({
         ? "ascending"
         : "descending"
       : "none";
-
   return (
     <div role="table" aria-label="Recorded decisions" className={styles.table}>
       <div role="rowgroup">
@@ -49,7 +47,7 @@ export default function ActivityTable({
           <span role="columnheader">case</span>
           <span role="columnheader" className={styles.actionHeader}>
             action
-            <Hint text="Matching from and to values mean a note was added without changing the state" />
+            <Hint text="Matching statuses indicate a note-only entry" />
           </span>
           <span role="columnheader" aria-sort={sortState("reviewer")}>
             <SortHeader
@@ -93,15 +91,29 @@ export default function ActivityTable({
               </Link>
             </span>
             <span role="cell" className={styles.transition}>
+              <span className={styles.compactLabel} aria-hidden="true">
+                action:{" "}
+              </span>
               {statusText(event.before)} → {statusText(event.after)}
             </span>
             <span role="cell" className={styles.actor}>
+              <span className={styles.compactLabel} aria-hidden="true">
+                reviewer:{" "}
+              </span>
               {event.actor}
             </span>
             <span role="cell" className={styles.time}>
+              <span className={styles.compactLabel} aria-hidden="true">
+                when:{" "}
+              </span>
               {formatEventTime(event.created_at)}
             </span>
             <span role="cell" className={styles.noteCell}>
+              {event.note && (
+                <span className={styles.compactLabel} aria-hidden="true">
+                  note:{" "}
+                </span>
+              )}
               {event.note && <Note text={event.note} revealed={revealNotes} />}
             </span>
           </div>
@@ -122,7 +134,7 @@ function Note({ text, revealed }: { text: string; revealed: boolean }) {
 
   useEffect(() => {
     const element = ref.current;
-    // Only measure while collapsed, since expanded text wraps and never reports overflow
+    // Measure collapsed text because wrapping hides its overflow
     if (!element || open) return;
 
     const measure = () => setClipped(element.scrollWidth > element.clientWidth);

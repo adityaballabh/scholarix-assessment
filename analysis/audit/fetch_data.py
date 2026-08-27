@@ -56,8 +56,7 @@ def create_session():
 
 
 def member_name(entry: ZipInfo) -> str:
-    # Names are UTF-8 but the zip omits the UTF-8 flag, so zipfile misreads
-    # them as CP437. Re-encode to recover the actual bytes
+    # The archive omits the UTF-8 flag, so zipfile reads these names as CP437
     if entry.flag_bits & 0x800:
         return entry.filename
     try:
@@ -393,7 +392,6 @@ def fetch_all():
     orcid_records = fetch_orcid_records(session, orcid_ids)
     openalex_publications_by_doi = fetch_openalex_publications_by_doi(session, mailto, dois)
     crossref_publications = fetch_crossref_publications(session, mailto, dois)
-    # DataCite fills DOI records that are missing from Crossref
     crossref_missing_dois = dois - crossref_publications.keys()
     datacite_publications = fetch_datacite_publications(session, crossref_missing_dois)
     unresolved_dois = crossref_missing_dois - datacite_publications.keys()
