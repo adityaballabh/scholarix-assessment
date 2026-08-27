@@ -11,12 +11,10 @@ from merge_review.sources.common import (
     ProgressCallback,
     SourceResult,
     batches,
-    completed_counts,
-    completed_keys,
     expand_result,
     request_json,
-    store_source_result,
 )
+from merge_review.sources.records import completed_counts, completed_keys, store_source_result
 
 BATCH_SIZE = 500
 RATE_LIMIT_ATTEMPTS = 4
@@ -52,7 +50,7 @@ def store_semantic_scholar_records(
 ) -> Counter[str]:
     counts: Counter[str] = Counter()
     for result in results:
-        record = store_source_result(session, snapshot_id, result, refetching=force)
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[record.fetch_status] += 1
     return counts
 
@@ -62,11 +60,7 @@ def fetch_semantic_scholar_records(
     dois: list[str],
     progress: ProgressCallback | None = None,
 ) -> list[SourceResult]:
-    """Network only, so this can run off the main thread while other sources sync.
-
-    Persisting is left to store_semantic_scholar_records, which keeps every write
-    on one session inside the caller's transaction.
-    """
+    # Fetch on the worker thread; persist later on the caller's transaction-bound session
     results: list[SourceResult] = []
     counts: Counter[str] = Counter()
     total = len(dois)

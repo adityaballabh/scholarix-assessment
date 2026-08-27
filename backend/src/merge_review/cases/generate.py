@@ -10,11 +10,9 @@ from sqlalchemy.orm import Session
 
 from merge_review.cases.evidence import evidence_rows
 from merge_review.cases.naming import author_key
-from merge_review.database import SessionFactory, create_schema
 from merge_review.models import (
     Author,
     CaseEvidence,
-    DatasetSnapshot,
     IdentityCandidate,
     IdentityCandidatePublication,
     PublicationRecord,
@@ -43,7 +41,7 @@ class CandidatePublication:
 
 @dataclass(frozen=True)
 class Candidate:
-    author_id: str
+    semantic_scholar_author_id: str
     publications: tuple[CandidatePublication, ...]
     share: float
     first_year: int | None
@@ -54,8 +52,8 @@ class Candidate:
 class IdentityCaseData:
     author: Author
     candidates: list[Candidate]
-    publications: list[PublicationRecord]
-    source_records: dict[str, SourceRecord]
+    affected_count: int
+    semantic_scholar_records: dict[str, SourceRecord]
 
     @property
     def fragmentation(self) -> float:
@@ -67,6 +65,13 @@ class PriorityMaximums:
     publication_impact: float
     fragmentation: float
     cluster_ambiguity: float
+
+
+@dataclass(frozen=True)
+class CandidateInputs:
+    affected_count: int
+    publications_by_doi: dict[str, PublicationRecord]
+    semantic_scholar_records: dict[str, SourceRecord]
 
 
 def case_id(snapshot_id: UUID, slug: str) -> str:
@@ -87,7 +92,7 @@ def default_review_settings(snapshot_id: UUID) -> ReviewSettings:
     )
 
 
-def review_settings(session: Session, snapshot_id: UUID) -> ReviewSettings:
+def get_or_create_review_settings(session: Session, snapshot_id: UUID) -> ReviewSettings:
     settings = session.get(ReviewSettings, snapshot_id)
     if settings is None:
         settings = default_review_settings(snapshot_id)
@@ -108,7 +113,7 @@ def score_values(
 ) -> tuple[float, dict[str, dict[str, float]], dict[str, Any]]:
     weights = weights or PRIORITY_WEIGHTS
     raw_values = {
-        "publication_impact": float(len(data.publications)),
+        "publication_impact": float(data.affected_count),
         "fragmentation": data.fragmentation,
         "cluster_ambiguity": float(len(data.candidates)),
     }
@@ -138,10 +143,7 @@ def score_values(
     return score, components, config
 
 
-def candidate_publications(
-    session: Session,
-    author: Author,
-) -> tuple[list[Candidate], list[PublicationRecord], dict[str, SourceRecord]]:
+def load_candidate_inputs(session: Session, author: Author) -> CandidateInputs:
     publications = list(
         session.scalars(
             select(PublicationRecord)
@@ -149,13 +151,18 @@ def candidate_publications(
             .order_by(PublicationRecord.position)
         )
     )
+    distinct_dois = {
+        publication.normalized_doi for publication in publications if publication.normalized_doi
+    }
+    no_doi_count = sum(publication.normalized_doi is None for publication in publications)
+    affected_count = len(distinct_dois) + no_doi_count
     publications_by_doi = {
         publication.normalized_doi: publication
         for publication in publications
         if publication.normalized_doi
     }
     if not publications_by_doi:
-        return [], publications, {}
+        return CandidateInputs(affected_count, {}, {})
 
     source_records = list(
         session.scalars(
@@ -168,15 +175,19 @@ def candidate_publications(
             )
         )
     )
-    source_records_by_doi = {record.entity_key: record for record in source_records}
-    matched: dict[str, dict[str, CandidatePublication]] = defaultdict(dict)
-    expected_key = author_key(author.name)
+    semantic_scholar_records = {record.entity_key: record for record in source_records}
+    return CandidateInputs(affected_count, publications_by_doi, semantic_scholar_records)
 
-    for doi, source_record in source_records_by_doi.items():
+
+def build_candidates(author_name: str, inputs: CandidateInputs) -> list[Candidate]:
+    matched: dict[str, dict[str, CandidatePublication]] = defaultdict(dict)
+    expected_key = author_key(author_name)
+
+    for doi, source_record in inputs.semantic_scholar_records.items():
         payload = source_record.payload
         if not isinstance(payload, dict):
             continue
-        stored_publication = publications_by_doi[doi]
+        stored_publication = inputs.publications_by_doi[doi]
         title = payload.get("title") or stored_publication.title
         year = payload.get("year")
         if not isinstance(year, int):
@@ -210,15 +221,20 @@ def candidate_publications(
         years = [row.year for row in candidate_rows if row.year is not None]
         candidates.append(
             Candidate(
-                author_id=external_author_id,
+                semantic_scholar_author_id=external_author_id,
                 publications=candidate_rows,
                 share=round(100 * len(candidate_rows) / total_matches, 1),
                 first_year=min(years) if years else None,
                 last_year=max(years) if years else None,
             )
         )
-    candidates.sort(key=lambda candidate: (-len(candidate.publications), candidate.author_id))
-    return candidates, publications, source_records_by_doi
+    candidates.sort(
+        key=lambda candidate: (
+            -len(candidate.publications),
+            candidate.semantic_scholar_author_id,
+        )
+    )
+    return candidates
 
 
 def clear_case_details(session: Session, case_id_value: str) -> None:
@@ -242,7 +258,7 @@ def case_signature(
     content = {
         "candidates": [
             {
-                "author_id": candidate.author_id,
+                "author_id": candidate.semantic_scholar_author_id,
                 "share": candidate.share,
                 "first_year": candidate.first_year,
                 "last_year": candidate.last_year,
@@ -258,6 +274,7 @@ def case_signature(
             }
             for candidate in data.candidates
         ],
+        # Fetch time alone does not change the evidence a reviewer saw
         "evidence": [
             {key: value for key, value in row.items() if key != "fetched_at"} for row in evidence
         ],
@@ -277,8 +294,8 @@ def generate_identity_case(
 ) -> ValidationCase:
     author = data.author
     candidates = data.candidates
-    publications = data.publications
-    s2_records = data.source_records
+    affected_count = data.affected_count
+    semantic_scholar_records = data.semantic_scholar_records
     case_id_value = case_id(author.dataset_snapshot_id, author.slug)
     review_case = session.get(ValidationCase, case_id_value)
     score, components, config = score_values(
@@ -287,7 +304,7 @@ def generate_identity_case(
         settings.priority_weights,
         settings.max_top_candidate_share,
     )
-    evidence = evidence_rows(session, author, candidates, s2_records)
+    evidence = evidence_rows(session, author, candidates, semantic_scholar_records)
     signature = case_signature(data, evidence, score, components, config)
     if review_case is None:
         review_case = ValidationCase(
@@ -300,7 +317,7 @@ def generate_identity_case(
             priority_components=components,
             priority_config=config,
             evidence_sha256=signature,
-            affected_count=len(publications),
+            affected_count=affected_count,
         )
         session.add(review_case)
     else:
@@ -312,7 +329,7 @@ def generate_identity_case(
         review_case.priority_components = components
         review_case.priority_config = config
         review_case.evidence_sha256 = signature
-        review_case.affected_count = len(publications)
+        review_case.affected_count = affected_count
     session.flush()
 
     for position, row in enumerate(evidence):
@@ -325,7 +342,7 @@ def generate_identity_case(
                 id=candidate_id,
                 case_id=case_id_value,
                 position=position,
-                semantic_scholar_author_id=candidate.author_id,
+                semantic_scholar_author_id=candidate.semantic_scholar_author_id,
                 matched_publication_count=len(candidate.publications),
                 share=candidate.share,
                 first_year=candidate.first_year,
@@ -348,15 +365,23 @@ def generate_identity_case(
 
 
 def generate_identity_cases(session: Session, snapshot_id: UUID) -> int:
-    settings = review_settings(session, snapshot_id)
+    settings = get_or_create_review_settings(session, snapshot_id)
     authors = session.scalars(
         select(Author).where(Author.dataset_snapshot_id == snapshot_id).order_by(Author.name)
     )
     case_data = []
     for author in authors:
-        candidates, publications, source_records = candidate_publications(session, author)
+        inputs = load_candidate_inputs(session, author)
+        candidates = build_candidates(author.name, inputs)
         if candidates and candidates[0].share <= settings.max_top_candidate_share:
-            case_data.append(IdentityCaseData(author, candidates, publications, source_records))
+            case_data.append(
+                IdentityCaseData(
+                    author,
+                    candidates,
+                    inputs.affected_count,
+                    inputs.semantic_scholar_records,
+                )
+            )
             continue
         review_case = session.get(
             ValidationCase,
@@ -367,28 +392,10 @@ def generate_identity_cases(session: Session, snapshot_id: UUID) -> int:
             review_case.version += 1
 
     maximums = PriorityMaximums(
-        publication_impact=max((len(data.publications) for data in case_data), default=0),
+        publication_impact=max((data.affected_count for data in case_data), default=0),
         fragmentation=max((data.fragmentation for data in case_data), default=0.0),
         cluster_ambiguity=max((len(data.candidates) for data in case_data), default=0),
     )
     for data in case_data:
         generate_identity_case(session, data, maximums, settings)
     return len(case_data)
-
-
-def main() -> None:
-    create_schema()
-    with SessionFactory.begin() as session:
-        snapshot = session.scalar(
-            select(DatasetSnapshot).order_by(DatasetSnapshot.imported_at.desc()).limit(1)
-        )
-        if snapshot is None:
-            raise RuntimeError("Import a dataset before generating cases")
-        case_count = generate_identity_cases(session, snapshot.id)
-
-    print(f"Identity cases for snapshot {snapshot.id}")
-    print(f"Cases: {case_count}")
-
-
-if __name__ == "__main__":
-    main()

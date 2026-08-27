@@ -9,6 +9,7 @@ from zipfile import ZipFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from merge_review.config import PROJECT_DIR
 from merge_review.database import SessionFactory, create_schema
 from merge_review.models import (
     Author,
@@ -17,7 +18,6 @@ from merge_review.models import (
     PublicationRecord,
 )
 
-PROJECT_DIR = Path(__file__).resolve().parents[3]
 AUTHORS_ARCHIVE = PROJECT_DIR / "dataset" / "authors.zip"
 DATA_FILES = {"profile.json", "publications.json", "broad_impact.json"}
 REQUIRED_FILES = {"profile.json", "publications.json"}
@@ -28,6 +28,10 @@ JsonObject = dict[str, Any]
 @dataclass(frozen=True)
 class AuthorInput:
     slug: str
+    source_id: str
+    name: str
+    affiliation: str | None
+    orcid_id: str | None
     profile: JsonObject
     publications: list[JsonObject]
     broad_impact: list[JsonObject]
@@ -53,77 +57,97 @@ def read_json(archive: ZipFile, member: str) -> object:
     return json.loads(archive.read(member))
 
 
+def dataset_members(archive: ZipFile) -> dict[str, dict[str, str]]:
+    members: dict[str, dict[str, str]] = {}
+    for entry in archive.infolist():
+        parts = PurePosixPath(entry.filename).parts
+        if entry.is_dir() or len(parts) != 3 or parts[0] != "authors":
+            continue
+        slug, filename = parts[1], parts[2]
+        if filename not in DATA_FILES:
+            continue
+        author_files = members.setdefault(slug, {})
+        if filename in author_files:
+            raise ValueError(f"Duplicate {filename} for {slug}")
+        author_files[filename] = entry.filename
+    return members
+
+
+def required_text(value: object, error: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(error)
+    return value.strip()
+
+
+def optional_text(value: object, error: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(error)
+    return value.strip() or None
+
+
+def read_author_input(archive: ZipFile, slug: str, files: dict[str, str]) -> AuthorInput:
+    missing = REQUIRED_FILES - files.keys()
+    if missing:
+        raise ValueError(f"{slug} is missing {', '.join(sorted(missing))}")
+
+    profile = read_json(archive, files["profile.json"])
+    publications = read_json(archive, files["publications.json"])
+    broad_impact = (
+        read_json(archive, files["broad_impact.json"]) if "broad_impact.json" in files else []
+    )
+    if not isinstance(profile, dict):
+        raise ValueError(f"{slug}/profile.json must contain an object")
+    if not isinstance(publications, list) or not all(isinstance(row, dict) for row in publications):
+        raise ValueError(f"{slug}/publications.json must contain a list of objects")
+    if not isinstance(broad_impact, list) or not all(isinstance(row, dict) for row in broad_impact):
+        raise ValueError(f"{slug}/broad_impact.json must contain a list of objects")
+
+    source_id = required_text(profile.get("id"), f"{slug}/profile.json has no author ID")
+    name = required_text(profile.get("name"), f"{slug}/profile.json has no author name")
+    for publication in publications:
+        required_text(
+            publication.get("title"),
+            f"{slug}/publications.json contains a publication without a title",
+        )
+    affiliation = optional_text(
+        profile.get("affiliation"),
+        f"{slug}/profile.json has an invalid affiliation",
+    )
+    orcid = profile.get("orcid")
+    if orcid is not None and not isinstance(orcid, dict):
+        raise ValueError(f"{slug}/profile.json has an invalid ORCID record")
+    orcid_id = optional_text(
+        orcid.get("orcid_id") if isinstance(orcid, dict) else None,
+        f"{slug}/profile.json has an invalid ORCID identifier",
+    )
+    return AuthorInput(
+        slug=slug,
+        source_id=source_id,
+        name=name,
+        affiliation=affiliation,
+        orcid_id=orcid_id,
+        profile=profile,
+        publications=publications,
+        broad_impact=broad_impact,
+    )
+
+
 def read_dataset(archive_path: Path = AUTHORS_ARCHIVE) -> list[AuthorInput]:
     with ZipFile(archive_path) as archive:
-        members: dict[str, dict[str, str]] = {}
+        authors = [
+            read_author_input(archive, slug, files)
+            for slug, files in sorted(dataset_members(archive).items())
+        ]
+    if not authors:
+        raise ValueError("Archive contains no author records")
 
-        for entry in archive.infolist():
-            parts = PurePosixPath(entry.filename).parts
-            if entry.is_dir() or len(parts) != 3 or parts[0] != "authors":
-                continue
-
-            slug, filename = parts[1], parts[2]
-            if filename not in DATA_FILES:
-                continue
-
-            author_files = members.setdefault(slug, {})
-            if filename in author_files:
-                raise ValueError(f"Duplicate {filename} for {slug}")
-            author_files[filename] = entry.filename
-
-        authors = []
-        source_ids = set()
-
-        for slug, files in sorted(members.items()):
-            missing = REQUIRED_FILES - files.keys()
-            if missing:
-                raise ValueError(f"{slug} is missing {', '.join(sorted(missing))}")
-
-            profile = read_json(archive, files["profile.json"])
-            publications = read_json(archive, files["publications.json"])
-            broad_impact = (
-                read_json(archive, files["broad_impact.json"])
-                if "broad_impact.json" in files
-                else []
-            )
-
-            if not isinstance(profile, dict):
-                raise ValueError(f"{slug}/profile.json must contain an object")
-            if not isinstance(publications, list) or not all(
-                isinstance(row, dict) for row in publications
-            ):
-                raise ValueError(f"{slug}/publications.json must contain a list of objects")
-            if not isinstance(broad_impact, list) or not all(
-                isinstance(row, dict) for row in broad_impact
-            ):
-                raise ValueError(f"{slug}/broad_impact.json must contain a list of objects")
-
-            source_id = profile.get("id")
-            name = profile.get("name")
-            if not isinstance(source_id, str) or not source_id:
-                raise ValueError(f"{slug}/profile.json has no author ID")
-            if not isinstance(name, str) or not name:
-                raise ValueError(f"{slug}/profile.json has no author name")
-            if source_id in source_ids:
-                raise ValueError(f"Duplicate author ID: {source_id}")
-            if any(
-                not isinstance(row.get("title"), str) or not row["title"] for row in publications
-            ):
-                raise ValueError(f"{slug}/publications.json contains a publication without a title")
-
-            source_ids.add(source_id)
-            authors.append(
-                AuthorInput(
-                    slug=slug,
-                    profile=profile,
-                    publications=publications,
-                    broad_impact=broad_impact,
-                )
-            )
-
-        if not authors:
-            raise ValueError("Archive contains no author records")
-
+    source_ids = set()
+    for author in authors:
+        if author.source_id in source_ids:
+            raise ValueError(f"Duplicate author ID: {author.source_id}")
+        source_ids.add(author.source_id)
     return authors
 
 
@@ -175,17 +199,15 @@ def import_dataset(session: Session, archive_path: Path = AUTHORS_ARCHIVE) -> Im
     for author_input in authors:
         profile = author_input.profile
         author_id = uuid4()
-        orcid = profile.get("orcid")
-        orcid_id = orcid.get("orcid_id") if isinstance(orcid, dict) else None
         session.add(
             Author(
                 id=author_id,
                 dataset_snapshot_id=snapshot_id,
-                source_id=profile["id"],
+                source_id=author_input.source_id,
                 slug=author_input.slug,
-                name=profile["name"],
-                affiliation=profile.get("affiliation"),
-                orcid_id=orcid_id,
+                name=author_input.name,
+                affiliation=author_input.affiliation,
+                orcid_id=author_input.orcid_id,
                 profile=profile,
             )
         )
@@ -195,7 +217,7 @@ def import_dataset(session: Session, archive_path: Path = AUTHORS_ARCHIVE) -> Im
                 author_id=author_id,
                 position=position,
                 normalized_doi=normalize_doi(publication.get("doi")),
-                title=publication["title"],
+                title=publication["title"].strip(),
                 journal=publication.get("journal"),
                 year=publication.get("year"),
                 citations=publication.get("citations"),

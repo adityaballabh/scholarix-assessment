@@ -1,7 +1,7 @@
 from unittest.mock import patch
 from uuid import uuid4
 
-from conftest import DUMMY_FETCHED_AT, build_client
+from support import DUMMY_FETCHED_AT, build_client
 
 
 def test_fetch_run_blocks_application_requests() -> None:

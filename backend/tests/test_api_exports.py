@@ -1,6 +1,8 @@
 import json
+from datetime import UTC, datetime, timedelta
 
-from conftest import build_client
+from merge_review.models import DatasetSnapshot
+from support import build_client
 
 
 def test_case_export_carries_the_whole_case_and_a_download_filename() -> None:
@@ -19,8 +21,6 @@ def test_case_export_carries_the_whole_case_and_a_download_filename() -> None:
     assert document["dataset_snapshot"]["dataset_sha256"]
     assert document["queue_settings"]["version"] >= 1
     assert document["exported_at"]
-    # The whole case, not a bare evidence array: without the target and the score the
-    # evidence has no author attached to it and no reason for being flagged.
     assert exported_case["id"] == "case-one"
     assert exported_case["target"]["author_name"]
     assert exported_case["priority_score"] == 76.7
@@ -64,7 +64,7 @@ def export_query_count(extra_cases: int) -> tuple[int, int]:
     client = build_client(query_log, extra_cases=extra_cases)
     query_log.clear()
 
-    response = client.get("/api/export", params={"limit": 100})
+    response = client.get("/api/export")
 
     assert response.status_code == 200
     return response.json()["case_count"], len(query_log)
@@ -93,14 +93,11 @@ def test_export_is_readable_json_for_a_signed_out_reviewer() -> None:
 
     assert response.status_code == 200
     assert json.loads(response.content)["cases"]
-    # The file exists to be read, so it is indented rather than minified onto one line.
     assert response.text.startswith('{\n  "exported_at"')
     assert response.text.count("\n") > 50
 
 
 def test_queue_export_is_not_capped_by_the_list_page_size() -> None:
-    # The queue list stops at 50 by default because it is a screen. A file that stopped
-    # there too would under-report the review state with nothing to say it had.
     client = build_client(extra_cases=60)
 
     listed = client.get("/api/cases", params={"limit": 200})
@@ -124,7 +121,6 @@ def test_export_carries_the_decision_trail_for_each_case() -> None:
     by_id = {case["id"]: case for case in document["cases"]}
 
     assert decided.status_code == 200
-    # A bare status says a case was resolved without saying by whom, when, or why.
     assert by_id["case-one"]["status"] == "one_author"
     assert [event["action_type"] for event in by_id["case-one"]["history"]] == [
         "confirm_one_author"
@@ -143,3 +139,30 @@ def test_export_history_is_one_query_regardless_of_case_count() -> None:
     large = export_query_count(20)
 
     assert small[1] == large[1]
+
+
+def test_old_case_routes_are_unavailable_after_a_new_snapshot() -> None:
+    client = build_client()
+    with client.app.state.session_factory.begin() as session:
+        current_snapshot = DatasetSnapshot(
+            dataset_sha256="b" * 64,
+            imported_at=datetime.now(UTC) + timedelta(days=1),
+        )
+        session.add(current_snapshot)
+        session.flush()
+        current_snapshot_id = str(current_snapshot.id)
+
+    detail = client.get("/api/cases/case-one")
+    exported = client.get("/api/cases/case-one/export")
+    decision = client.post(
+        "/api/cases/case-one/decisions",
+        json={"action": "defer", "expected_version": 1},
+    )
+    current_export = client.get("/api/export")
+
+    assert detail.status_code == 404
+    assert exported.status_code == 404
+    assert decision.status_code == 404
+    assert current_export.status_code == 200
+    assert current_export.json()["dataset_snapshot"]["id"] == current_snapshot_id
+    assert current_export.json()["case_count"] == 0

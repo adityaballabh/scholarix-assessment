@@ -45,8 +45,7 @@ def create_session_token(
 def set_session_cookie(response: Response, user_id: UUID) -> None:
     settings = get_settings()
     max_age = settings.auth_token_hours * 60 * 60
-    # A deployed frontend is a different site, so the cookie needs SameSite=None,
-    # which browsers only accept alongside Secure.
+    # Cross-site SameSite=None cookies require Secure
     cross_site = settings.environment == "production"
     response.set_cookie(
         key=COOKIE_NAME,
@@ -85,7 +84,6 @@ def authenticate_writes(
     token: str | None = Depends(session_cookie),
     session: Session = Depends(get_session),
 ) -> User | None:
-    """Reading the queue is open; anything that changes state needs a signed-in reviewer."""
     if request.method in READ_METHODS:
         return None
     reject_foreign_origin(request)

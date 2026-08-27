@@ -72,7 +72,7 @@ def refresh_author(
     "/refresh/authors/{author_slug}/sources/{source}",
     response_model=RefreshResponse,
 )
-def refresh_author_source_type(
+def refresh_author_source_evidence(
     author_slug: str,
     source: RefreshSource,
     session: Session = Depends(get_session),
@@ -127,7 +127,7 @@ def refresh_doi(doi: str, session: Session = Depends(get_session)) -> RefreshRes
 
 
 @router.post("/refresh/sources/{source}", response_model=RefreshResponse)
-def refresh_source_type(
+def refresh_source_evidence(
     source: RefreshSource,
     session: Session = Depends(get_session),
 ) -> RefreshResponse:

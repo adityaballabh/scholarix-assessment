@@ -1,3 +1,4 @@
+import logging
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +16,7 @@ from merge_review.database import SessionFactory
 from merge_review.models import Author, FetchRun
 from merge_review.sources.common import (
     FetchStatus,
+    SourceResult,
     http_session_context,
 )
 from merge_review.sources.openalex import (
@@ -29,10 +31,11 @@ from merge_review.sources.semantic_scholar import (
 )
 from merge_review.sources.sync import snapshot_dois
 
+logger = logging.getLogger(__name__)
+
 
 class FetchProgressReporter:
-    """Safe to call from more than one thread: writes take the row lock, and the
-    throttle is per source so a busy stage cannot suppress a quiet one."""
+    # Progress writes lock the fetch row and throttle independently per source
 
     def __init__(self, fetch_id: UUID) -> None:
         self.fetch_id = fetch_id
@@ -163,7 +166,7 @@ def sync_openalex_and_orcid(
 def store_semantic_scholar(
     session: Session,
     snapshot_id: UUID,
-    results: list,
+    results: list[SourceResult],
     reporter: FetchProgressReporter,
 ) -> None:
     stored = store_semantic_scholar_records(session, snapshot_id, results, force=True)
@@ -204,21 +207,22 @@ def run_fetch(fetch_id: UUID, snapshot_id: UUID) -> None:
         with SessionFactory.begin() as session, http_context as http_session:
             scope = fetch_scope(session, snapshot_id)
 
-            def fetch_semantic_scholar() -> list:
+            def fetch_semantic_scholar() -> list[SourceResult]:
                 with http_session_context(settings.fetch_use_cache) as worker_http:
                     return fetch_semantic_scholar_records(worker_http, scope.dois, reporter)
 
             reporter.start("semantic_scholar", len(scope.dois))
             with ThreadPoolExecutor(max_workers=1) as pool:
-                semantic_scholar = pool.submit(fetch_semantic_scholar)
+                semantic_scholar_future = pool.submit(fetch_semantic_scholar)
                 sync_openalex_and_orcid(
                     session, http_session, snapshot_id, scope, settings.mailto, reporter
                 )
                 # Raises here if the worker failed, so the whole fetch rolls back.
-                results = semantic_scholar.result()
+                results = semantic_scholar_future.result()
 
             store_semantic_scholar(session, snapshot_id, results, reporter)
             rebuild_and_report(session, snapshot_id, scope.author_count, reporter)
             mark_fetch_complete(session, fetch_id)
     except Exception as error:
+        logger.exception("Fetch %s failed", fetch_id)
         update_fetch(fetch_id, "failed", error=str(error)[:500])

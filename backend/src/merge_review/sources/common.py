@@ -5,20 +5,15 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from itertools import islice
-from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 from requests import Session
 from requests.exceptions import RequestException, Timeout
 from requests_cache import CachedSession
 from requests_ratelimiter import LimiterAdapter
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session as DatabaseSession
 
-from merge_review.models import SourceRecord
+from merge_review.config import PROJECT_DIR
 
-PROJECT_DIR = Path(__file__).resolve().parents[4]
 CACHE_PATH = PROJECT_DIR / "cache" / "http_cache"
 REQUEST_TIMEOUT_SECONDS = 30
 ProgressCallback = Callable[[str, int, int, Counter[str]], None]
@@ -97,7 +92,6 @@ def create_http_session() -> CachedSession:
 
 
 def http_session_context(use_cache: bool) -> AbstractContextManager[CachedSession]:
-    """One seam for choosing a session, so callers (and tests) stub a single name."""
     return create_http_session() if use_cache else uncached_http_session()
 
 
@@ -129,7 +123,7 @@ def request_json(
             **kwargs,
         )
     except Timeout:
-        return failed_result(
+        return non_success_result(
             source,
             entity_type,
             entity_key,
@@ -138,7 +132,7 @@ def request_json(
             "Request timed out",
         )
     except RequestException as error:
-        return failed_result(
+        return non_success_result(
             source,
             entity_type,
             entity_key,
@@ -162,11 +156,11 @@ def request_json(
     }
 
     if response.status_code == 404:
-        return failed_result(**common, status=FetchStatus.NOT_FOUND, error="HTTP 404")
+        return non_success_result(**common, status=FetchStatus.NOT_FOUND, error="HTTP 404")
     if response.status_code == 429:
-        return failed_result(**common, status=FetchStatus.RATE_LIMITED, error="HTTP 429")
+        return non_success_result(**common, status=FetchStatus.RATE_LIMITED, error="HTTP 429")
     if not response.ok:
-        return failed_result(
+        return non_success_result(
             **common,
             status=FetchStatus.ERROR,
             error=f"HTTP {response.status_code}",
@@ -175,14 +169,14 @@ def request_json(
     try:
         payload = response.json()
     except ValueError:
-        return failed_result(
+        return non_success_result(
             **common,
             status=FetchStatus.ERROR,
             error="Response was not valid JSON",
         )
 
     if payload is None or payload == {} or payload == []:
-        return failed_result(
+        return non_success_result(
             **common,
             status=FetchStatus.EMPTY,
             error="Response contained no record",
@@ -197,7 +191,7 @@ def request_json(
     )
 
 
-def failed_result(
+def non_success_result(
     source: str,
     entity_type: str,
     entity_key: str,
@@ -221,100 +215,3 @@ def failed_result(
         error=error,
         payload=None,
     )
-
-
-def store_source_result(
-    session: DatabaseSession,
-    snapshot_id: UUID,
-    result: SourceResult,
-    refetching: bool = False,
-) -> SourceRecord:
-    records = source_record_map(session, snapshot_id)
-    key = result.source, result.entity_type, result.entity_key
-    record = records.get(key)
-    if record is None:
-        record = SourceRecord(
-            dataset_snapshot_id=snapshot_id,
-            source=result.source,
-            entity_type=result.entity_type,
-            entity_key=result.entity_key,
-        )
-        session.add(record)
-        records[key] = record
-
-    # A normal sync skips keys that already completed, so this only fires on a refetch:
-    # a rate-limited retry must not replace evidence already in hand.
-    if (
-        refetching
-        and record.fetch_status == FetchStatus.SUCCESS
-        and result.fetch_status != FetchStatus.SUCCESS
-    ):
-        return record
-
-    record.source_record_id = result.source_record_id
-    record.url = result.url
-    record.fetch_status = result.fetch_status
-    record.http_status = result.http_status
-    record.fetched_at = result.fetched_at
-    record.from_cache = result.from_cache
-    record.error = result.error
-    record.payload = result.payload
-    return record
-
-
-def source_record_map(
-    session: DatabaseSession,
-    snapshot_id: UUID,
-) -> dict[tuple[str, str, str], SourceRecord]:
-    cache_key = f"source_records:{snapshot_id}"
-    records = session.info.get(cache_key)
-    if records is None:
-        records = {
-            (record.source, record.entity_type, record.entity_key): record
-            for record in session.scalars(
-                select(SourceRecord).where(SourceRecord.dataset_snapshot_id == snapshot_id)
-            )
-        }
-        session.info[cache_key] = records
-    return records
-
-
-def completed_keys(
-    session: DatabaseSession,
-    snapshot_id: UUID,
-    source: str,
-    entity_type: str,
-) -> set[str]:
-    return set(
-        session.scalars(
-            select(SourceRecord.entity_key).where(
-                SourceRecord.dataset_snapshot_id == snapshot_id,
-                SourceRecord.source == source,
-                SourceRecord.entity_type == entity_type,
-                SourceRecord.fetch_status.in_(
-                    [FetchStatus.SUCCESS, FetchStatus.NOT_FOUND, FetchStatus.EMPTY]
-                ),
-            )
-        )
-    )
-
-
-def completed_counts(
-    session: DatabaseSession,
-    snapshot_id: UUID,
-    source: str,
-    entity_type: str,
-) -> Counter[str]:
-    rows = session.execute(
-        select(SourceRecord.fetch_status, func.count())
-        .where(
-            SourceRecord.dataset_snapshot_id == snapshot_id,
-            SourceRecord.source == source,
-            SourceRecord.entity_type == entity_type,
-            SourceRecord.fetch_status.in_(
-                [FetchStatus.SUCCESS, FetchStatus.NOT_FOUND, FetchStatus.EMPTY]
-            ),
-        )
-        .group_by(SourceRecord.fetch_status)
-    )
-    return Counter({status: count for status, count in rows})

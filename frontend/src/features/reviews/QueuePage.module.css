@@ -84,14 +84,6 @@
   gap: 6px;
 }
 
-.tableFooter {
-  margin: 0;
-  padding: 10px 0 0;
-  color: var(--ink-faint);
-  font: var(--text-micro);
-  letter-spacing: 0.03em;
-}
-
 .pageState {
   margin: 0;
   padding: 16px 0;

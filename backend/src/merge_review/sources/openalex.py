@@ -7,22 +7,17 @@ from requests import Session
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DatabaseSession
 
-from merge_review.config import get_settings
-from merge_review.database import SessionFactory, create_schema
 from merge_review.import_dataset import normalize_doi
-from merge_review.models import Author, DatasetSnapshot
+from merge_review.models import Author
 from merge_review.sources.common import (
     FetchStatus,
     ProgressCallback,
     SourceResult,
     batches,
-    completed_counts,
-    completed_keys,
-    create_http_session,
     expand_result,
     request_json,
-    store_source_result,
 )
+from merge_review.sources.records import completed_counts, completed_keys, store_source_result
 
 
 def fetch_openalex_author(
@@ -76,7 +71,7 @@ def sync_openalex_authors(
             continue
 
         result = fetch_openalex_author(http_session, author_id, mailto)
-        record = store_source_result(session, snapshot_id, result, refetching=force)
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[record.fetch_status] += 1
         completed += 1
         if progress:
@@ -182,7 +177,7 @@ def sync_openalex_publication_records(
                     doi,
                     f"https://doi.org/{doi}",
                 )
-            record = store_source_result(session, snapshot_id, result, refetching=force)
+            record = store_source_result(session, snapshot_id, result, preserve_success=force)
             counts[record.fetch_status] += 1
             completed += 1
             if progress:
@@ -276,32 +271,9 @@ def sync_openalex_author_publications(
         if author_id in done:
             continue
         result = fetch_openalex_author_publications(http_session, author_id, mailto)
-        record = store_source_result(session, snapshot_id, result, refetching=force)
+        record = store_source_result(session, snapshot_id, result, preserve_success=force)
         counts[record.fetch_status] += 1
         completed += 1
         if progress:
             progress("openalex_author_publications", completed, total, counts)
     return counts
-
-
-def main() -> None:
-    create_schema()
-    settings = get_settings()
-    http_session = create_http_session()
-
-    with SessionFactory.begin() as session:
-        snapshot = session.scalar(
-            select(DatasetSnapshot).order_by(DatasetSnapshot.imported_at.desc()).limit(1)
-        )
-        if snapshot is None:
-            raise RuntimeError("Import a dataset before syncing OpenAlex")
-        counts = sync_openalex_authors(session, http_session, snapshot.id, settings.mailto)
-
-    print(f"OpenAlex author records for snapshot {snapshot.id}")
-    for status in FetchStatus:
-        if counts[status]:
-            print(f"{status}: {counts[status]}")
-
-
-if __name__ == "__main__":
-    main()

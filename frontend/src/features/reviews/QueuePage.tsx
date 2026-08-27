@@ -272,10 +272,6 @@ export default function QueuePage() {
             direction={direction}
             onSort={applySort}
           />
-          {status === "all" &&
-            cases.some((reviewCase) => reviewCase.status === "deferred") && (
-              <p className={styles.tableFooter}>deferred at the end</p>
-            )}
         </>
       )}
     </section>

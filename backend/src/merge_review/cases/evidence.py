@@ -58,22 +58,30 @@ def orcid_institutions(payload: Any) -> list[str]:
 
 def semantic_scholar_evidence(
     candidates: list[Candidate],
-    s2_records: dict[str, SourceRecord],
+    semantic_scholar_records: dict[str, SourceRecord],
 ) -> dict[str, Any]:
-    matched_s2_records = {
+    matched_record_ids = {
         publication.source_record_id
         for candidate in candidates
         for publication in candidate.publications
     }
     fetched_at = max(
-        (record.fetched_at for record in s2_records.values() if record.id in matched_s2_records),
+        (
+            record.fetched_at
+            for record in semantic_scholar_records.values()
+            if record.id in matched_record_ids
+        ),
         default=None,
     )
     return {
         "source": "semantic_scholar",
-        "source_record_ids": [str(record_id) for record_id in sorted(matched_s2_records)],
+        "source_record_ids": [str(record_id) for record_id in sorted(matched_record_ids)],
         "source_refs": [
-            {"entity_type": "author", "id": candidate.author_id} for candidate in candidates
+            {
+                "entity_type": "author",
+                "id": candidate.semantic_scholar_author_id,
+            }
+            for candidate in candidates
         ],
         "fetched_at": fetched_at,
         "fetch_status": FetchStatus.SUCCESS,
@@ -164,9 +172,9 @@ def evidence_rows(
     session: Session,
     author: Author,
     candidates: list[Candidate],
-    s2_records: dict[str, SourceRecord],
+    semantic_scholar_records: dict[str, SourceRecord],
 ) -> list[dict[str, Any]]:
-    rows = [semantic_scholar_evidence(candidates, s2_records)]
+    rows = [semantic_scholar_evidence(candidates, semantic_scholar_records)]
     rows.extend(openalex_evidence(session, author))
     rows.append(orcid_evidence(session, author))
     return rows
