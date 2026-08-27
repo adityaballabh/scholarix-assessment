@@ -97,3 +97,28 @@ it("surfaces API error details", async () => {
     message: "Case changed",
   });
 });
+
+it("surfaces FastAPI field validation details", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          detail: [
+            {
+              type: "string_too_short",
+              loc: ["body", "username"],
+              msg: "String should have at least 3 characters",
+            },
+          ],
+        },
+        422,
+      ),
+    ),
+  );
+
+  await expect(listCases()).rejects.toMatchObject({
+    status: 422,
+    message: "username: String should have at least 3 characters",
+  });
+});

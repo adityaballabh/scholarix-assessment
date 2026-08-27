@@ -14,11 +14,13 @@ import SignInPage from "./features/auth/SignInPage";
 import FetchConfirmDialog from "./features/fetch/FetchConfirmDialog";
 import FetchPage from "./features/fetch/FetchPage";
 import FetchSetupPage from "./features/fetch/FetchSetupPage";
+import UnreachablePage from "./features/fetch/UnreachablePage";
 import OverviewPage from "./features/overview/OverviewPage";
 import CasePage from "./features/reviews/CasePage";
 import ClustersPage from "./features/reviews/ClustersPage";
 import QueuePage from "./features/reviews/QueuePage";
 import ScoreSettingsPage from "./features/settings/ScoreSettingsPage";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./components/Toast";
 import { ApiError, abandonFetch, getFetch, startFetch } from "./api/client";
 import type { FetchRun } from "./api/types";
@@ -33,7 +35,9 @@ const navigationItems = [
 
 const FILTERED_SECTIONS = ["reviews", "activity"];
 const FORCE_INITIAL_FETCH = import.meta.env.VITE_FORCE_INITIAL_FETCH === "true";
-const FETCH_POLL_MS = 2000;
+const ACTIVE_POLL_MS = 3000;
+// Idle polling exists only to notice a fetch started in another tab
+const IDLE_POLL_MS = 30000;
 
 // The API's own wording stays server-side; these are the two failures a reviewer can act on.
 function startFetchError(cause: unknown): string {
@@ -57,6 +61,9 @@ export default function App() {
   const [confirmingFetch, setConfirmingFetch] = useState(false);
   const fetchActionRef = useRef(false);
   const fetchRequest = useRef(0);
+  const fetchLoaded = fetch !== undefined;
+  const fetchRunning =
+    !!fetch && ["queued", "running", "failed"].includes(fetch.status);
 
   useEffect(() => {
     const section = sectionOf(location.pathname);
@@ -76,10 +83,15 @@ export default function App() {
   useEffect(() => {
     let active = true;
     let timer: number | undefined;
+    const delay = fetchRunning || fetchError ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+
+    function schedule() {
+      timer = window.setTimeout(loadFetch, delay);
+    }
 
     function loadFetch() {
       if (fetchActionRef.current) {
-        timer = window.setTimeout(loadFetch, FETCH_POLL_MS);
+        schedule();
         return;
       }
       const request = ++fetchRequest.current;
@@ -99,16 +111,19 @@ export default function App() {
           if (active && request === fetchRequest.current) setFetchError(true);
         })
         .finally(() => {
-          if (active) timer = window.setTimeout(loadFetch, FETCH_POLL_MS);
+          if (active) schedule();
         });
     }
 
-    loadFetch();
+    // Reruns when a fetch starts, cancelling the pending idle timer
+    if (fetchLoaded) schedule();
+    else loadFetch();
+
     return () => {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, []);
+  }, [fetchRunning, fetchLoaded, fetchError]);
 
   function beginFetch() {
     if (fetchActionPending) return;
@@ -144,9 +159,7 @@ export default function App() {
   }
 
   if (fetchError) {
-    return (
-      <p className={styles.fetchState}>Fetch status could not be loaded</p>
-    );
+    return <UnreachablePage />;
   }
 
   if (fetch === undefined) {
@@ -230,8 +243,24 @@ export default function App() {
               setConfirmingFetch(true);
             }}
           >
-            fetch data
+            <svg
+              className={styles.fetchIcon}
+              width="11"
+              height="11"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.89" />
+              <path d="M13.5 2.5V5.2h-2.7" />
+            </svg>
+            <span>fetch data</span>
           </button>
+          <span className={styles.headerDivider} aria-hidden="true" />
           <span className={styles.session}>
             {!ready ? null : user ? (
               <SessionMenu user={user} onSignOut={() => void signOut()} />
@@ -244,16 +273,18 @@ export default function App() {
         </header>
 
         <main className={styles.main} ref={mainRef}>
-          <Routes>
-            <Route path="/" element={<OverviewPage />} />
-            <Route path="/reviews" element={<QueuePage />} />
-            <Route path="/reviews/settings" element={<ScoreSettingsPage />} />
-            <Route path="/reviews/:caseId" element={<CasePage />} />
-            <Route path="/reviews/:caseId/ids" element={<ClustersPage />} />
-            <Route path="/activity" element={<ActivityPage />} />
-            <Route path="/login" element={<SignInPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <ErrorBoundary resetKey={location.pathname}>
+            <Routes>
+              <Route path="/" element={<OverviewPage />} />
+              <Route path="/reviews" element={<QueuePage />} />
+              <Route path="/reviews/settings" element={<ScoreSettingsPage />} />
+              <Route path="/reviews/:caseId" element={<CasePage />} />
+              <Route path="/reviews/:caseId/ids" element={<ClustersPage />} />
+              <Route path="/activity" element={<ActivityPage />} />
+              <Route path="/login" element={<SignInPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
       </div>
       {confirmation}

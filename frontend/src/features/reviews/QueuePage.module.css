@@ -141,7 +141,7 @@
 }
 
 .reviewRow:hover {
-  background: var(--surface);
+  background: var(--row-hover);
 }
 
 .reviewLink,

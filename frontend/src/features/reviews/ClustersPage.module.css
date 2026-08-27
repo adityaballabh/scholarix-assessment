@@ -69,7 +69,7 @@
 }
 
 .clusterRow:hover {
-  background: var(--surface);
+  background: var(--row-hover);
 }
 
 .clusterRow:focus-visible {
@@ -116,7 +116,7 @@
 
 .panel {
   padding: 9px 0 11px 60px;
-  background: var(--surface);
+  background: var(--canvas);
 }
 
 .panelCount {

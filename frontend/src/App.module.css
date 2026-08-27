@@ -14,7 +14,7 @@
   align-items: center;
   gap: 28px;
   padding: 0 24px;
-  background: var(--surface);
+  background: var(--header);
   border-bottom: var(--hairline) solid var(--rule-strong);
 }
 
@@ -76,12 +76,21 @@
 
 .fetchButton {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0;
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   background: transparent;
   border: 0;
   font: var(--text-micro);
   cursor: pointer;
+  transition: color var(--duration-instant) var(--ease-out);
+}
+
+.fetchIcon {
+  flex-shrink: 0;
+  transform: translateY(-0.5px);
 }
 
 .fetchButton:hover:not(:disabled) {
@@ -91,6 +100,12 @@
 .fetchButton:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+.headerDivider {
+  width: 1px;
+  height: 14px;
+  background: var(--rule-strong);
 }
 
 .fetchState {
@@ -116,18 +131,54 @@
   flex-shrink: 0;
 }
 
+/* The nav wraps to a second row because hiding the session control would
+   strand sign-out */
 @media (max-width: 720px) {
   .header {
+    height: auto;
+    flex-wrap: wrap;
     gap: 16px;
-    padding: 0 12px;
+    padding: 4px 12px 0;
+  }
+
+  .wordmark,
+  .fetchButton {
+    white-space: nowrap;
+  }
+
+  .headerDivider {
+    display: none;
+  }
+
+  .fetchButton,
+  .sessionAction {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+  }
+
+  /* Auto margins align each mobile header row at opposite edges */
+  .wordmark {
+    order: 1;
+    margin-right: auto;
+  }
+
+  .session {
+    order: 2;
+  }
+
+  .navigation {
+    order: 3;
+    width: auto;
+  }
+
+  .fetchButton {
+    order: 4;
   }
 
   .navigationLink {
     padding: 0 14px;
-  }
-
-  .session {
-    display: none;
+    height: 32px;
   }
 
   .main {

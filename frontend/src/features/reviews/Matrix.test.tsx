@@ -15,7 +15,6 @@ const evidence: EvidenceRecord[] = [
     field: "canonical_name",
     value: "Eric R. Larson",
     value_state: "supports",
-    interpretation: "The names agree.",
   },
   {
     source: "orcid",
@@ -25,7 +24,6 @@ const evidence: EvidenceRecord[] = [
     field: "affiliation",
     value: "University of Illinois Urbana-Champaign",
     value_state: "conflict",
-    interpretation: "The current affiliations differ.",
   },
   {
     source: "orcid",
@@ -35,7 +33,6 @@ const evidence: EvidenceRecord[] = [
     field: "profile_link",
     value: null,
     value_state: "missing",
-    interpretation: "No profile link was returned.",
   },
   {
     source: "semantic_scholar",
@@ -45,7 +42,6 @@ const evidence: EvidenceRecord[] = [
     field: "publications",
     value: "64 matched publications",
     value_state: "supports",
-    interpretation: "The candidate contains matching publications.",
   },
   {
     source: "google_scholar",
@@ -55,7 +51,6 @@ const evidence: EvidenceRecord[] = [
     field: "profile_link",
     value: null,
     value_state: "unverifiable",
-    interpretation: "The request was rate limited.",
   },
 ];
 

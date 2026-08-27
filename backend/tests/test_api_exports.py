@@ -12,7 +12,7 @@ def test_case_export_carries_the_whole_case_and_a_download_filename() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-disposition"] == (
-        'attachment; filename="merge-review-evidence-dummy-author.json"'
+        'attachment; filename="evidence-dummy-author.json"'
     )
     assert document["case_count"] == 1
     assert document["filters"] is None
@@ -25,6 +25,7 @@ def test_case_export_carries_the_whole_case_and_a_download_filename() -> None:
     assert exported_case["target"]["author_name"]
     assert exported_case["priority_score"] == 76.7
     assert exported_case["evidence"]
+    assert "interpretation" not in exported_case["evidence"][0]
     assert exported_case["detail"]["candidate_ids"]
     assert client.get("/api/cases/missing/export").status_code == 404
 
@@ -41,10 +42,7 @@ def test_queue_export_selects_exactly_what_the_same_filters_list() -> None:
     assert [row["id"] for row in document["cases"]] == [row["id"] for row in listed.json()]
     assert document["case_count"] == len(listed.json())
     assert document["filters"] == {"scope": "active", "status": "pending", "query": "dum"}
-    assert (
-        'attachment; filename="merge-review-evidence-active-'
-        in (exported.headers["content-disposition"])
-    )
+    assert 'attachment; filename="evidence-active-' in (exported.headers["content-disposition"])
     assert client.get("/api/export", params={"status": "invalid"}).status_code == 422
 
 

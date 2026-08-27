@@ -80,7 +80,6 @@ class EvidenceRecord(BaseModel):
     field: str
     value: str | None
     value_state: EvidenceValueState
-    interpretation: str
 
 
 class ClusterPublication(BaseModel):

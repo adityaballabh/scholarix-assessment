@@ -29,6 +29,7 @@ function SessionState() {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.mocked(getCurrentUser).mockRejectedValue(new Error("signed out"));
   clientState.unauthorizedHandler = null;
 });
@@ -69,10 +70,10 @@ it("resumes an unauthorized write after account creation", async () => {
     result = clientState.unauthorizedHandler!();
   });
   const dialog = await screen.findByRole("dialog", { name: "Sign in" });
-  await user.type(within(dialog).getByLabelText("username"), "reviewer");
+  await user.type(within(dialog).getByLabelText("username"), "  REVIEWER  ");
   await user.type(
     within(dialog).getByLabelText("display name"),
-    "Test Reviewer",
+    "  Test Reviewer  ",
   );
   await user.type(within(dialog).getByLabelText("password"), "correct horse");
   await user.click(
@@ -86,4 +87,30 @@ it("resumes an unauthorized write after account creation", async () => {
   });
   await expect(result).resolves.toBe(true);
   expect(await screen.findByText(REVIEWER.display_name)).toBeInTheDocument();
+});
+
+it("shows registration validation before calling the API", async () => {
+  const user = userEvent.setup();
+  render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>,
+  );
+  await screen.findByText("signed out");
+
+  act(() => {
+    void clientState.unauthorizedHandler!();
+  });
+  const dialog = await screen.findByRole("dialog", { name: "Sign in" });
+  await user.type(within(dialog).getByLabelText("username"), "rj");
+  await user.type(within(dialog).getByLabelText("display name"), "rj");
+  await user.type(within(dialog).getByLabelText("password"), "correct horse");
+  await user.click(
+    within(dialog).getByRole("button", { name: "create account" }),
+  );
+
+  expect(
+    within(dialog).getByText("Username must be at least 3 characters"),
+  ).toHaveAttribute("role", "alert");
+  expect(createAccount).not.toHaveBeenCalled();
 });

@@ -55,7 +55,6 @@ export function buildReviewCase(
         field: "canonical_name",
         value: AUTHOR_NAME,
         value_state: "supports",
-        interpretation: "The canonical name matches the dataset.",
       },
     ],
     detail: {

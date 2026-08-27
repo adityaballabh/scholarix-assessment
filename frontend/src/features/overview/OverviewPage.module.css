@@ -43,6 +43,7 @@
 }
 
 .table {
+  --overview-table-width: 760px;
   display: block;
   width: 100%;
   border-collapse: collapse;
@@ -80,13 +81,16 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  /* Without this the head's background is only as wide as the viewport, so it
+     slides away when the table scrolls sideways */
+  min-width: var(--overview-table-width);
   background: var(--canvas);
 }
 
 .caseHead > tr {
   display: grid;
   grid-template-columns: 36px repeat(5, 1fr);
-  min-width: 760px;
+  min-width: var(--overview-table-width);
   gap: 14px;
   padding: 10px 0 6px;
   color: var(--ink-muted);
@@ -116,7 +120,7 @@
   min-height: 34px;
   display: grid;
   grid-template-columns: 36px repeat(5, 1fr);
-  min-width: 760px;
+  min-width: var(--overview-table-width);
   align-items: center;
   gap: 14px;
   padding: 6px 0;
@@ -137,7 +141,7 @@
 }
 
 .caseRow:hover {
-  background: var(--surface);
+  background: var(--row-hover);
 }
 
 .caseRow:last-child,
@@ -174,7 +178,7 @@
 .sourceHead > tr {
   display: grid;
   grid-template-columns: 36px repeat(5, 1fr);
-  min-width: 760px;
+  min-width: var(--overview-table-width);
   gap: 14px;
   padding: 10px 0 6px;
   color: var(--ink-muted);
@@ -186,7 +190,7 @@
   min-height: 34px;
   display: grid;
   grid-template-columns: 36px repeat(5, 1fr);
-  min-width: 760px;
+  min-width: var(--overview-table-width);
   align-items: baseline;
   gap: 14px;
   padding: 6px 0;
@@ -230,6 +234,7 @@
   color: var(--ink-secondary);
   background: var(--surface);
   border: var(--hairline) solid var(--rule-strong);
+  box-shadow: var(--shadow-pop);
   font: var(--text-micro);
   white-space: normal;
 }
@@ -272,7 +277,7 @@
 .activityHead > tr {
   display: grid;
   grid-template-columns: 36px repeat(5, 1fr);
-  min-width: 760px;
+  min-width: var(--overview-table-width);
   gap: 14px;
   padding: 10px 0 6px;
   color: var(--ink-muted);
@@ -284,7 +289,7 @@
   min-height: 34px;
   display: grid;
   grid-template-columns: 36px repeat(5, 1fr);
-  min-width: 760px;
+  min-width: var(--overview-table-width);
   align-items: center;
   gap: 14px;
   padding: 6px 0;

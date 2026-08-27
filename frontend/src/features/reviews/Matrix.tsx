@@ -5,7 +5,6 @@ import type {
   ReviewTarget,
   SourceFetchStatus,
 } from "../../api/types";
-import Hint from "../../components/Hint";
 import { formatFetchedAt } from "../../lib/datetime";
 import { sourceLabel } from "../../lib/sources";
 import { countedNoun } from "./labels";
@@ -153,7 +152,7 @@ export default function Matrix({
         style={
           {
             "--matrix-columns": `var(--matrix-rail, 36px) var(--matrix-field, 150px) repeat(${sources.length + 1}, minmax(0, 1fr))`,
-            "--matrix-min-width": `${226 + (sources.length + 1) * 130}px`,
+            "--matrix-min-width": `calc(var(--matrix-rail, 36px) + var(--matrix-field, 150px) + ${(sources.length + 1) * 130}px)`,
           } as React.CSSProperties
         }
       >
@@ -249,7 +248,6 @@ export default function Matrix({
                   field={field}
                   columnState={deadColumns.get(source) ?? null}
                   echoes={echoRows.get(source) === field}
-                  last={source === sources[sources.length - 1]}
                 />
               ))}
             </div>
@@ -266,16 +264,13 @@ function Cell({
   field,
   columnState,
   echoes,
-  last,
 }: {
   record: EvidenceRecord | undefined;
   source: string;
   field: string;
   columnState: SourceFetchStatus | null;
   echoes: boolean;
-  last: boolean;
 }) {
-  const hintAlign = last ? "end" : "start";
   if (columnState) {
     const broken = brokenFetches.includes(columnState);
 
@@ -320,9 +315,6 @@ function Cell({
       <div role="cell" className={styles.cell}>
         <span className={styles.cellLine}>
           <span className={styles.absence}>{word ?? "absent"}</span>
-          {record.interpretation && (
-            <Hint text={record.interpretation} align={hintAlign} />
-          )}
         </span>
       </div>
     );
@@ -337,9 +329,6 @@ function Cell({
     >
       <span className={styles.cellLine}>
         <span className={styles.value}>{record.value}</span>
-        {isConflict && record.interpretation && (
-          <Hint text={record.interpretation} align={hintAlign} />
-        )}
       </span>
     </div>
   );
